@@ -2,6 +2,8 @@ import { createClient } from '@supabase/supabase-js'
 import type { Metadata } from 'next'
 import ShareButtons from '@/components/ShareButtons'
 
+export const dynamic = 'force-dynamic'
+
 export const metadata: Metadata = {
   title: '선거 결과 — 뉴스저울',
   description: '6·3 지방선거 결과 vs 언론사 여론조사 비교. 어느 언론사 예측이 맞았나?',

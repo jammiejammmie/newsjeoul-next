@@ -3,6 +3,8 @@ import type { Metadata } from 'next'
 import NewsCard from '@/components/NewsCard'
 import ShareButtons from '@/components/ShareButtons'
 
+export const dynamic = 'force-dynamic'
+
 // SSR - 서버에서 데이터 불러옴 (구글 크롤링 가능!)
 async function getNews() {
   const supabase = createClient(

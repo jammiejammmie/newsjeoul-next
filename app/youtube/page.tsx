@@ -3,6 +3,8 @@ import type { Metadata } from 'next'
 import ShareButtons from '@/components/ShareButtons'
 import { YoutubeShareBtn } from '@/components/YoutubeShareBtn'
 
+export const dynamic = 'force-dynamic'
+
 export const metadata: Metadata = {
   title: '유튜브 비교 — 뉴스저울',
   description: '보수 vs 진보 유튜브 채널 최신 영상 비교',
