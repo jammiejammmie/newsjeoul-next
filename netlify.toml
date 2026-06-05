@@ -1,0 +1,32 @@
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+# 스케줄 함수들
+[functions."fetch-comparisons-kr"]
+  timeout = 30
+
+[functions."fetch-election-kr"]
+  timeout = 30
+
+[functions."update-news"]
+  schedule = "0 0 * * *"
+
+[functions."update-elections"]
+  schedule = "0 0 * * *"
+
+[functions."update-news-evening"]
+  schedule = "0 12 * * *"
+
+[functions."update-elections-evening"]
+  schedule = "0 12 * * *"
+
+[functions."update-youtube"]
+  schedule = "0 21 * * *"
+  timeout = 60
