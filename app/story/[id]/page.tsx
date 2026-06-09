@@ -39,8 +39,9 @@ async function getRelatedStories(id: string) {
   return data || []
 }
 
-export async function generateMetadata({ params }: { params: { id: string } }): Promise<Metadata> {
-  const story = await getStory(params.id)
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const { id } = await params
+  const story = await getStory(id)
   if (!story) return { title: '뉴스저울' }
   return {
     title: `${story.title} — 뉴스저울`,
@@ -53,10 +54,11 @@ export async function generateMetadata({ params }: { params: { id: string } }): 
   }
 }
 
-export default async function StoryPage({ params }: { params: { id: string } }) {
+export default async function StoryPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
   const [story, related] = await Promise.all([
-    getStory(params.id),
-    getRelatedStories(params.id),
+    getStory(id),
+    getRelatedStories(id),
   ])
 
   if (!story) notFound()
