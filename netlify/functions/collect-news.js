@@ -37,15 +37,20 @@ async function fetchGoogleNewsRSS(query) {
   for (const match of matches) {
     const item = match[1];
     const title = (item.match(/<title>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/title>/)?.[1] || '')
-      .replace(/<[^>]+>/g, '').trim();
+      .replace(/<[^>]+>/g, '').replace(/ - [^-]+$/, '').trim(); // 언론사명 제거
     const link = (item.match(/<link>(https?:\/\/[^<]+)<\/link>/)?.[1] || '').trim();
     const pubDate = (item.match(/<pubDate>([\s\S]*?)<\/pubDate>/)?.[1] || '').trim();
     const source = (item.match(/<source[^>]*>([\s\S]*?)<\/source>/)?.[1] || '').trim();
 
-    if (title && link && title.length > 5) {
+    // 구글 뉴스 RSS에서 실제 URL 추출
+    // <guid> 태그에 실제 기사 URL이 있는 경우
+    const guidMatch = item.match(/<guid[^>]*>(https?:\/\/[^<]+)<\/guid>/);
+    const realUrl = guidMatch?.[1] || link;
+
+    if (title && realUrl && title.length > 5) {
       items.push({
         title,
-        url: link,
+        url: realUrl,
         published_at: pubDate ? new Date(pubDate).toISOString() : new Date().toISOString(),
         source_name: source,
       });
