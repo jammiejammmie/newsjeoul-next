@@ -2,9 +2,13 @@
   command = "npm run build"
   publish = ".next"
 
+[build.environment]
+  NODE_VERSION = "20"
+
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 
+# 기존 함수들
 [functions."fetch-comparisons-kr"]
   timeout = 30
 
@@ -25,4 +29,13 @@
 
 [functions."update-youtube"]
   schedule = "0 21 * * *"
+  timeout = 60
+
+# 2.0 파이프라인
+[functions."collect-news"]
+  schedule = "0 */3 * * *"
+  timeout = 60
+
+[functions."process-stories"]
+  schedule = "30 */3 * * *"
   timeout = 60
