@@ -123,7 +123,7 @@ exports.handler = async function(event) {
     const outlets = await supabaseGet('outlets', '?is_active=eq.true&select=id,name');
     const totalOutlets = outlets.length;
 
-    // 최근 12시간 기사 가져오기 (아직 story에 연결 안 된 것)
+    // 최근 12시간 기사 가져오기
     const since = new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString();
     const recentArticles = await supabaseGet(
       'articles',
@@ -135,9 +135,31 @@ exports.handler = async function(event) {
       return { statusCode: 200, headers, body: JSON.stringify({ ok: true, stories: 0 }) };
     }
 
+    // 이미 story에 연결된 article_id 목록 가져오기 (중복 방지)
+    const existingLinks = await supabaseGet('story_articles', `?select=article_id`);
+    const processedArticleIds = new Set(existingLinks.map((l) => l.article_id));
+
+    // 아직 처리 안 된 기사만 필터링
+    const unprocessedArticles = recentArticles.filter(a => !processedArticleIds.has(a.id));
+
+    if (!unprocessedArticles.length) {
+      console.log('처리할 새 기사 없음');
+      return { statusCode: 200, headers, body: JSON.stringify({ ok: true, stories: 0 }) };
+    }
+
+    // 기존 스토리 제목 가져오기 (중복 스토리 방지)
+    const existingStories = await supabaseGet('stories', `?created_at=gte.${since}&select=title`);
+    const existingTitles = new Set(existingStories.map((s) => s.title));
+    );
+
+    if (!recentArticles.length) {
+      console.log('처리할 기사 없음');
+      return { statusCode: 200, headers, body: JSON.stringify({ ok: true, stories: 0 }) };
+    }
+
     // outlet 이름 매핑
     const outletMap = Object.fromEntries(outlets.map(o => [o.id, o.name]));
-    const articlesWithName = recentArticles.map(a => ({
+    const articlesWithName = unprocessedArticles.map(a => ({
       ...a,
       outlet_name: outletMap[a.outlet_id] || '알 수 없음'
     }));
@@ -157,6 +179,12 @@ exports.handler = async function(event) {
           .filter(Boolean);
 
         if (clusterArticles.length < 2) continue;
+
+        // 중복 스토리 방지
+        if (existingTitles.has(cluster.story_title)) {
+          console.log(`중복 스토리 건너뜀: "${cluster.story_title}"`);
+          continue;
+        }
 
         const repArticle = articlesWithName[cluster.representative_index] || clusterArticles[0];
 

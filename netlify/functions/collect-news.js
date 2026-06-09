@@ -36,8 +36,17 @@ async function fetchGoogleNewsRSS(query) {
 
   for (const match of matches) {
     const item = match[1];
-    const title = (item.match(/<title>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/title>/)?.[1] || '')
-      .replace(/<[^>]+>/g, '').replace(/ - [^-]+$/, '').trim(); // 언론사명 제거
+    let title = (item.match(/<title>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/title>/)?.[1] || '')
+      .replace(/<[^>]+>/g, '').trim();
+
+    // 언론사명 제거 패턴들
+    // "제목 - 언론사명", "제목 - 언론사명 뉴스" 등
+    title = title
+      .replace(/ - [가-힣a-zA-Z\s]+뉴스$/, '')
+      .replace(/ - [가-힣a-zA-Z\s]+(일보|신문|방송|TV|미디어|타임즈|타임스|투데이|위크|닷컴)$/, '')
+      .replace(/ - (오마이뉴스|연합뉴스|뉴스타파|프레시안|YTN|MBC|KBS|SBS|JTBC|채널A|TV조선|네이트|daum|naver|v\.daum\.net).*$/, '')
+      .replace(/ - [^\-]{2,15}$/, '') // 일반적인 "- 언론사" 패턴
+      .trim();
     const link = (item.match(/<link>(https?:\/\/[^<]+)<\/link>/)?.[1] || '').trim();
     const pubDate = (item.match(/<pubDate>([\s\S]*?)<\/pubDate>/)?.[1] || '').trim();
     const source = (item.match(/<source[^>]*>([\s\S]*?)<\/source>/)?.[1] || '').trim();
