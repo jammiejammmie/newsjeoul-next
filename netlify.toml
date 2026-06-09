@@ -17,18 +17,18 @@
 
 [functions."update-news"]
   schedule = "0 0 * * *"
+  timeout = 60
 
 [functions."update-news-evening"]
   schedule = "0 12 * * *"
+  timeout = 60
 
 [functions."update-elections"]
   schedule = "0 0 * * *"
+  timeout = 60
 
 [functions."update-elections-evening"]
   schedule = "0 12 * * *"
-
-[functions."update-youtube"]
-  schedule = "0 21 * * *"
   timeout = 60
 
 # 2.0 파이프라인
