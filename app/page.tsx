@@ -204,19 +204,30 @@ export default async function Home() {
                     </div>
                   </div>
                   <div style={{ padding: '10px 16px', display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    {articles.slice(0, 4).map((article: any) => (
-                      <a key={article.id} href={article.url} target="_blank" rel="noopener noreferrer" style={{
-                        display: 'flex', alignItems: 'flex-start', gap: 10, textDecoration: 'none',
-                        padding: '6px 0', borderBottom: '1px solid var(--border)',
-                      }}>
-                        <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', flexShrink: 0, paddingTop: 2, minWidth: 60 }}>
-                          {article.outlets?.name}
+                    {articles.slice(0, 4).map((article: any) => {
+                      const isGoogleUrl = article.url?.includes('news.google.com')
+                      return (
+                        <div key={article.id} style={{
+                          display: 'flex', alignItems: 'flex-start', gap: 10,
+                          padding: '6px 0', borderBottom: '1px solid var(--border)',
+                        }}>
+                          <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', flexShrink: 0, paddingTop: 2, minWidth: 60 }}>
+                            {article.outlets?.name}
+                          </div>
+                          {isGoogleUrl ? (
+                            <div style={{ fontSize: 12, color: 'var(--text2)', lineHeight: 1.5, flex: 1 }}>
+                              {article.title}
+                            </div>
+                          ) : (
+                            <a href={article.url} target="_blank" rel="noopener noreferrer" style={{
+                              fontSize: 12, color: 'var(--text2)', lineHeight: 1.5, flex: 1, textDecoration: 'none'
+                            }}>
+                              {article.title}
+                            </a>
+                          )}
                         </div>
-                        <div style={{ fontSize: 12, color: 'var(--text2)', lineHeight: 1.5, flex: 1 }}>
-                          {article.title}
-                        </div>
-                      </a>
-                    ))}
+                      )
+                    })}
                   </div>
                 </div>
               )
