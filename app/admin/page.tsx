@@ -2,17 +2,15 @@
 import { useState, useEffect } from 'react'
 
 const SITE_URL = 'https://newsjeoul.co.kr'
+const SUPABASE_URL = 'https://xlxztrnpmzklbnyfkrze.supabase.co'
+const SUPABASE_KEY = 'sb_publishable_RYLor2fbXqj4aHhSW0vCsw_7ZfP2a58'
 
 export default function AdminPage() {
   const [adminKey, setAdminKey] = useState('')
   const [savedKey, setSavedKey] = useState('')
-  const [logEntries, setLogEntries] = useState<{time:string, type:string, msg:string}[]>([])
+  const [logs, setLogs] = useState<{time:string,type:string,msg:string}[]>([])
   const [loading, setLoading] = useState<string|null>(null)
-  const [newsCount, setNewsCount] = useState<number|null>(null)
-  const [pollsCount, setPollsCount] = useState<number|null>(null)
-
-  const SUPABASE_URL = 'https://xlxztrnpmzklbnyfkrze.supabase.co'
-  const SUPABASE_KEY = 'sb_publishable_RYLor2fbXqj4aHhSW0vCsw_7ZfP2a58'
+  const [stats, setStats] = useState<any>({})
 
   useEffect(() => {
     const k = localStorage.getItem('nj_admin_key') || ''
@@ -21,21 +19,25 @@ export default function AdminPage() {
 
   function addLog(type: string, msg: string) {
     const now = new Date().toLocaleTimeString('ko-KR')
-    setLogEntries(prev => [...prev, { time: now, type, msg }])
+    setLogs(prev => [...prev, { time: now, type, msg }])
   }
 
   async function loadStats() {
     try {
       const headers = { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Prefer': 'count=exact' }
       const today = new Date().toISOString().split('T')[0]
-      const [r1, r2] = await Promise.all([
+      const [r1, r2, r3, r4] = await Promise.all([
+        fetch(`${SUPABASE_URL}/rest/v1/articles?select=id&created_at=gte.${today}T00:00:00Z`, { method: 'HEAD', headers }),
+        fetch(`${SUPABASE_URL}/rest/v1/stories?select=id&created_at=gte.${today}T00:00:00Z`, { method: 'HEAD', headers }),
         fetch(`${SUPABASE_URL}/rest/v1/news_kr?select=id&created_at=gte.${today}T00:00:00Z`, { method: 'HEAD', headers }),
-        fetch(`${SUPABASE_URL}/rest/v1/polls_kr?select=id`, { method: 'HEAD', headers })
+        fetch(`${SUPABASE_URL}/rest/v1/polls_kr?select=id`, { method: 'HEAD', headers }),
       ])
-      const c1 = parseInt((r1.headers.get('content-range') || '/0').split('/')[1]) || 0
-      const c2 = parseInt((r2.headers.get('content-range') || '/0').split('/')[1]) || 0
-      setNewsCount(c1)
-      setPollsCount(c2)
+      setStats({
+        articles: parseInt((r1.headers.get('content-range') || '/0').split('/')[1]) || 0,
+        stories: parseInt((r2.headers.get('content-range') || '/0').split('/')[1]) || 0,
+        news: parseInt((r3.headers.get('content-range') || '/0').split('/')[1]) || 0,
+        polls: parseInt((r4.headers.get('content-range') || '/0').split('/')[1]) || 0,
+      })
     } catch(e) {}
   }
 
@@ -55,98 +57,79 @@ export default function AdminPage() {
     return res
   }
 
-  async function runNews() {
-    setLoading('news')
+  async function runFn(fnName: string, label: string) {
+    setLoading(fnName)
     try {
-      const res = await callFn('fetch-comparisons-kr')
+      const res = await callFn(fnName)
       const data = await res.json()
       if (res.status === 401) addLog('error', '❌ 관리자 키 오류')
-      else if (res.ok) { addLog('success', `✅ 뉴스 비교 ${data.saved || 0}건 저장`); loadStats() }
-      else addLog('error', `❌ 오류: ${data.error}`)
+      else if (res.ok) {
+        const detail = data.saved ? `${data.saved}건` : data.stories ? `${data.stories}개 스토리` : data.updated ? `${data.updated.length}개` : '완료'
+        addLog('success', `✅ ${label}: ${detail}`)
+        loadStats()
+      } else addLog('error', `❌ ${label} 실패: ${data.error}`)
     } catch(e: any) { addLog('error', `❌ 실패: ${e.message}`) }
     setLoading(null)
   }
 
-  async function runElection() {
-    setLoading('election')
+  async function runPipeline() {
+    setLoading('pipeline')
+    addLog('info', '⚡ 전체 파이프라인 시작...')
     try {
-      const res = await callFn('fetch-election-kr')
-      const data = await res.json()
-      if (res.status === 401) addLog('error', '❌ 관리자 키 오류')
-      else if (res.ok) { addLog('success', `✅ 여론조사 ${data.saved || 0}건 저장`); loadStats() }
-      else addLog('error', `❌ 오류: ${data.error}`)
-    } catch(e: any) { addLog('error', `❌ 실패: ${e.message}`) }
-    setLoading(null)
-  }
-
-  async function runYoutube() {
-    setLoading('youtube')
-    try {
-      const res = await callFn('update-youtube')
-      const data = await res.json()
-      if (res.ok) addLog('success', `✅ 유튜브 ${(data.updated||[]).length}개 채널 업데이트`)
-      else addLog('error', `❌ 오류: ${data.error}`)
-    } catch(e: any) { addLog('error', `❌ 실패: ${e.message}`) }
-    setLoading(null)
-  }
-
-  async function runAll() {
-    setLoading('all')
-    addLog('info', '⚡ 전체 실행 시작...')
-    try {
-      const r1 = await callFn('fetch-comparisons-kr')
+      // 1. 기사 수집
+      const r1 = await callFn('collect-news')
       const d1 = await r1.json()
       if (r1.status === 401) { addLog('error', '❌ 관리자 키 오류'); setLoading(null); return }
-      if (r1.ok) addLog('success', `✅ 뉴스 비교: ${d1.saved || 0}건 저장`)
-      else addLog('error', `❌ 뉴스 비교 실패: ${d1.error}`)
+      if (r1.ok) addLog('success', `✅ 기사 수집: ${d1.saved || 0}건`)
+      else addLog('error', `❌ 수집 실패: ${d1.error}`)
 
-      addLog('info', '3초 후 여론조사...')
+      addLog('info', '3초 후 스토리 처리...')
       await new Promise(r => setTimeout(r, 3000))
 
-      const r2 = await callFn('fetch-election-kr')
+      // 2. 스토리 처리
+      const r2 = await callFn('process-stories')
       const d2 = await r2.json()
-      if (r2.ok) addLog('success', `✅ 여론조사: ${d2.saved || 0}건 저장`)
-      else addLog('error', `❌ 여론조사 실패: ${d2.error}`)
+      if (r2.ok) addLog('success', `✅ 스토리 생성: ${d2.stories || 0}개`)
+      else addLog('error', `❌ 스토리 실패: ${d2.error}`)
 
-      addLog('info', '3초 후 유튜브...')
-      await new Promise(r => setTimeout(r, 3000))
-
-      const r3 = await callFn('update-youtube')
-      const d3 = await r3.json()
-      if (r3.ok) addLog('success', `✅ 유튜브: ${(d3.updated||[]).length}개 채널`)
-      else addLog('error', `❌ 유튜브 실패: ${d3.error}`)
-
-      addLog('info', '🎉 전체 완료!')
+      addLog('info', '🎉 파이프라인 완료!')
       loadStats()
     } catch(e: any) { addLog('error', `❌ 실패: ${e.message}`) }
     setLoading(null)
   }
 
   const s = {
-    wrap: { maxWidth: 520, margin: '0 auto', padding: '20px 16px' } as const,
-    logo: { fontFamily: "'Bebas Neue', cursive", fontSize: 24, marginBottom: 4 } as const,
-    sub: { fontSize: 12, color: 'var(--muted)', marginBottom: 28 } as const,
-    card: { background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 16, padding: 20, marginBottom: 10 } as const,
-    label: { fontSize: 10, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase' as const, color: 'var(--muted)', marginBottom: 6, display: 'block' },
-    input: { width: '100%', padding: '11px 13px', background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 10, color: 'var(--text)', fontSize: 14, fontFamily: 'inherit', outline: 'none', marginBottom: 12 } as const,
-    btn: (bg: string) => ({ width: '100%', padding: 11, border: 'none', borderRadius: 10, background: bg, color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 } as const),
+    wrap: { maxWidth: 560, margin: '0 auto', padding: '20px 16px' } as const,
+    card: { background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 16, padding: 18, marginBottom: 10 } as const,
+    btn: (bg: string, color = '#fff') => ({
+      width: '100%', padding: 11, border: 'none', borderRadius: 10,
+      background: bg, color, fontSize: 13, fontWeight: 600,
+      cursor: 'pointer', fontFamily: 'inherit',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+      opacity: loading ? 0.6 : 1,
+    } as const),
     statGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 } as const,
     statCard: { background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 12, padding: 14 } as const,
-    statVal: { fontSize: 28, fontWeight: 700, lineHeight: 1, marginBottom: 4 } as const,
-    statLabel: { fontSize: 11, color: 'var(--muted)' } as const,
-    logArea: { background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 10, padding: 12, minHeight: 120, maxHeight: 260, overflowY: 'auto' as const, fontSize: 12, fontFamily: 'monospace', lineHeight: 1.7 } as const,
+    label: { fontSize: 10, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase' as const, color: 'var(--muted)', marginBottom: 4, display: 'block' },
+    input: { width: '100%', padding: '11px 13px', background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 10, color: 'var(--text)', fontSize: 14, fontFamily: 'inherit', outline: 'none', marginBottom: 12 } as const,
+    logArea: { background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 10, padding: 12, minHeight: 120, maxHeight: 280, overflowY: 'auto' as const, fontSize: 12, fontFamily: 'monospace', lineHeight: 1.7 } as const,
   }
 
-  const logColors: Record<string, string> = { success: 'var(--green)', error: 'var(--con)', info: 'var(--lib)' }
+  const logColors: Record<string, string> = { success: 'var(--green)', error: 'var(--con)', info: 'var(--lib)', warn: 'var(--gold)' }
 
   if (!savedKey) return (
     <div style={s.wrap}>
-      <div style={s.logo}>뉴스<span style={{color:'var(--con)'}}>저</span><span style={{color:'var(--lib)'}}>울</span></div>
-      <div style={s.sub}>관리자 페이지</div>
+      <div style={{ fontFamily: "'Bebas Neue', cursive", fontSize: 24, marginBottom: 4 }}>
+        뉴스<span style={{color:'var(--con)'}}>저</span><span style={{color:'var(--lib)'}}>울</span>
+      </div>
+      <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 28 }}>관리자 페이지</div>
       <div style={s.card}>
-        <div style={{fontSize:14,fontWeight:600,color:'var(--muted)',marginBottom:16}}>🔐 관리자 키를 입력하세요</div>
+        <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--muted)', marginBottom: 16 }}>🔐 관리자 키를 입력하세요</div>
         <label style={s.label}>Admin Key</label>
-        <input style={s.input} type="password" value={adminKey} onChange={e=>setAdminKey(e.target.value)} onKeyDown={e=>e.key==='Enter'&&login()} placeholder="관리자 키 입력..." />
+        <input style={s.input} type="password" value={adminKey}
+          onChange={e => setAdminKey(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && login()}
+          placeholder="관리자 키 입력..." />
         <button style={s.btn('var(--con)')} onClick={login}>로그인 →</button>
       </div>
     </div>
@@ -154,76 +137,109 @@ export default function AdminPage() {
 
   return (
     <div style={s.wrap}>
-      <div style={s.logo}>뉴스<span style={{color:'var(--con)'}}>저</span><span style={{color:'var(--lib)'}}>울</span></div>
-      <div style={s.sub}>관리자 페이지</div>
+      <div style={{ fontFamily: "'Bebas Neue', cursive", fontSize: 24, marginBottom: 4 }}>
+        뉴스<span style={{color:'var(--con)'}}>저</span><span style={{color:'var(--lib)'}}>울</span>
+      </div>
+      <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 20 }}>관리자 페이지</div>
 
-      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16,fontSize:13,color:'var(--text2)'}}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, fontSize: 13, color: 'var(--text2)' }}>
         <span>안녕하세요, 관리자님 👋</span>
-        <button onClick={()=>{localStorage.removeItem('nj_admin_key');setSavedKey('')}} style={{background:'none',border:'none',color:'var(--muted)',fontSize:11,cursor:'pointer'}}>로그아웃</button>
+        <button onClick={() => { localStorage.removeItem('nj_admin_key'); setSavedKey('') }}
+          style={{ background: 'none', border: 'none', color: 'var(--muted)', fontSize: 11, cursor: 'pointer' }}>로그아웃</button>
       </div>
 
+      {/* 통계 */}
       <div style={s.statGrid}>
-        <div style={s.statCard}><div style={s.statVal}>{newsCount ?? '—'}</div><div style={s.statLabel}>오늘 뉴스 비교</div></div>
-        <div style={s.statCard}><div style={s.statVal}>{pollsCount ?? '—'}</div><div style={s.statLabel}>여론조사 데이터</div></div>
-      </div>
-
-      {/* 전체 실행 */}
-      <div style={{...s.card, background:'linear-gradient(135deg,var(--con-soft),var(--lib-soft))'}}>
-        <div style={{fontSize:14,fontWeight:600,marginBottom:14}}>⚡ 전체 실행</div>
-        <button style={s.btn('rgba(94,62,161,.8)')} onClick={runAll} disabled={!!loading}>
-          {loading==='all' ? '실행 중...' : '⚡ 전체 실행'}
-        </button>
-      </div>
-
-      {/* 뉴스 비교 */}
-      <div style={s.card}>
-        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14}}>
-          <div><div style={{fontSize:14,fontWeight:600}}>📰 뉴스 비교</div><div style={{fontSize:12,color:'var(--muted)'}}>보수 vs 진보 AI 분석</div></div>
-          <div style={{fontSize:10,padding:'3px 9px',background:'var(--bg2)',border:'1px solid var(--border)',borderRadius:999,color:'var(--muted)'}}>오전9시/오후9시</div>
+        <div style={s.statCard}>
+          <div style={{ fontSize: 26, fontWeight: 700, lineHeight: 1, marginBottom: 3 }}>{stats.articles ?? '—'}</div>
+          <div style={{ fontSize: 11, color: 'var(--muted)' }}>오늘 수집 기사</div>
         </div>
-        <button style={s.btn('var(--card)')} onClick={runNews} disabled={!!loading}>
-          <span style={{color:'var(--text)',fontWeight:600}}>{loading==='news' ? '실행 중...' : '▶ 지금 실행'}</span>
+        <div style={s.statCard}>
+          <div style={{ fontSize: 26, fontWeight: 700, lineHeight: 1, marginBottom: 3 }}>{stats.stories ?? '—'}</div>
+          <div style={{ fontSize: 11, color: 'var(--muted)' }}>오늘 생성 스토리</div>
+        </div>
+        <div style={s.statCard}>
+          <div style={{ fontSize: 26, fontWeight: 700, lineHeight: 1, marginBottom: 3 }}>{stats.news ?? '—'}</div>
+          <div style={{ fontSize: 11, color: 'var(--muted)' }}>뉴스 비교</div>
+        </div>
+        <div style={s.statCard}>
+          <div style={{ fontSize: 26, fontWeight: 700, lineHeight: 1, marginBottom: 3 }}>{stats.polls ?? '—'}</div>
+          <div style={{ fontSize: 11, color: 'var(--muted)' }}>여론조사</div>
+        </div>
+      </div>
+
+      {/* 2.0 파이프라인 */}
+      <div style={{ ...s.card, background: 'linear-gradient(135deg,var(--con-soft),var(--lib-soft))' }}>
+        <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>⚡ 2.0 전체 파이프라인</div>
+        <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 14 }}>기사 수집 → 클러스터링 → 스토리 생성</div>
+        <button style={s.btn('rgba(94,62,161,.8)')} onClick={runPipeline} disabled={!!loading}>
+          {loading === 'pipeline' ? '실행 중...' : '⚡ 전체 실행'}
         </button>
       </div>
 
-      {/* 여론조사 */}
+      {/* 기사 수집 */}
       <div style={s.card}>
-        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14}}>
-          <div><div style={{fontSize:14,fontWeight:600}}>🗳️ 여론조사</div><div style={{fontSize:12,color:'var(--muted)'}}>최신 여론조사 수집</div></div>
-          <div style={{fontSize:10,padding:'3px 9px',background:'var(--bg2)',border:'1px solid var(--border)',borderRadius:999,color:'var(--muted)'}}>오전9시/오후9시</div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 700 }}>📰 기사 수집</div>
+            <div style={{ fontSize: 11, color: 'var(--muted)' }}>20개 언론사 구글 뉴스 RSS</div>
+          </div>
+          <div style={{ fontSize: 10, padding: '3px 9px', background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 999, color: 'var(--muted)' }}>매 3시간</div>
         </div>
-        <button style={s.btn('var(--card)')} onClick={runElection} disabled={!!loading}>
-          <span style={{color:'var(--text)',fontWeight:600}}>{loading==='election' ? '실행 중...' : '▶ 지금 실행'}</span>
+        <button style={s.btn('var(--card)', 'var(--text)')} onClick={() => runFn('collect-news', '기사 수집')} disabled={!!loading}>
+          {loading === 'collect-news' ? '실행 중...' : '▶ 지금 실행'}
         </button>
       </div>
 
-      {/* 유튜브 */}
+      {/* 스토리 처리 */}
       <div style={s.card}>
-        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14}}>
-          <div><div style={{fontSize:14,fontWeight:600}}>📺 유튜브 채널</div><div style={{fontSize:12,color:'var(--muted)'}}>최신 영상 정보 수집</div></div>
-          <div style={{fontSize:10,padding:'3px 9px',background:'var(--bg2)',border:'1px solid var(--border)',borderRadius:999,color:'var(--muted)'}}>매일 오전6시</div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 700 }}>🔗 스토리 처리</div>
+            <div style={{ fontSize: 11, color: 'var(--muted)' }}>클러스터링 + 침묵지수 계산</div>
+          </div>
+          <div style={{ fontSize: 10, padding: '3px 9px', background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 999, color: 'var(--muted)' }}>매 3시간+30분</div>
         </div>
-        <button style={s.btn('var(--card)')} onClick={runYoutube} disabled={!!loading}>
-          <span style={{color:'var(--text)',fontWeight:600}}>{loading==='youtube' ? '실행 중...' : '▶ 지금 실행'}</span>
+        <button style={s.btn('var(--card)', 'var(--text)')} onClick={() => runFn('process-stories', '스토리 처리')} disabled={!!loading}>
+          {loading === 'process-stories' ? '실행 중...' : '▶ 지금 실행'}
         </button>
+      </div>
+
+      {/* 기존 기능 */}
+      <div style={s.card}>
+        <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12 }}>📋 기존 기능</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <button style={s.btn('var(--card)', 'var(--text)')} onClick={() => runFn('fetch-comparisons-kr', '뉴스 비교')} disabled={!!loading}>
+            {loading === 'fetch-comparisons-kr' ? '실행 중...' : '📰 뉴스 비교 실행'}
+          </button>
+          <button style={s.btn('var(--card)', 'var(--text)')} onClick={() => runFn('fetch-election-kr', '여론조사')} disabled={!!loading}>
+            {loading === 'fetch-election-kr' ? '실행 중...' : '🗳️ 여론조사 실행'}
+          </button>
+          <button style={s.btn('var(--card)', 'var(--text)')} onClick={() => runFn('update-youtube', '유튜브')} disabled={!!loading}>
+            {loading === 'update-youtube' ? '실행 중...' : '📺 유튜브 업데이트'}
+          </button>
+        </div>
       </div>
 
       {/* 로그 */}
       <div style={s.card}>
-        <div style={{fontSize:10,fontWeight:700,letterSpacing:'.12em',textTransform:'uppercase',color:'var(--muted)',marginBottom:10}}>📋 실행 로그</div>
+        <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 10 }}>📋 실행 로그</div>
         <div style={s.logArea}>
-          {logEntries.length === 0 ? <div style={{color:'var(--muted)',fontStyle:'italic'}}>실행 버튼을 누르면 결과가 여기에 표시됩니다.</div> :
-            logEntries.map((e,i) => (
-              <div key={i} style={{display:'flex',gap:10}}>
-                <span style={{color:'var(--muted)',flexShrink:0}}>{e.time}</span>
-                <span style={{color: logColors[e.type] || 'var(--text2)'}}>{e.msg}</span>
+          {logs.length === 0
+            ? <div style={{ color: 'var(--muted)', fontStyle: 'italic' }}>실행 버튼을 누르면 결과가 표시됩니다.</div>
+            : logs.map((e, i) => (
+              <div key={i} style={{ display: 'flex', gap: 10 }}>
+                <span style={{ color: 'var(--muted)', flexShrink: 0 }}>{e.time}</span>
+                <span style={{ color: logColors[e.type] || 'var(--text2)' }}>{e.msg}</span>
               </div>
             ))
           }
         </div>
       </div>
 
-      <div style={{textAlign:'center',fontSize:11,color:'var(--muted)'}}><a href="/" style={{color:'var(--text2)',textDecoration:'none'}}>← 뉴스저울로 돌아가기</a></div>
+      <div style={{ textAlign: 'center', fontSize: 11, color: 'var(--muted)' }}>
+        <a href="/" style={{ color: 'var(--text2)', textDecoration: 'none' }}>← 뉴스저울로 돌아가기</a>
+      </div>
     </div>
   )
 }
