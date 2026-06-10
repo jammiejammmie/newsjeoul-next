@@ -39,3 +39,7 @@
 [functions."process-stories"]
   schedule = "30 */3 * * *"
   timeout = 60
+
+[functions."post-threads"]
+  schedule = "0 1 * * *"
+  timeout = 90
