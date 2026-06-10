@@ -34,14 +34,13 @@ export default function Nav() {
       padding: '0 16px',
       gap: 8,
     }}>
-      <Link href="/" style={{
-        fontFamily: "'Bebas Neue', cursive",
-        fontSize: 26,
-        color: 'var(--text)',
-        textDecoration: 'none',
-        flexShrink: 0,
-      }}>
-        ⚖️ 뉴스<span style={{color:'var(--con)'}}>저</span><span style={{color:'var(--lib)'}}>울</span>
+      <Link href="/" style={{display:'flex',alignItems:'baseline',gap:10,textDecoration:'none',flexShrink:0}}>
+        <span style={{fontFamily:"'Bebas Neue',cursive",fontSize:26,color:'var(--text)'}}>
+          ⚖️ 뉴스<span style={{color:'var(--con)'}}>저</span><span style={{color:'var(--lib)'}}>울</span>
+        </span>
+        <span className="hidden sm:inline" style={{fontSize:10,color:'var(--muted)',borderLeft:'1px solid var(--border)',paddingLeft:10,letterSpacing:'.05em'}}>
+          당신이 못 본 절반
+        </span>
       </Link>
 
       {/* 데스크탑 메뉴 */}

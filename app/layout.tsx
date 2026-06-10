@@ -4,11 +4,11 @@ import Nav from '@/components/Nav'
 import BottomTab from '@/components/BottomTab'
 
 export const metadata: Metadata = {
-  title: '뉴스저울 — 같은 나라, 다른 뉴스',
-  description: '조중동 vs 한경오. 같은 사건, 다른 시각. 대한민국 언론의 편향을 숫자로 보여줍니다.',
+  title: '뉴스저울 — 당신이 못 본 절반',
+  description: '오늘 언론사 90%가 침묵한 뉴스가 있습니다. 당신은 보셨나요?',
   openGraph: {
-    title: '뉴스저울 — 같은 나라, 다른 뉴스',
-    description: '조중동 vs 한경오. 같은 사건, 다른 시각.',
+    title: '뉴스저울 — 당신이 못 본 절반',
+    description: '오늘 언론사 90%가 침묵한 뉴스가 있습니다. 당신은 보셨나요?',
     url: 'https://newsjeoul.co.kr',
     siteName: '뉴스저울',
     locale: 'ko_KR',
@@ -17,8 +17,8 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: '뉴스저울 — 같은 나라, 다른 뉴스',
-    description: '조중동 vs 한경오. 같은 사건, 다른 시각.',
+    title: '뉴스저울 — 당신이 못 본 절반',
+    description: '오늘 언론사 90%가 침묵한 뉴스가 있습니다. 당신은 보셨나요?',
     images: ['https://newsjeoul.co.kr/og-image.png'],
   },
 }
