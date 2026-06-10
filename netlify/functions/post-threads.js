@@ -123,13 +123,6 @@ exports.handler = async function (event) {
     }
   }
 
-  if (!THREADS_USER_ID || !THREADS_ACCESS_TOKEN) {
-    return {
-      statusCode: 500, headers,
-      body: JSON.stringify({ error: 'THREADS_USER_ID 또는 THREADS_ACCESS_TOKEN 환경변수 없음' }),
-    };
-  }
-
   try {
     const story = await fetchTopSilenceStory();
     const url = `${BASE_URL}/story/${story.id}`;
@@ -139,7 +132,7 @@ exports.handler = async function (event) {
 
     console.log('포스팅 내용:\n', text);
 
-    // dry=true → 실제 게시 없이 미리보기만 반환
+    // dry=true → 실제 게시 없이 미리보기만 반환 (Threads 환경변수 불필요)
     const isDry = event.queryStringParameters?.dry === 'true';
     if (isDry) {
       return {
@@ -152,6 +145,13 @@ exports.handler = async function (event) {
           url,
           text,
         }),
+      };
+    }
+
+    if (!THREADS_USER_ID || !THREADS_ACCESS_TOKEN) {
+      return {
+        statusCode: 500, headers,
+        body: JSON.stringify({ error: 'THREADS_USER_ID 또는 THREADS_ACCESS_TOKEN 환경변수 없음' }),
       };
     }
 
