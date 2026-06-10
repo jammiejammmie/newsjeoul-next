@@ -134,8 +134,26 @@ exports.handler = async function (event) {
     const story = await fetchTopSilenceStory();
     const url = `${BASE_URL}/story/${story.id}`;
     const text = buildPost(story, url);
+    const templateIdx = Math.floor(Date.now() / 86400000) % 5;
+    const templateLabel = ['A','B','C','D','E'][templateIdx];
 
     console.log('포스팅 내용:\n', text);
+
+    // dry=true → 실제 게시 없이 미리보기만 반환
+    const isDry = event.queryStringParameters?.dry === 'true';
+    if (isDry) {
+      return {
+        statusCode: 200, headers,
+        body: JSON.stringify({
+          dry: true,
+          template: templateLabel,
+          title: story.title,
+          reportCount: story.reportCount,
+          url,
+          text,
+        }),
+      };
+    }
 
     const containerId = await createContainer(text);
     // Threads API 권장: 컨테이너 생성 후 최소 30초 대기
@@ -148,7 +166,7 @@ exports.handler = async function (event) {
       body: JSON.stringify({
         ok: true,
         postId,
-        templateIdx: Math.floor(Date.now() / 86400000) % 5,
+        template: templateLabel,
         title: story.title,
         reportCount: story.reportCount,
         url,
