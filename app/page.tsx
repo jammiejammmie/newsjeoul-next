@@ -29,22 +29,33 @@ async function getData() {
   }
 }
 
+const BASE = 'https://newsjeoul.co.kr'
+
 export async function generateMetadata(): Promise<Metadata> {
   const { silenceStories, totalOutlets } = await getData()
   const top = silenceStories[0]
   const reportingCount = top?.story_articles?.length || 0
+
+  const ogImageUrl = top
+    ? `${BASE}/og?type=silence` +
+      `&title=${encodeURIComponent(top.title)}` +
+      `&outlets=${reportingCount}` +
+      `&total=${totalOutlets}`
+    : `${BASE}/og?type=silence&title=뉴스저울&outlets=3&total=20`
+
   const desc = top
     ? `${totalOutlets}개 언론사 중 ${reportingCount}개만 보도 — "${top.title}"`
     : '오늘 언론사 90%가 침묵한 뉴스가 있습니다. 당신은 보셨나요?'
+
   return {
     title: '뉴스저울 — 당신이 못 본 절반',
     description: desc,
     openGraph: {
       title: '뉴스저울 — 당신이 못 본 절반',
       description: desc,
-      url: 'https://newsjeoul.co.kr',
+      url: BASE,
       siteName: '뉴스저울',
-      images: [{ url: 'https://newsjeoul.co.kr/og-image.png', width: 1200, height: 630 }],
+      images: [{ url: ogImageUrl, width: 1200, height: 630 }],
       locale: 'ko_KR',
       type: 'website',
     },
@@ -52,7 +63,7 @@ export async function generateMetadata(): Promise<Metadata> {
       card: 'summary_large_image',
       title: '뉴스저울 — 당신이 못 본 절반',
       description: desc,
-      images: ['https://newsjeoul.co.kr/og-image.png'],
+      images: [ogImageUrl],
     },
   }
 }

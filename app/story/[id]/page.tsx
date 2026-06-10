@@ -39,17 +39,52 @@ async function getRelatedStories(id: string) {
   return data || []
 }
 
+const BASE = 'https://newsjeoul.co.kr'
+const TOTAL_OUTLETS = 20
+
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params
   const story = await getStory(id)
   if (!story) return { title: '뉴스저울' }
+
+  const articles = (story.story_articles || []).map((sa: any) => sa.articles).filter(Boolean)
+  const reportingCount = articles.length
+  const isDebate = story.controversy_score > story.silence_score && articles.length >= 2
+
+  let ogImageUrl: string
+  if (isDebate) {
+    const a0 = articles[0]
+    const a1 = articles[1]
+    ogImageUrl = `${BASE}/og?type=debate` +
+      `&title=${encodeURIComponent(story.title)}` +
+      `&h1=${encodeURIComponent(a0?.title || '')}` +
+      `&o1=${encodeURIComponent(a0?.outlets?.name || '')}` +
+      `&h2=${encodeURIComponent(a1?.title || '')}` +
+      `&o2=${encodeURIComponent(a1?.outlets?.name || '')}`
+  } else {
+    ogImageUrl = `${BASE}/og?type=silence` +
+      `&title=${encodeURIComponent(story.title)}` +
+      `&outlets=${reportingCount}` +
+      `&total=${TOTAL_OUTLETS}`
+  }
+
+  const desc = isDebate
+    ? `같은 사건, 완전히 다른 헤드라인 — ${story.title}`
+    : `${TOTAL_OUTLETS}개 언론사 중 ${reportingCount}개만 보도 — ${story.title}`
+
   return {
     title: `${story.title} — 뉴스저울`,
-    description: `침묵지수 ${story.silence_score}점 | 논쟁지수 ${story.controversy_score}점`,
+    description: desc,
     openGraph: {
       title: story.title,
-      description: `침묵지수 ${story.silence_score}점 — 이 뉴스를 보지 못했을 수 있습니다`,
-      images: [{ url: 'https://newsjeoul.co.kr/og-image.png' }],
+      description: desc,
+      images: [{ url: ogImageUrl, width: 1200, height: 630 }],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: story.title,
+      description: desc,
+      images: [ogImageUrl],
     },
   }
 }
