@@ -1,54 +1,92 @@
-// Threads 자동 포스팅 - 오늘의 침묵지수 TOP1
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY;
+// Threads 자동 포스팅 — 오늘의 침묵지수 TOP1
+// Copy template rotates A→E daily so the Threads profile never looks repetitive.
+
+const SUPABASE_URL = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const THREADS_USER_ID = process.env.THREADS_USER_ID;
 const THREADS_ACCESS_TOKEN = process.env.THREADS_ACCESS_TOKEN;
+const TOTAL_OUTLETS = 20;
+const BASE_URL = 'https://newsjeoul.co.kr';
 
-async function fetchTodayNews() {
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
-
+// ── Data ─────────────────────────────────────────────────────────
+async function fetchTopSilenceStory() {
   const res = await fetch(
-    `${SUPABASE_URL}/rest/v1/news_kr?created_at=gte.${todayStart.toISOString()}&select=*&order=created_at.desc&limit=10`,
+    `${SUPABASE_URL}/rest/v1/stories?select=id,title,silence_score,story_articles(article_id)&order=silence_score.desc&limit=1`,
     {
       headers: {
         'apikey': SUPABASE_KEY,
         'Authorization': 'Bearer ' + SUPABASE_KEY,
-      }
+      },
     }
   );
   if (!res.ok) throw new Error('Supabase 조회 실패: ' + await res.text());
-  return await res.json();
+  const rows = await res.json();
+  if (!rows.length) throw new Error('스토리 없음');
+  const story = rows[0];
+  story.reportCount = (story.story_articles || []).length;
+  return story;
 }
 
-function buildPost(item, silenceScore) {
-  const direction = item.bias_score > 50 ? '보수 쏠림' : '진보 쏠림';
-  const today = new Date().toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' });
+// ── Copy templates A–E ───────────────────────────────────────────
+// Rotates once per day so consecutive days show different copy.
+function buildPost(story, url) {
+  const n = story.reportCount;
+  const silent = TOTAL_OUTLETS - n;
+  // absolute day index → cycles 0 1 2 3 4 0 1 2 3 4 …
+  const idx = Math.floor(Date.now() / 86400000) % 5;
 
-  return `📊 ${today} 침묵지수 1위
+  const templates = [
+    // A — direct stat + question
+    `${TOTAL_OUTLETS}개 언론사 중 ${n}곳만 보도했습니다.
 
-"${item.title}"
+당신은 이 뉴스를 보셨나요?
 
-🔴 ${item.conservative_outlet}
-${item.conservative_headline}
+뉴스저울 →
+${url}`,
 
-🔵 ${item.liberal_outlet}
-${item.liberal_headline}
+    // B — first person voice
+    `저는 오늘 처음 봤습니다.
 
-침묵지수 ${silenceScore}점 (${direction}) · ${item.category}
+${TOTAL_OUTLETS}개 언론사 중 ${n}곳만 다룬 뉴스입니다.
 
-두 시각 모두 보기 → https://newsjeoul.co.kr
+뉴스저울 →
+${url}`,
 
-#뉴스저울 #미디어편향 #한국뉴스 #오늘의뉴스`;
+    // C — minimal, pure curiosity
+    `대부분의 사람은 이 뉴스를 보지 못했습니다.
+
+당신은 보셨나요?
+
+뉴스저울 →
+${url}`,
+
+    // D — label style, short
+    `오늘 가장 침묵한 뉴스
+
+${TOTAL_OUTLETS}개 언론사 중 ${n}곳만 보도
+
+뉴스저울 →
+${url}`,
+
+    // E — contrast framing
+    `이 뉴스를 다룬 언론사는 단 ${n}곳.
+
+나머지 ${silent}곳은 다루지 않았습니다.
+
+뉴스저울 →
+${url}`,
+  ];
+
+  return templates[idx];
 }
 
-async function createThreadsContainer(text) {
+// ── Threads API ──────────────────────────────────────────────────
+async function createContainer(text) {
   const params = new URLSearchParams({
     media_type: 'TEXT',
     text,
     access_token: THREADS_ACCESS_TOKEN,
   });
-
   const res = await fetch(
     `https://graph.threads.net/v1.0/${THREADS_USER_ID}/threads`,
     { method: 'POST', body: params }
@@ -58,12 +96,11 @@ async function createThreadsContainer(text) {
   return data.id;
 }
 
-async function publishThreadsPost(containerId) {
+async function publishPost(containerId) {
   const params = new URLSearchParams({
     creation_id: containerId,
     access_token: THREADS_ACCESS_TOKEN,
   });
-
   const res = await fetch(
     `https://graph.threads.net/v1.0/${THREADS_USER_ID}/threads_publish`,
     { method: 'POST', body: params }
@@ -73,44 +110,51 @@ async function publishThreadsPost(containerId) {
   return data.id;
 }
 
-exports.handler = async function(event) {
+// ── Handler ──────────────────────────────────────────────────────
+exports.handler = async function (event) {
   const headers = { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' };
   if (event.httpMethod === 'OPTIONS') return { statusCode: 200, headers, body: '' };
 
+  // Manual HTTP calls require admin key; cron invocations have no httpMethod
   if (event.httpMethod) {
-    const adminKey = event.headers?.['x-admin-key'] || event.queryStringParameters?.key;
-    if (adminKey !== process.env.ADMIN_KEY) {
+    const key = event.headers?.['x-admin-key'] || event.queryStringParameters?.key;
+    if (key !== process.env.ADMIN_KEY) {
       return { statusCode: 401, headers, body: JSON.stringify({ error: 'Unauthorized' }) };
     }
   }
 
   if (!THREADS_USER_ID || !THREADS_ACCESS_TOKEN) {
-    return { statusCode: 500, headers, body: JSON.stringify({ error: 'THREADS_USER_ID 또는 THREADS_ACCESS_TOKEN 환경변수 없음' }) };
+    return {
+      statusCode: 500, headers,
+      body: JSON.stringify({ error: 'THREADS_USER_ID 또는 THREADS_ACCESS_TOKEN 환경변수 없음' }),
+    };
   }
 
   try {
-    const news = await fetchTodayNews();
-    if (!news.length) throw new Error('오늘 뉴스 없음');
+    const story = await fetchTopSilenceStory();
+    const url = `${BASE_URL}/story/${story.id}`;
+    const text = buildPost(story, url);
 
-    // 침묵지수 = |bias_score - 50| 이 클수록 한쪽이 침묵
-    const top = news
-      .map(item => ({ ...item, silenceScore: Math.abs((item.bias_score || 50) - 50) }))
-      .sort((a, b) => b.silenceScore - a.silenceScore)[0];
-
-    const text = buildPost(top, top.silenceScore);
     console.log('포스팅 내용:\n', text);
 
-    const containerId = await createThreadsContainer(text);
+    const containerId = await createContainer(text);
     // Threads API 권장: 컨테이너 생성 후 최소 30초 대기
     await new Promise(r => setTimeout(r, 30000));
-    const postId = await publishThreadsPost(containerId);
+    const postId = await publishPost(containerId);
 
     console.log('Threads 게시 완료:', postId);
     return {
       statusCode: 200, headers,
-      body: JSON.stringify({ ok: true, postId, title: top.title, silenceScore: top.silenceScore })
+      body: JSON.stringify({
+        ok: true,
+        postId,
+        templateIdx: Math.floor(Date.now() / 86400000) % 5,
+        title: story.title,
+        reportCount: story.reportCount,
+        url,
+      }),
     };
-  } catch(e) {
+  } catch (e) {
     console.error(e.message);
     return { statusCode: 500, headers, body: JSON.stringify({ error: e.message }) };
   }
