@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import ShareButtons from '@/components/ShareButtons'
+import SilenceTop10 from '@/components/SilenceTop10'
 import { notFound } from 'next/navigation'
 
 export const dynamic = 'force-dynamic'
@@ -25,18 +26,33 @@ async function getStory(id: string) {
   return data
 }
 
-async function getRelatedStories(id: string) {
+async function getRelatedSections(id: string) {
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   )
-  const { data } = await supabase
-    .from('stories')
-    .select('id, title, silence_score, controversy_score')
-    .neq('id', id)
-    .order('created_at', { ascending: false })
-    .limit(5)
-  return data || []
+  const [silenceRes, controversyRes] = await Promise.all([
+    // silence TOP10 (first 5 used for "놓쳤을 수 있는 뉴스", all 10 for ranked list)
+    supabase
+      .from('stories')
+      .select('id, title, silence_score, story_articles(article_id)')
+      .neq('id', id)
+      .order('silence_score', { ascending: false })
+      .limit(10),
+    // controversy TOP5 for "같은 사건, 다른 헤드라인"
+    supabase
+      .from('stories')
+      .select('id, title, controversy_score, story_articles(article_id)')
+      .neq('id', id)
+      .order('controversy_score', { ascending: false })
+      .limit(5),
+  ])
+  const silence = silenceRes.data || []
+  return {
+    silenceTop5: silence.slice(0, 5),
+    controversyTop5: controversyRes.data || [],
+    silenceTop10: silence,
+  }
 }
 
 const BASE = 'https://newsjeoul.co.kr'
@@ -91,10 +107,11 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 
 export default async function StoryPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const [story, related] = await Promise.all([
+  const [story, sections] = await Promise.all([
     getStory(id),
-    getRelatedStories(id),
+    getRelatedSections(id),
   ])
+  const { silenceTop5, controversyTop5, silenceTop10 } = sections
 
   if (!story) notFound()
 
@@ -169,22 +186,68 @@ export default async function StoryPage({ params }: { params: Promise<{ id: stri
         })}
       </div>
 
-      {/* 관련 스토리 */}
-      {related.length>0&&(
-        <div style={{marginBottom:24}}>
+      {/* ── 관련 콘텐츠 3섹션 ───────────────────────────────── */}
+
+      {/* 1. 당신이 놓쳤을 수 있는 뉴스 */}
+      {silenceTop5.length > 0 && (
+        <div style={{marginBottom:32}}>
           <div style={{fontSize:11,fontWeight:700,letterSpacing:'.1em',textTransform:'uppercase',color:'var(--muted)',display:'flex',alignItems:'center',gap:8,marginBottom:12}}>
-            <div style={{width:3,height:14,borderRadius:2,background:'var(--purple)'}}/>관련 스토리
+            <div style={{width:3,height:14,borderRadius:2,background:'var(--accent)'}}/>
+            당신이 놓쳤을 수 있는 뉴스
           </div>
-          <div style={{display:'flex',flexDirection:'column',gap:6}}>
-            {related.map((s:any)=>(
-              <Link key={s.id} href={`/story/${s.id}`} style={{textDecoration:'none'}}>
-                <div style={{background:'var(--card)',border:'1px solid var(--border)',borderRadius:12,padding:'12px 14px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:10}}>
-                  <div style={{fontSize:13,color:'var(--text)',flex:1,lineHeight:1.4}}>{s.title}</div>
-                  <div style={{fontSize:10,color:'var(--muted)',flexShrink:0}}>침묵 {s.silence_score}</div>
-                </div>
-              </Link>
-            ))}
+          <div style={{display:'flex',flexDirection:'column',gap:8}}>
+            {silenceTop5.map((s:any) => {
+              const n = s.story_articles?.length || 0
+              return (
+                <Link key={s.id} href={`/story/${s.id}`} style={{textDecoration:'none'}}>
+                  <div style={{background:'var(--card)',border:'1px solid var(--border)',borderRadius:14,padding:'14px 16px',display:'flex',alignItems:'center',gap:12}}>
+                    <div style={{flex:1}}>
+                      <p style={{fontSize:13,fontWeight:600,color:'var(--text)',lineHeight:1.5,marginBottom:4}}>{s.title}</p>
+                      <p style={{fontSize:11,color:'var(--muted)'}}>{TOTAL_OUTLETS}개 언론사 중 {n}개만 보도</p>
+                    </div>
+                    <span style={{fontSize:14,color:'var(--muted)',flexShrink:0}}>→</span>
+                  </div>
+                </Link>
+              )
+            })}
           </div>
+        </div>
+      )}
+
+      {/* 2. 같은 사건, 다른 헤드라인 */}
+      {controversyTop5.length > 0 && (
+        <div style={{marginBottom:32}}>
+          <div style={{fontSize:11,fontWeight:700,letterSpacing:'.1em',textTransform:'uppercase',color:'var(--muted)',display:'flex',alignItems:'center',gap:8,marginBottom:12}}>
+            <div style={{width:3,height:14,borderRadius:2,background:'var(--accent)'}}/>
+            같은 사건, 다른 헤드라인
+          </div>
+          <div style={{display:'flex',flexDirection:'column',gap:8}}>
+            {controversyTop5.map((s:any) => {
+              const n = s.story_articles?.length || 0
+              return (
+                <Link key={s.id} href={`/story/${s.id}`} style={{textDecoration:'none'}}>
+                  <div style={{background:'var(--card)',border:'1px solid var(--border)',borderRadius:14,padding:'14px 16px',display:'flex',alignItems:'center',gap:12}}>
+                    <div style={{flex:1}}>
+                      <p style={{fontSize:13,fontWeight:600,color:'var(--text)',lineHeight:1.5,marginBottom:4}}>{s.title}</p>
+                      <p style={{fontSize:11,color:'var(--muted)'}}>{n}개 언론사 보도</p>
+                    </div>
+                    <span style={{fontSize:14,color:'var(--muted)',flexShrink:0}}>→</span>
+                  </div>
+                </Link>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* 3. 오늘 가장 많이 침묵한 뉴스 — TOP10, 더보기 접기 포함 */}
+      {silenceTop10.length > 0 && (
+        <div style={{marginBottom:32}}>
+          <div style={{fontSize:11,fontWeight:700,letterSpacing:'.1em',textTransform:'uppercase',color:'var(--muted)',display:'flex',alignItems:'center',gap:8,marginBottom:12}}>
+            <div style={{width:3,height:14,borderRadius:2,background:'var(--accent)'}}/>
+            오늘 가장 많이 침묵한 뉴스
+          </div>
+          <SilenceTop10 stories={silenceTop10} />
         </div>
       )}
 
