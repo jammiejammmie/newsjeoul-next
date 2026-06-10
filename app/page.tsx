@@ -407,7 +407,7 @@ export default async function Home() {
               </div>
 
               <a
-                href={`#story-${top.id}`}
+                href={`/story/${top.id}`}
                 style={{
                   display: 'inline-block',
                   padding: '10px 20px',

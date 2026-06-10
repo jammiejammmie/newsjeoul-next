@@ -14,6 +14,9 @@ export default function SilenceTop10({ stories }: { stories: any[] }) {
       <div style={{ display: 'flex', flexDirection: 'column' }}>
         {shown.map((s, i) => {
           const n = s.story_articles?.length || 0
+          const rank = i + 1
+          const isTop3 = rank <= 3
+
           return (
             <Link
               key={s.id}
@@ -25,45 +28,49 @@ export default function SilenceTop10({ stories }: { stories: any[] }) {
                   display: 'flex',
                   alignItems: 'flex-start',
                   gap: 14,
-                  padding: '12px 0',
+                  padding: '14px 0',
                   borderBottom: '1px solid var(--border)',
                 }}
               >
+                {/* Rank — number first, big */}
                 <span
                   style={{
                     fontFamily: "'Bebas Neue', cursive",
-                    fontSize: 14,
-                    color: 'var(--muted)',
-                    width: 20,
+                    fontSize: 28,
+                    lineHeight: 1,
+                    color: rank === 1 ? 'var(--accent)' : isTop3 ? 'var(--text2)' : 'var(--muted)',
+                    width: 36,
                     flexShrink: 0,
                     paddingTop: 2,
-                    textAlign: 'right',
                   }}
                 >
-                  {i + 1}
+                  #{rank}
                 </span>
-                <p
-                  style={{
-                    flex: 1,
-                    fontSize: 13,
-                    fontWeight: 500,
-                    color: 'var(--text)',
-                    lineHeight: 1.5,
-                  }}
-                >
-                  {s.title}
-                </p>
-                <span
-                  style={{
-                    fontSize: 11,
-                    color: 'var(--muted)',
-                    flexShrink: 0,
-                    paddingTop: 2,
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  {TOTAL}개 중 {n}개
-                </span>
+
+                {/* Stat first, then title */}
+                <div style={{ flex: 1 }}>
+                  <p
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 700,
+                      color: isTop3 ? 'var(--accent)' : 'var(--muted)',
+                      marginBottom: 5,
+                      letterSpacing: '.02em',
+                    }}
+                  >
+                    {TOTAL}개 언론사 중 {n}개만 보도
+                  </p>
+                  <p
+                    style={{
+                      fontSize: isTop3 ? 14 : 13,
+                      fontWeight: isTop3 ? 700 : 500,
+                      color: 'var(--text)',
+                      lineHeight: 1.5,
+                    }}
+                  >
+                    {s.title}
+                  </p>
+                </div>
               </div>
             </Link>
           )

@@ -200,12 +200,17 @@ export default async function StoryPage({ params }: { params: Promise<{ id: stri
               const n = s.story_articles?.length || 0
               return (
                 <Link key={s.id} href={`/story/${s.id}`} style={{textDecoration:'none'}}>
-                  <div style={{background:'var(--card)',border:'1px solid var(--border)',borderRadius:14,padding:'14px 16px',display:'flex',alignItems:'center',gap:12}}>
-                    <div style={{flex:1}}>
-                      <p style={{fontSize:13,fontWeight:600,color:'var(--text)',lineHeight:1.5,marginBottom:4}}>{s.title}</p>
-                      <p style={{fontSize:11,color:'var(--muted)'}}>{TOTAL_OUTLETS}개 언론사 중 {n}개만 보도</p>
+                  <div style={{background:'var(--card)',border:'1px solid var(--border)',borderRadius:14,padding:'16px'}}>
+                    <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8}}>
+                      <span style={{fontSize:10,fontWeight:700,padding:'3px 8px',borderRadius:20,background:'rgba(200,168,122,0.12)',color:'var(--accent)',letterSpacing:'.03em',flexShrink:0}}>
+                        침묵지수 {s.silence_score ?? '—'}
+                      </span>
+                      <span style={{fontSize:11,color:'var(--muted)'}}>
+                        {TOTAL_OUTLETS}개 중 {n}개만 보도
+                      </span>
                     </div>
-                    <span style={{fontSize:14,color:'var(--muted)',flexShrink:0}}>→</span>
+                    <p style={{fontSize:13,fontWeight:600,color:'var(--text)',lineHeight:1.5,marginBottom:10}}>{s.title}</p>
+                    <span style={{fontSize:11,fontWeight:700,color:'var(--accent)'}}>확인하기 →</span>
                   </div>
                 </Link>
               )
@@ -226,12 +231,10 @@ export default async function StoryPage({ params }: { params: Promise<{ id: stri
               const n = s.story_articles?.length || 0
               return (
                 <Link key={s.id} href={`/story/${s.id}`} style={{textDecoration:'none'}}>
-                  <div style={{background:'var(--card)',border:'1px solid var(--border)',borderRadius:14,padding:'14px 16px',display:'flex',alignItems:'center',gap:12}}>
-                    <div style={{flex:1}}>
-                      <p style={{fontSize:13,fontWeight:600,color:'var(--text)',lineHeight:1.5,marginBottom:4}}>{s.title}</p>
-                      <p style={{fontSize:11,color:'var(--muted)'}}>{n}개 언론사 보도</p>
-                    </div>
-                    <span style={{fontSize:14,color:'var(--muted)',flexShrink:0}}>→</span>
+                  <div style={{background:'var(--card)',border:'1px solid var(--border)',borderRadius:14,padding:'16px'}}>
+                    <p style={{fontSize:10,fontWeight:700,color:'var(--muted)',marginBottom:6,letterSpacing:'.04em'}}>{n}개 언론사 보도</p>
+                    <p style={{fontSize:13,fontWeight:600,color:'var(--text)',lineHeight:1.5,marginBottom:10}}>{s.title}</p>
+                    <span style={{fontSize:11,fontWeight:700,color:'var(--accent)'}}>다른 시각 보기 →</span>
                   </div>
                 </Link>
               )
@@ -250,6 +253,14 @@ export default async function StoryPage({ params }: { params: Promise<{ id: stri
           <SilenceTop10 stories={silenceTop10} />
         </div>
       )}
+
+      {/* 하단 CTA */}
+      <div style={{marginTop:8,marginBottom:40,padding:'28px 24px',background:'var(--card)',border:'1px solid var(--border)',borderRadius:16,display:'flex',flexDirection:'column',alignItems:'center',gap:14,textAlign:'center'}}>
+        <p style={{fontSize:14,color:'var(--text2)',lineHeight:1.7}}>오늘 언론사 90%가 침묵한 뉴스가 있습니다.</p>
+        <Link href="/top10" style={{padding:'12px 28px',background:'var(--text)',color:'var(--bg)',borderRadius:10,fontSize:13,fontWeight:700,textDecoration:'none',display:'inline-block'}}>
+          오늘 가장 많이 침묵한 뉴스 보기
+        </Link>
+      </div>
 
     </div>
   )
