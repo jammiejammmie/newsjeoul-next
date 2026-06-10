@@ -22,7 +22,7 @@ async function supabaseInsert(table, data) {
 exports.handler = async function(event) {
   const headers = { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' };
   if (event.httpMethod === 'OPTIONS') return { statusCode: 200, headers, body: '' };
-  if (event.httpMethod) {
+  if (event.httpMethod === 'POST' || event.httpMethod === 'GET') {
     const adminKey = event.headers?.['x-admin-key'] || event.queryStringParameters?.key;
     if (adminKey !== process.env.ADMIN_KEY) return { statusCode: 401, headers, body: JSON.stringify({ error: 'Unauthorized' }) };
   }
