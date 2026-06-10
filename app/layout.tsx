@@ -1,7 +1,6 @@
 import type { Metadata } from 'next'
 import './globals.css'
 import Nav from '@/components/Nav'
-import BottomTab from '@/components/BottomTab'
 
 export const metadata: Metadata = {
   title: '뉴스저울 — 당신이 못 본 절반',
@@ -33,7 +32,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <Nav />
         <main>{children}</main>
-        <BottomTab />
       </body>
     </html>
   )

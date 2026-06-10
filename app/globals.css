@@ -2,21 +2,32 @@
 
 :root {
   --bg: #080808;
-  --bg2: #101010;
+  --bg2: #0f0f0f;
   --card: #141414;
   --card2: #1a1a1a;
   --border: #1e1e1e;
   --border2: #2a2a2a;
-  --con: #e63946;
-  --lib: #2563eb;
-  --con-soft: rgba(230,57,70,.08);
-  --lib-soft: rgba(37,99,235,.08);
-  --gold: #f59e0b;
-  --green: #10b981;
+
+  /* Single brand accent — warm gold, used sparingly */
+  --accent: #c8a87a;
+  --accent-soft: rgba(200, 168, 122, .08);
+
+  /* Neutral differentiation (replaces political red/blue in brand contexts) */
+  --con: #888;
+  --lib: #666;
+  --con-soft: rgba(255, 255, 255, .025);
+  --lib-soft: rgba(255, 255, 255, .012);
+
+  /* Semantic colors for data viz (kept for election/chart pages) */
+  --data-warm: #a07060;
+  --data-cool: #607090;
+  --gold: #c8a87a;
+  --green: #22c55e;
   --purple: #8b5cf6;
+
   --text: #f0f0e8;
-  --text2: #b8b8b0;
-  --muted: #555;
+  --text2: #909088;
+  --muted: #484848;
 }
 
 [data-theme="light"] {
@@ -25,14 +36,19 @@
   --card: #fff;
   --card2: #f9f8f4;
   --border: #e0dfd8;
-  --border2: #ccc;
-  --con: #c0392b;
-  --lib: #1d4ed8;
-  --con-soft: rgba(192,57,43,.06);
-  --lib-soft: rgba(29,78,216,.06);
+  --border2: #d0cfca;
+  --accent: #b8943a;
+  --accent-soft: rgba(184, 148, 58, .07);
+  --con: #777;
+  --lib: #999;
+  --con-soft: rgba(0, 0, 0, .025);
+  --lib-soft: rgba(0, 0, 0, .012);
+  --data-warm: #7d4e3e;
+  --data-cool: #3e5a7d;
+  --gold: #b8943a;
   --text: #1a1a14;
-  --text2: #444;
-  --muted: #888;
+  --text2: #666;
+  --muted: #999;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -43,15 +59,59 @@ body {
   font-family: 'Noto Sans KR', sans-serif;
   min-height: 100vh;
   font-size: 15px;
-  padding-bottom: 80px;
 }
 
+/* ── Page layout (responsive) ──────────────────────── */
+.nj-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+.nj-hero {
+  padding: 72px 0 56px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 0;
+}
+
+.nj-layout {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Sidebar first on mobile (침묵 카드 — 집중형) */
+.nj-sidebar { order: -1; padding-top: 40px; }
+.nj-main    { order:  1; }
+
+@media (min-width: 1024px) {
+  .nj-container { padding: 0 64px; }
+
+  .nj-layout {
+    display: grid;
+    grid-template-columns: 1fr 360px;
+    grid-template-areas: "main sidebar";
+    gap: 0 72px;
+    align-items: start;
+    padding-top: 56px;
+  }
+
+  .nj-main    { grid-area: main;    order: unset; }
+  .nj-sidebar {
+    grid-area: sidebar;
+    order: unset;
+    padding-top: 0;
+    position: sticky;
+    top: 76px;
+  }
+}
+
+/* ── Spinner ──────────────────────────────────────── */
 @keyframes spin { to { transform: rotate(360deg); } }
 
 .spinner {
   width: 28px; height: 28px;
   border: 2px solid var(--border2);
-  border-top-color: var(--con);
+  border-top-color: var(--accent);
   border-radius: 50%;
   animation: spin .8s linear infinite;
   margin: 0 auto 14px;
