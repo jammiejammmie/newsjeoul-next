@@ -27,51 +27,93 @@ async function fetchTopSilenceStory() {
   return story;
 }
 
+// ── Duplicate check ───────────────────────────────────────────────
+async function getRecentPost(storyId) {
+  const since = new Date(Date.now() - 86400000).toISOString();
+  const res = await fetch(
+    `${SUPABASE_URL}/rest/v1/threads_posts?story_id=eq.${storyId}&posted_at=gte.${encodeURIComponent(since)}&limit=1`,
+    {
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': 'Bearer ' + SUPABASE_KEY,
+      },
+    }
+  );
+  if (!res.ok) return null;
+  const rows = await res.json();
+  return rows[0] || null;
+}
+
+// ── Post log ──────────────────────────────────────────────────────
+async function savePostLog(storyId, postId, template) {
+  const res = await fetch(
+    `${SUPABASE_URL}/rest/v1/threads_posts`,
+    {
+      method: 'POST',
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': 'Bearer ' + SUPABASE_KEY,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=minimal',
+      },
+      body: JSON.stringify({ story_id: storyId, post_id: postId, template }),
+    }
+  );
+  if (!res.ok) console.error('게시 로그 저장 실패:', await res.text());
+}
+
 // ── Copy templates A–E ───────────────────────────────────────────
-// Rotates once per day so consecutive days show different copy.
+// 원칙: 호기심 우선 / 사용자 중심 / 3~4문장 이내 / 첫 문장에서 시선 확보
 function buildPost(story, url) {
   const n = story.reportCount;
   const silent = TOTAL_OUTLETS - n;
-  // absolute day index → cycles 0 1 2 3 4 0 1 2 3 4 …
   const idx = Math.floor(Date.now() / 86400000) % 5;
 
   const templates = [
-    // A — direct stat + question
-    `${TOTAL_OUTLETS}개 언론사 중 ${n}곳만 보도했습니다.
+    // A — 질문 먼저, 숫자로 증명
+    `당신은 이 뉴스를 보셨나요?
 
-당신은 이 뉴스를 보셨나요?
+${TOTAL_OUTLETS}개 언론사 중 단 ${n}곳만 보도했습니다.
 
 뉴스저울 →
 ${url}`,
 
-    // B — first person voice
+    // B — 1인칭 발화 + 의문
     `저는 오늘 처음 봤습니다.
 
 ${TOTAL_OUTLETS}개 언론사 중 ${n}곳만 다룬 뉴스입니다.
 
+왜 이 뉴스는 묻혔을까요?
+
 뉴스저울 →
 ${url}`,
 
-    // C — minimal, pure curiosity
-    `대부분의 사람은 이 뉴스를 보지 못했습니다.
+    // C — 사용자 중심, 놓친 정보 강조
+    `대부분의 사람은 이 뉴스를 모릅니다.
+
+${TOTAL_OUTLETS}개 언론사 중 단 ${n}곳만 보도했기 때문입니다.
 
 당신은 보셨나요?
 
 뉴스저울 →
 ${url}`,
 
-    // D — label style, short
-    `오늘 가장 침묵한 뉴스
+    // D — 짧고 강렬, 침묵 대신 의문
+    `오늘 가장 많이 침묵당한 뉴스.
 
-${TOTAL_OUTLETS}개 언론사 중 ${n}곳만 보도
+${TOTAL_OUTLETS}개 언론사 중 ${n}곳만 보도.
+
+나머지 ${silent}곳은 왜 다루지 않았을까요?
 
 뉴스저울 →
 ${url}`,
 
-    // E — contrast framing
-    `이 뉴스를 다룬 언론사는 단 ${n}곳.
+    // E — 사용자 관점 + 언론 침묵 의문
+    `대부분의 사람은 이 뉴스를 보지 못했습니다.
 
-나머지 ${silent}곳은 다루지 않았습니다.
+${TOTAL_OUTLETS}개 언론사 중 단 ${n}곳만 보도했습니다.
+
+왜 ${silent}개 언론사는 이 뉴스를 다루지 않았을까요?
 
 뉴스저울 →
 ${url}`,
@@ -92,7 +134,7 @@ async function createContainer(text) {
     { method: 'POST', body: params }
   );
   const data = await res.json();
-  if (!res.ok || !data.id) throw new Error('컨테이너 생성 실패: ' + JSON.stringify(data));
+  if (!res.ok || !data.id) throw new Error('createContainer 실패: ' + JSON.stringify(data));
   return data.id;
 }
 
@@ -106,7 +148,7 @@ async function publishPost(containerId) {
     { method: 'POST', body: params }
   );
   const data = await res.json();
-  if (!res.ok || !data.id) throw new Error('게시 실패: ' + JSON.stringify(data));
+  if (!res.ok || !data.id) throw new Error('publishPost 실패: ' + JSON.stringify(data));
   return data.id;
 }
 
@@ -115,7 +157,6 @@ exports.handler = async function (event) {
   const headers = { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' };
   if (event.httpMethod === 'OPTIONS') return { statusCode: 200, headers, body: '' };
 
-  // Manual HTTP calls require admin key; cron invocations have no httpMethod
   if (event.httpMethod) {
     const key = event.headers?.['x-admin-key'] || event.queryStringParameters?.key;
     if (key !== process.env.ADMIN_KEY) {
@@ -128,23 +169,16 @@ exports.handler = async function (event) {
     const url = `${BASE_URL}/story/${story.id}`;
     const text = buildPost(story, url);
     const templateIdx = Math.floor(Date.now() / 86400000) % 5;
-    const templateLabel = ['A','B','C','D','E'][templateIdx];
+    const templateLabel = ['A', 'B', 'C', 'D', 'E'][templateIdx];
 
     console.log('포스팅 내용:\n', text);
 
-    // dry=true → 실제 게시 없이 미리보기만 반환 (Threads 환경변수 불필요)
+    // dry=true → 실제 게시 없이 미리보기만 반환
     const isDry = event.queryStringParameters?.dry === 'true';
     if (isDry) {
       return {
         statusCode: 200, headers,
-        body: JSON.stringify({
-          dry: true,
-          template: templateLabel,
-          title: story.title,
-          reportCount: story.reportCount,
-          url,
-          text,
-        }),
+        body: JSON.stringify({ dry: true, template: templateLabel, title: story.title, reportCount: story.reportCount, url, text }),
       };
     }
 
@@ -155,22 +189,33 @@ exports.handler = async function (event) {
       };
     }
 
+    // 중복 게시 방지 — 24시간 내 동일 Story 재게시 차단
+    const recent = await getRecentPost(story.id);
+    if (recent) {
+      console.log('중복 게시 차단:', story.id, '/ 마지막 게시:', recent.posted_at);
+      return {
+        statusCode: 200, headers,
+        body: JSON.stringify({
+          skipped: true,
+          reason: '24시간 내 동일 기사 이미 게시됨',
+          storyId: story.id,
+          lastPostedAt: recent.posted_at,
+          lastPostId: recent.post_id,
+        }),
+      };
+    }
+
     const containerId = await createContainer(text);
-    // Threads API 컨테이너 생성 후 대기 (Netlify 26초 한도 내)
     await new Promise(r => setTimeout(r, 3000));
     const postId = await publishPost(containerId);
+
+    // 게시 로그 저장
+    await savePostLog(story.id, postId, templateLabel);
 
     console.log('Threads 게시 완료:', postId);
     return {
       statusCode: 200, headers,
-      body: JSON.stringify({
-        ok: true,
-        postId,
-        template: templateLabel,
-        title: story.title,
-        reportCount: story.reportCount,
-        url,
-      }),
+      body: JSON.stringify({ ok: true, postId, template: templateLabel, title: story.title, reportCount: story.reportCount, url }),
     };
   } catch (e) {
     console.error(e.message);
