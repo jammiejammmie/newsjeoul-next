@@ -156,8 +156,8 @@ exports.handler = async function (event) {
     }
 
     const containerId = await createContainer(text);
-    // Threads API 권장: 컨테이너 생성 후 최소 30초 대기
-    await new Promise(r => setTimeout(r, 30000));
+    // Threads API 컨테이너 생성 후 대기 (Netlify 26초 한도 내)
+    await new Promise(r => setTimeout(r, 3000));
     const postId = await publishPost(containerId);
 
     console.log('Threads 게시 완료:', postId);
