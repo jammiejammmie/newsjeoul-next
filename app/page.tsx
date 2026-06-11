@@ -14,7 +14,7 @@ async function getData() {
     supabase
       .from('stories')
       .select('id,title,silence_score,controversy_score,created_at,story_articles(article_id,articles(id,title,url,outlet_id,outlets(name)))')
-      .order('silence_score', { ascending: false })
+      .order('silence_score', {ascending: false}).order('created_at', {ascending: false})
       .limit(10),
     supabase
       .from('stories')
