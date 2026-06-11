@@ -1,0 +1,24 @@
+name: Post to Threads (daily 10:00 KST)
+
+on:
+  schedule:
+    - cron: '0 1 * * *'   # 01:00 UTC = 10:00 KST
+  workflow_dispatch:        # 수동 실행 가능 (테스트용)
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call post-threads Netlify function
+        run: |
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+            -H "x-admin-key: ${{ secrets.NEWSJEOUL_ADMIN_KEY }}" \
+            "https://newsjeoul.co.kr/.netlify/functions/post-threads")
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | head -n -1)
+          echo "HTTP Status: $HTTP_CODE"
+          echo "Response: $BODY"
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "Function returned $HTTP_CODE — failing job"
+            exit 1
+          fi
