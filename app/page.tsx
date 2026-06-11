@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import type { Metadata } from 'next'
+import Link from 'next/link'
 import ShareButtons from '@/components/ShareButtons'
 
 export const dynamic = 'force-dynamic'
@@ -168,6 +169,16 @@ function StoryCard({ story }: { story: any }) {
           </p>
         </div>
       ) : null}
+
+      {/* 상세 링크 */}
+      <div style={{ padding: '10px 20px 14px', borderTop: '1px solid var(--border)' }}>
+        <Link
+          href={`/story/${story.id}`}
+          style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent)', textDecoration: 'none' }}
+        >
+          자세히 보기 →
+        </Link>
+      </div>
     </div>
   )
 }

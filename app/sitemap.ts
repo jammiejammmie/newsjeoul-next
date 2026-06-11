@@ -1,6 +1,8 @@
 import type { MetadataRoute } from 'next'
 import { createClient } from '@supabase/supabase-js'
 
+export const revalidate = 1800  // 30분마다 재생성 (pipeline이 3시간 주기이므로 충분)
+
 const BASE_URL = 'https://newsjeoul.co.kr'
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {

@@ -12,7 +12,7 @@ async function getStory(id: string) {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   )
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('stories')
     .select(`
       id, title, silence_score, controversy_score, created_at,
@@ -23,6 +23,7 @@ async function getStory(id: string) {
     `)
     .eq('id', id)
     .single()
+  if (error) console.error('[getStory] id=%s code=%s msg=%s', id, error.code, error.message)
   return data
 }
 
