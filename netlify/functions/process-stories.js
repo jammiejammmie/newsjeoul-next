@@ -1,6 +1,8 @@
 // process-stories.js
 // 수집된 기사 → Claude 클러스터링 → stories/story_articles 생성 → 침묵지수/논쟁지수 계산
 
+const { shouldSkipStory } = require('./news-filters');
+
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY;
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
@@ -164,6 +166,11 @@ exports.handler = async function(event) {
         // 중복 스토리 방지
         if (existingTitles.has(cluster.story_title)) {
           console.log(`중복 건너뜀: "${cluster.story_title}"`);
+          continue;
+        }
+
+        if (shouldSkipStory(cluster.story_title)) {
+          console.log('스킵:', cluster.story_title);
           continue;
         }
 
