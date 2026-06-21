@@ -123,6 +123,11 @@ export default async function StoryPage({ params }: { params: Promise<{ id: stri
     || []
 
   const outletNames = [...new Set(articles.map((a: any) => a.outlets?.name).filter(Boolean))]
+  const whyMissed = outletNames.length === 1
+    ? `${outletNames[0]}만 이 사안을 다뤘습니다.`
+    : outletNames.length <= 2
+    ? '대부분의 언론이 이 사안을 다루지 않았습니다.'
+    : '이 뉴스는 소수의 언론사만 보도했습니다.'
   const shareText = `"${story.title}"\n침묵지수 ${story.silence_score}점 — ${outletNames.length}개 언론사만 보도\n\n뉴스저울 →`
 
   return (
@@ -147,6 +152,15 @@ export default async function StoryPage({ params }: { params: Promise<{ id: stri
           </div>
         </div>
         <h1 style={{fontFamily:"'Noto Serif KR',serif",fontSize:'clamp(18px,3vw,28px)',lineHeight:1.4,marginBottom:14,color:'var(--text)'}}>{story.title}</h1>
+        <p style={{
+          fontSize: 13,
+          color: 'var(--muted)',
+          lineHeight: 1.6,
+          marginBottom: 14,
+          fontStyle: 'italic',
+        }}>
+          {whyMissed}
+        </p>
         <ShareButtons url={`https://newsjeoul.co.kr/story/${story.id}`} text={shareText} />
       </div>
 
