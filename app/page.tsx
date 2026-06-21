@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import ShareButtons from '@/components/ShareButtons'
+import TrackedSilenceSection from '@/components/TrackedSilenceSection'
 
 export const dynamic = 'force-dynamic'
 
@@ -247,8 +248,24 @@ function SilenceRow({ story, rank, totalOutlets }: { story: any; rank: number; t
   )
 }
 
+async function getTrackedSilence() {
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  )
+  const res = await supabase
+    .from('stories')
+    .select('id,title,silence_score')
+    .gte('silence_score', 50)
+    .order('silence_score', { ascending: false })
+    .limit(5)
+  return res.data || []
+}
+
 export default async function Home() {
   const { silenceStories, controversyStories, totalOutlets } = await getData()
+
+  const trackedSilence = await getTrackedSilence()
 
   const top = silenceStories[0]
   const topReportingCount = top?.story_articles?.length || 0
@@ -354,6 +371,12 @@ export default async function Home() {
             <div style={{ padding: '80px 0', color: 'var(--muted)', fontSize: 13 }}>
               오늘의 뉴스가 준비 중입니다.
             </div>
+          )}
+
+          {trackedSilence.length > 0 && (
+            <TrackedSilenceSection
+              stories={trackedSilence}
+            />
           )}
 
           {/* Share */}
