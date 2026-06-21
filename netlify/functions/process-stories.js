@@ -28,6 +28,20 @@ async function supabasePost(table, data) {
   return res.json();
 }
 
+async function supabaseInsertLog(data) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/story_coverage_log`, {
+    method: 'POST',
+    headers: {
+      'apikey': SUPABASE_KEY,
+      'Authorization': 'Bearer ' + SUPABASE_KEY,
+      'Content-Type': 'application/json',
+      'Prefer': 'return=minimal,resolution=ignore-duplicates',
+    },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(await res.text());
+}
+
 async function claudeCluster(articles) {
   const prompt = `다음은 최근 수집된 한국 뉴스 기사 제목 목록이다.
 같은 사건/주제를 다루는 기사끼리 묶어서 JSON 배열로 반환해라.
@@ -176,6 +190,15 @@ exports.handler = async function(event) {
         await supabasePost('story_articles', storyArticles);
         existingTitles.add(cluster.story_title);
         storiesCreated++;
+
+        // T0 기록 — 실패해도 스토리 생성은 완료
+        const uniqueOutletCount = new Set(clusterArticles.map(a => a.outlet_id)).size;
+        supabaseInsertLog({
+          story_id: story.id,
+          outlet_count: uniqueOutletCount,
+          total_outlets: totalOutlets,
+          label: 'T0',
+        }).catch(e => console.error('T0 log 실패:', e.message));
 
         console.log(`스토리 생성: "${cluster.story_title}" (침묵:${silenceScore} 논쟁:${controversyScore})`);
 
