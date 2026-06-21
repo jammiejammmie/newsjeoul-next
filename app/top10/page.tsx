@@ -16,10 +16,19 @@ async function getTop10() {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   )
+
+  // KST 오늘 00:00 → UTC 변환 (KST = UTC+9)
+  const kstOffset = 9 * 60 * 60 * 1000
+  const kstNow = new Date(Date.now() + kstOffset)
+  const todayKST = new Date(Date.UTC(kstNow.getUTCFullYear(), kstNow.getUTCMonth(), kstNow.getUTCDate()))
+  const todayStart = new Date(todayKST.getTime() - kstOffset).toISOString()
+
   const { data } = await supabase
     .from('stories')
     .select('id,title,silence_score,story_articles(article_id)')
+    .gte('created_at', todayStart)
     .order('silence_score', { ascending: false })
+    .order('created_at', { ascending: false })
     .limit(10)
   return data || []
 }

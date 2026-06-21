@@ -10,8 +10,14 @@ const BASE_URL = 'https://newsjeoul.co.kr';
 
 // ── Data ─────────────────────────────────────────────────────────
 async function fetchTopSilenceStory() {
+  // KST 오늘 00:00 → UTC 변환 (KST = UTC+9)
+  const kstOffset = 9 * 60 * 60 * 1000;
+  const kstNow = new Date(Date.now() + kstOffset);
+  const todayKST = new Date(Date.UTC(kstNow.getUTCFullYear(), kstNow.getUTCMonth(), kstNow.getUTCDate()));
+  const todayStart = new Date(todayKST.getTime() - kstOffset).toISOString();
+
   const res = await fetch(
-    `${SUPABASE_URL}/rest/v1/stories?select=id,title,silence_score,story_articles(article_id)&order=silence_score.desc&limit=1`,
+    `${SUPABASE_URL}/rest/v1/stories?select=id,title,silence_score,story_articles(article_id)&created_at=gte.${encodeURIComponent(todayStart)}&order=silence_score.desc,created_at.desc&limit=1`,
     {
       headers: {
         'apikey': SUPABASE_KEY,
@@ -21,7 +27,7 @@ async function fetchTopSilenceStory() {
   );
   if (!res.ok) throw new Error('Supabase 조회 실패: ' + await res.text());
   const rows = await res.json();
-  if (!rows.length) throw new Error('스토리 없음');
+  if (!rows.length) throw new Error('오늘 스토리 없음');
   const story = rows[0];
   story.reportCount = (story.story_articles || []).length;
   return story;
