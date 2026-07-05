@@ -3,6 +3,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import ShareButtons from '@/components/ShareButtons'
 import SilenceTop10 from '@/components/SilenceTop10'
+import { getRelatedSections } from '@/lib/relatedSections'
 import { notFound } from 'next/navigation'
 
 export const dynamic = 'force-dynamic'
@@ -25,35 +26,6 @@ async function getStory(id: string) {
     .single()
   if (error) console.error('[getStory] id=%s code=%s msg=%s', id, error.code, error.message)
   return data
-}
-
-async function getRelatedSections(id: string) {
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  )
-  const [silenceRes, controversyRes] = await Promise.all([
-    // silence TOP10 (first 5 used for "놓쳤을 수 있는 뉴스", all 10 for ranked list)
-    supabase
-      .from('stories')
-      .select('id, title, silence_score, story_articles(article_id)')
-      .neq('id', id)
-      .order('silence_score', { ascending: false })
-      .limit(10),
-    // controversy TOP5 for "같은 사건, 다른 헤드라인"
-    supabase
-      .from('stories')
-      .select('id, title, controversy_score, story_articles(article_id)')
-      .neq('id', id)
-      .order('controversy_score', { ascending: false })
-      .limit(5),
-  ])
-  const silence = silenceRes.data || []
-  return {
-    silenceTop5: silence.slice(0, 5),
-    controversyTop5: controversyRes.data || [],
-    silenceTop10: silence,
-  }
 }
 
 const BASE = 'https://newsjeoul.co.kr'
