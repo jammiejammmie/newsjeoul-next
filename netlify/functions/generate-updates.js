@@ -10,6 +10,7 @@ const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
 const TIMELINE_STAGES = ['발단', '후속', '논란', '해명', '판결', '출시', '확정', '루머'];
 const UPDATE_TYPES = ['new_fact', 'rumor', 'confirmed', 'correction', 'timeline', 'followup'];
 const QUALITY_THRESHOLD = 60;
+const BATCH_SIZE = 5; // 한 번 호출에 최대 5개 topic-story 연결만 처리 (게이트웨이 타임아웃 방지, 나머지는 다음 스케줄에서 이어서 처리)
 
 async function supabaseGet(table, params) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}${params || ''}`, {
@@ -115,7 +116,7 @@ exports.handler = async function (event) {
 
     const existingEvents = await supabaseGet('topic_timeline_events', '?select=topic_id,source_story_id');
     const doneKey = new Set(existingEvents.map(e => `${e.topic_id}:${e.source_story_id}`));
-    const unprocessed = recentLinks.filter(l => l.topics && l.stories && !doneKey.has(`${l.topic_id}:${l.story_id}`));
+    const unprocessed = recentLinks.filter(l => l.topics && l.stories && !doneKey.has(`${l.topic_id}:${l.story_id}`)).slice(0, BATCH_SIZE);
     if (!unprocessed.length) return { statusCode: 200, headers, body: JSON.stringify({ ok: true, processed: 0 }) };
 
     let created = 0;

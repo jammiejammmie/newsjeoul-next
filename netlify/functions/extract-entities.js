@@ -7,6 +7,7 @@ const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY;
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
 
 const ENTITY_TYPES = ['company', 'person', 'organization', 'country', 'product', 'technology', 'market', 'policy'];
+const BATCH_SIZE = 5; // 한 번 호출에 최대 5개 story만 처리 (게이트웨이 타임아웃 방지, 나머지는 다음 스케줄에서 이어서 처리)
 
 async function supabaseGet(table, params) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}${params || ''}`, {
@@ -131,7 +132,7 @@ exports.handler = async function (event) {
 
     const existingLinks = await supabaseGet('entity_stories', '?select=story_id');
     const processedIds = new Set(existingLinks.map(l => l.story_id));
-    const unprocessed = recentStories.filter(s => !processedIds.has(s.id));
+    const unprocessed = recentStories.filter(s => !processedIds.has(s.id)).slice(0, BATCH_SIZE);
 
     if (!unprocessed.length) {
       return { statusCode: 200, headers, body: JSON.stringify({ ok: true, processed: 0 }) };
