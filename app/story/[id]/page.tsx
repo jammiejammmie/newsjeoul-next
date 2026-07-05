@@ -4,6 +4,8 @@ import Link from 'next/link'
 import ShareButtons from '@/components/ShareButtons'
 import SilenceTop10 from '@/components/SilenceTop10'
 import { getRelatedSections } from '@/lib/relatedSections'
+import { getTopicsForStory } from '@/lib/topics'
+import { getEntitiesForStory } from '@/lib/entities'
 import { notFound } from 'next/navigation'
 
 export const dynamic = 'force-dynamic'
@@ -80,9 +82,11 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 
 export default async function StoryPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const [story, sections] = await Promise.all([
+  const [story, sections, connectedTopics, connectedEntities] = await Promise.all([
     getStory(id),
     getRelatedSections(id),
+    getTopicsForStory(id),
+    getEntitiesForStory(id),
   ])
   const { silenceTop5, controversyTop5, silenceTop10 } = sections
 
@@ -135,6 +139,26 @@ export default async function StoryPage({ params }: { params: Promise<{ id: stri
         </p>
         <ShareButtons url={`https://newsjeoul.co.kr/story/${story.id}`} text={shareText} />
       </div>
+
+      {/* 이 근거가 속한 대상 — explanation 없이 즉시 이동 유도 (Product Bible 3장 예외 규칙) */}
+      {(connectedTopics.length > 0 || connectedEntities.length > 0) && (
+        <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:24}}>
+          {connectedTopics.map((t:any) => (
+            <Link key={t.id} href={`/topic/${t.slug}`} style={{textDecoration:'none'}}>
+              <div style={{fontSize:12,fontWeight:700,padding:'8px 14px',borderRadius:20,background:'var(--card)',border:'1px solid var(--accent)',color:'var(--accent)'}}>
+                🔎 {t.name} 이슈 전체 보기 →
+              </div>
+            </Link>
+          ))}
+          {connectedEntities.map((e:any) => (
+            <Link key={e.id} href={`/entity/${e.slug}`} style={{textDecoration:'none'}}>
+              <div style={{fontSize:12,fontWeight:600,padding:'8px 14px',borderRadius:20,background:'var(--card)',border:'1px solid var(--border)',color:'var(--text2)'}}>
+                {e.name} →
+              </div>
+            </Link>
+          ))}
+        </div>
+      )}
 
       {/* 보도 언론사 */}
       <div style={{marginBottom:8,fontSize:11,fontWeight:700,letterSpacing:'.1em',textTransform:'uppercase',color:'var(--muted)',display:'flex',alignItems:'center',gap:8}}>

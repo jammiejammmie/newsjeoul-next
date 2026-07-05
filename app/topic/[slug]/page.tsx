@@ -1,0 +1,221 @@
+import { createClient } from '@supabase/supabase-js'
+import type { Metadata } from 'next'
+import Link from 'next/link'
+import { notFound } from 'next/navigation'
+import { getTopicBySlug, getTopicStories, getTopicEntities, getTopicTimeline, getTopicUpdates } from '@/lib/topics'
+
+export const dynamic = 'force-dynamic'
+
+const BASE = 'https://newsjeoul.co.kr'
+const STAGE_BADGE: Record<string, string> = {
+  emerging: '🌱 새로 떠오름',
+  active: '🔥 활발히 진행 중',
+  cooling: '🧊 잦아드는 중',
+  archived: '📦 종료',
+}
+
+async function getRelatedTopics(topicId: string) {
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  )
+  const { data } = await supabase
+    .from('topic_relations')
+    .select('relation_type, explanation, strength_score, source_topic_id, target_topic_id, source:topics!topic_relations_source_topic_id_fkey(id,slug,name), target:topics!topic_relations_target_topic_id_fkey(id,slug,name)')
+    .or(`source_topic_id.eq.${topicId},target_topic_id.eq.${topicId}`)
+    .order('strength_score', { ascending: false })
+    .limit(10)
+  return (data || [])
+    .map((row: any) => {
+      const other = row.source_topic_id === topicId ? row.target : row.source
+      return other ? { ...other, explanation: row.explanation, strength_score: row.strength_score } : null
+    })
+    .filter(Boolean)
+}
+
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug } = await params
+  const topic = await getTopicBySlug(slug)
+  if (!topic) return { title: '뉴스저울' }
+
+  const title = `${topic.name} 총정리 — 지금까지 정리 | 뉴스저울`
+  const desc = topic.summary || topic.description || `${topic.name}에 대한 지금까지의 흐름과 관련 이슈를 정리했습니다.`
+
+  return {
+    title,
+    description: desc,
+    alternates: { canonical: `${BASE}/topic/${topic.slug}` },
+    openGraph: { title: topic.name, description: desc, images: [{ url: `${BASE}/og?type=topic&title=${encodeURIComponent(topic.name)}`, width: 1200, height: 630 }] },
+    twitter: { card: 'summary_large_image', title: topic.name, description: desc },
+  }
+}
+
+export default async function TopicPage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params
+  const topic = await getTopicBySlug(slug)
+  if (!topic) notFound()
+
+  const [stories, entities, timeline, updates, relatedTopics] = await Promise.all([
+    getTopicStories(topic.id, 20),
+    getTopicEntities(topic.id),
+    getTopicTimeline(topic.id, 30),
+    getTopicUpdates(topic.id, 10),
+    getRelatedTopics(topic.id),
+  ])
+
+  const recentTimeline = timeline.slice(-5).reverse()
+  const olderTimeline = timeline.slice(0, -5).reverse()
+
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'Article',
+    headline: topic.name,
+    description: topic.summary || topic.description,
+    dateModified: topic.updated_at,
+    mainEntityOfPage: `${BASE}/topic/${topic.slug}`,
+  }
+  const breadcrumbLd = {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: '뉴스저울', item: BASE },
+      { '@type': 'ListItem', position: 2, name: topic.name, item: `${BASE}/topic/${topic.slug}` },
+    ],
+  }
+
+  return (
+    <div style={{ maxWidth: 800, margin: '0 auto', padding: '0 16px' }}>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbLd) }} />
+
+      <div style={{ padding: '16px 0 0' }}>
+        <Link href="/" style={{ fontSize: 12, color: 'var(--muted)', textDecoration: 'none' }}>← 뉴스저울로</Link>
+      </div>
+
+      {/* 지금 — 항상 최상단, 접히지 않음 (모바일 우선) */}
+      <div style={{ padding: '16px 0 20px', borderBottom: '1px solid var(--border)', marginBottom: 20 }}>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+          <div style={{ fontSize: 10, fontWeight: 700, padding: '4px 10px', borderRadius: 20, background: 'var(--card)', border: '1px solid var(--border)', color: 'var(--text2)' }}>
+            {STAGE_BADGE[topic.lifecycle_stage] || topic.lifecycle_stage}
+          </div>
+          {topic.category && (
+            <div style={{ fontSize: 10, fontWeight: 700, padding: '4px 10px', borderRadius: 20, background: 'var(--card)', border: '1px solid var(--border)', color: 'var(--muted)' }}>
+              {topic.category}
+            </div>
+          )}
+        </div>
+        <h1 style={{ fontFamily: "'Noto Serif KR',serif", fontSize: 'clamp(20px,3.5vw,30px)', lineHeight: 1.4, marginBottom: 14, color: 'var(--text)' }}>
+          {topic.name}
+        </h1>
+        {(topic.summary || topic.description) && (
+          <p style={{ fontSize: 13, color: 'var(--text2)', lineHeight: 1.7 }}>{topic.summary || topic.description}</p>
+        )}
+      </div>
+
+      {/* 오늘 바뀐 것 */}
+      {updates.length > 0 && (
+        <div style={{ marginBottom: 28 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 12 }}>
+            오늘 바뀐 것
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {updates.map((u: any) => (
+              <div key={u.id} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 14, padding: '14px 16px' }}>
+                <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', lineHeight: 1.5 }}>{u.title}</p>
+                {u.summary && <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 6, lineHeight: 1.6 }}>{u.summary}</p>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 역사 — 처음부터 지금까지 (요약 5개는 항상 노출, 나머지는 접힘) */}
+      {recentTimeline.length > 0 && (
+        <div style={{ marginBottom: 28 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 12 }}>
+            처음부터 지금까지
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {recentTimeline.map((t: any) => (
+              <div key={t.id} style={{ display: 'flex', gap: 10 }}>
+                <div style={{ fontSize: 11, color: 'var(--muted)', flexShrink: 0, width: 70 }}>
+                  {new Date(t.event_date).toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' })}
+                </div>
+                <div>
+                  <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{t.title}</p>
+                  {t.summary && <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>{t.summary}</p>}
+                </div>
+              </div>
+            ))}
+          </div>
+          {olderTimeline.length > 0 && (
+            <details style={{ marginTop: 10 }}>
+              <summary style={{ fontSize: 12, color: 'var(--muted)', cursor: 'pointer' }}>전체 타임라인 보기 ({olderTimeline.length}개 더)</summary>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 10 }}>
+                {olderTimeline.map((t: any) => (
+                  <div key={t.id} style={{ display: 'flex', gap: 10 }}>
+                    <div style={{ fontSize: 11, color: 'var(--muted)', flexShrink: 0, width: 70 }}>
+                      {new Date(t.event_date).toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' })}
+                    </div>
+                    <div>
+                      <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{t.title}</p>
+                      {t.summary && <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>{t.summary}</p>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </details>
+          )}
+        </div>
+      )}
+
+      {/* 연결 — 관련 주제 + 관련 기업/인물 (모바일: 가로 스크롤 캐러셀) */}
+      {(relatedTopics.length > 0 || entities.length > 0) && (
+        <div style={{ marginBottom: 28 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 12 }}>
+            연결된 것들
+          </div>
+          <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 6, WebkitOverflowScrolling: 'touch' }}>
+            {relatedTopics.map((t: any) => (
+              <Link key={t.id} href={`/topic/${t.slug}`} style={{ textDecoration: 'none', flexShrink: 0, width: 220 }}>
+                <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 14, padding: '14px 16px', height: '100%' }}>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent)' }}>주제</span>
+                  <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', margin: '6px 0' }}>{t.name}</p>
+                  {t.explanation && <p style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.5 }}>{t.explanation}</p>}
+                </div>
+              </Link>
+            ))}
+            {entities.map((e: any) => (
+              <Link key={e.id} href={`/entity/${e.slug}`} style={{ textDecoration: 'none', flexShrink: 0, width: 220 }}>
+                <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 14, padding: '14px 16px', height: '100%' }}>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--lib)' }}>{e.type}</span>
+                  <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', margin: '6px 0' }}>{e.name}</p>
+                  {e.explanation && <p style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.5 }}>{e.explanation}</p>}
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 근거 — 관련 기사, 기본 접힘 */}
+      {stories.length > 0 && (
+        <details style={{ marginBottom: 32 }}>
+          <summary style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--muted)', cursor: 'pointer' }}>
+            근거 기사 보기 ({stories.length}개)
+          </summary>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
+            {stories.map((s: any) => (
+              <Link key={s.id} href={`/story/${s.id}`} style={{ textDecoration: 'none' }}>
+                <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 14, padding: '14px 16px' }}>
+                  <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', lineHeight: 1.5 }}>{s.title}</p>
+                  <span style={{ fontSize: 11, color: 'var(--muted)' }}>침묵지수 {s.silence_score ?? '—'}</span>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </details>
+      )}
+    </div>
+  )
+}

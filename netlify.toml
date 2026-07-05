@@ -40,6 +40,18 @@
   schedule = "30 */3 * * *"
   timeout = 60
 
+[functions."extract-entities"]
+  schedule = "35 */3 * * *"
+  timeout = 60
+
+[functions."resolve-topics"]
+  schedule = "40 */3 * * *"
+  timeout = 90
+
+[functions."generate-updates"]
+  schedule = "45 */3 * * *"
+  timeout = 90
+
 [functions."post-threads"]
   schedule = "0 1 * * *"
   timeout = 90

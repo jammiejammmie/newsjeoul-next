@@ -34,3 +34,36 @@ jobs:
           echo "process-stories → HTTP $HTTP_CODE"
           echo "$BODY"
           [ "$HTTP_CODE" = "200" ] || exit 1
+
+      - name: 3. Entity 추출 (extract-entities)
+        run: |
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+            -H "x-admin-key: ${{ secrets.NEWSJEOUL_ADMIN_KEY }}" \
+            "https://newsjeoul.co.kr/.netlify/functions/extract-entities")
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | head -n -1)
+          echo "extract-entities → HTTP $HTTP_CODE"
+          echo "$BODY"
+          [ "$HTTP_CODE" = "200" ] || exit 1
+
+      - name: 4. Topic 매칭/생성 (resolve-topics)
+        run: |
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+            -H "x-admin-key: ${{ secrets.NEWSJEOUL_ADMIN_KEY }}" \
+            "https://newsjeoul.co.kr/.netlify/functions/resolve-topics")
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | head -n -1)
+          echo "resolve-topics → HTTP $HTTP_CODE"
+          echo "$BODY"
+          [ "$HTTP_CODE" = "200" ] || exit 1
+
+      - name: 5. Timeline/Update 생성 (generate-updates)
+        run: |
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+            -H "x-admin-key: ${{ secrets.NEWSJEOUL_ADMIN_KEY }}" \
+            "https://newsjeoul.co.kr/.netlify/functions/generate-updates")
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | head -n -1)
+          echo "generate-updates → HTTP $HTTP_CODE"
+          echo "$BODY"
+          [ "$HTTP_CODE" = "200" ] || exit 1

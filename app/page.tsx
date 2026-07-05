@@ -3,6 +3,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import ShareButtons from '@/components/ShareButtons'
 import TrackedSilenceSection from '@/components/TrackedSilenceSection'
+import { getActiveTopics } from '@/lib/topics'
 
 export const dynamic = 'force-dynamic'
 
@@ -266,6 +267,7 @@ export default async function Home() {
   const { silenceStories, controversyStories, totalOutlets } = await getData()
 
   const trackedSilence = await getTrackedSilence()
+  const activeTopics = await getActiveTopics(10)
 
   const top = silenceStories[0]
   const topReportingCount = top?.story_articles?.length || 0
@@ -301,6 +303,32 @@ export default async function Home() {
           당신이 못 본 절반이 있습니다.
         </h1>
       </div>
+
+      {/* 지금 움직이는 것 — Node(Topic) 카드, 모바일 가로 스크롤 */}
+      {activeTopics.length > 0 && (
+        <section style={{ marginBottom: 48 }}>
+          <p style={{
+            fontSize: 10, fontWeight: 700, letterSpacing: '.14em', textTransform: 'uppercase',
+            color: 'var(--muted)', marginBottom: 14,
+          }}>
+            지금 움직이는 것
+          </p>
+          <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 6, WebkitOverflowScrolling: 'touch' }}>
+            {activeTopics.map((t: any) => (
+              <Link key={t.id} href={`/topic/${t.slug}`} style={{ textDecoration: 'none', flexShrink: 0, width: 240 }}>
+                <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 14, padding: '16px', height: '100%' }}>
+                  <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', lineHeight: 1.5, marginBottom: 8 }}>{t.name}</p>
+                  {t.summary && (
+                    <p style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.5, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+                      {t.summary}
+                    </p>
+                  )}
+                </div>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* TWO-COLUMN LAYOUT (desktop) / single (mobile) */}
       <div className="nj-layout">

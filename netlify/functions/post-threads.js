@@ -33,6 +33,18 @@ async function fetchTopSilenceStory() {
   return story;
 }
 
+// Node 중심 전환: 이 story가 속한 Topic이 있으면 Topic 링크를 우선 사용한다.
+// 침묵지수 카피는 그대로 유지한다 — 대기업이 못 오는 유일한 틈새이자 핵심 신뢰 트리거.
+async function findConnectedTopic(storyId) {
+  const res = await fetch(
+    `${SUPABASE_URL}/rest/v1/topic_stories?story_id=eq.${storyId}&select=topics(slug,name)&order=relevance_score.desc&limit=1`,
+    { headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY } }
+  );
+  if (!res.ok) return null;
+  const rows = await res.json();
+  return rows[0]?.topics || null;
+}
+
 // ── Duplicate check ───────────────────────────────────────────────
 async function getRecentPost(storyId) {
   const since = new Date(Date.now() - 86400000).toISOString();
@@ -172,7 +184,8 @@ exports.handler = async function (event) {
 
   try {
     const story = await fetchTopSilenceStory();
-    const url = `${BASE_URL}/story/${story.id}`;
+    const connectedTopic = await findConnectedTopic(story.id).catch(() => null);
+    const url = connectedTopic ? `${BASE_URL}/topic/${connectedTopic.slug}` : `${BASE_URL}/story/${story.id}`;
     const text = buildPost(story, url);
     const templateIdx = Math.floor(Date.now() / 86400000) % 5;
     const templateLabel = ['A', 'B', 'C', 'D', 'E'][templateIdx];
