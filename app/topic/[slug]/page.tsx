@@ -2,7 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { getTopicBySlug, getTopicStories, getTopicEntities, getTopicTimeline, getTopicUpdates } from '@/lib/topics'
+import { getTopicBySlug, getTopicStories, getTopicEntities, getTopicTimeline, getTopicUpdates, getTopicsByCategory } from '@/lib/topics'
 import { entityIcon } from '@/lib/icons'
 
 const TYPE_LABEL: Record<string, string> = {
@@ -61,13 +61,15 @@ export default async function TopicPage({ params }: { params: Promise<{ slug: st
   const topic = await getTopicBySlug(slug)
   if (!topic) notFound()
 
-  const [stories, entities, timeline, updates, relatedTopics] = await Promise.all([
+  const [stories, entities, timeline, updates, relatedTopics, sameCategoryTopics] = await Promise.all([
     getTopicStories(topic.id, 20),
     getTopicEntities(topic.id),
     getTopicTimeline(topic.id, 30),
     getTopicUpdates(topic.id, 10),
     getRelatedTopics(topic.id),
+    topic.category ? getTopicsByCategory(topic.category, 6) : Promise.resolve([]),
   ])
+  const readNext = sameCategoryTopics.filter((t: any) => t.id !== topic.id).slice(0, 5)
 
   const recentTimeline = timeline.slice(-5).reverse()
   const olderTimeline = timeline.slice(0, -5).reverse()
@@ -141,16 +143,19 @@ export default async function TopicPage({ params }: { params: Promise<{ slug: st
           <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 12 }}>
             처음부터 지금까지
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {recentTimeline.map((t: any) => (
-              <div key={t.id} style={{ display: 'flex', gap: 10 }}>
-                <div style={{ fontSize: 11, color: 'var(--muted)', flexShrink: 0, width: 70 }}>
-                  {new Date(t.event_date).toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' })}
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            {recentTimeline.map((t: any, i: number) => (
+              <div key={t.id}>
+                <div style={{ display: 'flex', gap: 10, padding: '4px 0' }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent)', flexShrink: 0, width: 70 }}>
+                    {new Date(t.event_date).toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' })}
+                  </div>
+                  <div>
+                    <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{t.title}</p>
+                    {t.summary && <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>{t.summary}</p>}
+                  </div>
                 </div>
-                <div>
-                  <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{t.title}</p>
-                  {t.summary && <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>{t.summary}</p>}
-                </div>
+                {i < recentTimeline.length - 1 && <span style={{ color: 'var(--border2)', fontSize: 12, marginLeft: 74 }}>↓</span>}
               </div>
             ))}
           </div>
@@ -259,6 +264,25 @@ export default async function TopicPage({ params }: { params: Promise<{ slug: st
             ))}
           </div>
         </details>
+      )}
+
+      {/* 함께 읽으면 좋은 Topic — 같은 분야 기반 */}
+      {readNext.length > 0 && (
+        <div style={{ marginBottom: 32 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 12 }}>
+            함께 읽으면 좋은 Topic
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {readNext.map((t: any) => (
+              <Link key={t.id} href={`/topic/${t.slug}`} style={{ textDecoration: 'none' }}>
+                <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 14, padding: '14px 16px' }}>
+                  <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', lineHeight: 1.5 }}>{t.name}</p>
+                  {(t.summary || t.description) && <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>{t.summary || t.description}</p>}
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
       )}
     </div>
   )

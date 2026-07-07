@@ -181,19 +181,33 @@ export async function getRecentTimelineEvents(limit = 10) {
 }
 
 // 홈 "오늘 가장 많이 연결되는 기업/인물/국가" TOP10 — entity_stories 집계, LLM 비용 없음
+// "왜 많이 연결됐는지"는 이미 생성된 ai_analysis(있으면)나 가장 강하게 연결된 Topic 이름으로 대신한다 (추가 LLM 호출 없음)
 export async function getTopEntitiesByType(type: string, limit = 10) {
   const supabase = client()
   const { data } = await supabase
     .from('entity_stories')
-    .select('entity_id, entities(id, slug, name, type, status)')
-  const counts = new Map<string, { id: string; name: string; slug: string; count: number }>()
+    .select('entity_id, entities(id, slug, name, type, status, ai_analysis)')
+  const counts = new Map<string, { id: string; name: string; slug: string; ai_analysis: string | null; count: number }>()
   for (const row of (data || []) as any[]) {
     const e = row.entities
     if (!e || e.type !== type || e.status !== 'active') continue
-    if (!counts.has(e.slug)) counts.set(e.slug, { id: e.id, name: e.name, slug: e.slug, count: 0 })
+    if (!counts.has(e.slug)) counts.set(e.slug, { id: e.id, name: e.name, slug: e.slug, ai_analysis: e.ai_analysis, count: 0 })
     counts.get(e.slug)!.count++
   }
-  return [...counts.values()].sort((a, b) => b.count - a.count).slice(0, limit)
+  const top = [...counts.values()].sort((a, b) => b.count - a.count).slice(0, limit)
+
+  return Promise.all(top.map(async (t) => {
+    if (t.ai_analysis) return { ...t, reason: t.ai_analysis }
+    const { data: topTopic } = await supabase
+      .from('topic_entities')
+      .select('topics(name)')
+      .eq('entity_id', t.id)
+      .order('strength_score', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    const topicName = (topTopic as any)?.topics?.name
+    return { ...t, reason: topicName ? `"${topicName}" 이슈와 가장 강하게 연결` : null }
+  }))
 }
 
 // 홈 "세상은 이렇게 연결됩니다" — entity_relations 기반, 가능하면 1홉 더 이어붙인다
@@ -215,14 +229,16 @@ export async function getEntityConnectionChains(limit = 3) {
     const nodes = [e.source, e.target]
     usedEdgeIdx.add(i)
 
-    // 마지막 노드에서 한 홉 더 이어붙일 수 있는지 탐색
-    const lastId = nodes[nodes.length - 1].id
-    const nextIdx = edges.findIndex((other: any, j: number) =>
-      !usedEdgeIdx.has(j) && (other.source.id === lastId || other.target.id === lastId)
-    )
-    if (nextIdx !== -1) {
+    // 마지막 노드에서 최대 2홉 더 이어붙여 3~4개 노드 체인을 시도한다
+    for (let hop = 0; hop < 2; hop++) {
+      const lastId = nodes[nodes.length - 1].id
+      const nextIdx = edges.findIndex((other: any, j: number) =>
+        !usedEdgeIdx.has(j) && (other.source.id === lastId || other.target.id === lastId)
+      )
+      if (nextIdx === -1) break
       const other = edges[nextIdx] as any
       const nextNode = other.source.id === lastId ? other.target : other.source
+      if (nodes.some(n => n.id === nextNode.id)) break // 순환 방지
       nodes.push(nextNode)
       usedEdgeIdx.add(nextIdx)
     }
@@ -230,4 +246,36 @@ export async function getEntityConnectionChains(limit = 3) {
     chains.push({ nodes, explanation: e.explanation })
   }
   return chains
+}
+
+// "분야별 세상 보기" — topics.category 단일 레벨 집계 (LLM 비용 없음)
+export async function getCategoryCounts(limit = 10) {
+  const supabase = client()
+  const { data } = await supabase
+    .from('topics')
+    .select('category')
+    .eq('status', 'active')
+    .not('category', 'is', null)
+  const counts = new Map<string, number>()
+  for (const row of (data || []) as any[]) {
+    const c = (row.category || '').trim()
+    if (!c) continue
+    counts.set(c, (counts.get(c) || 0) + 1)
+  }
+  return [...counts.entries()]
+    .map(([category, count]) => ({ category, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, limit)
+}
+
+export async function getTopicsByCategory(category: string, limit = 20) {
+  const supabase = client()
+  const { data } = await supabase
+    .from('topics')
+    .select('id, slug, name, summary, description, lifecycle_stage')
+    .eq('status', 'active')
+    .eq('category', category)
+    .order('importance_score', { ascending: false })
+    .limit(limit)
+  return data || []
 }

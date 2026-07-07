@@ -3,7 +3,7 @@ import type { Metadata } from 'next'
 import type { CSSProperties } from 'react'
 import Link from 'next/link'
 import ShareButtons from '@/components/ShareButtons'
-import { getHomeTopicCards, getEntityConnectionChains, getEmergingTopics, getRecentTimelineEvents, getTopEntitiesByType } from '@/lib/topics'
+import { getHomeTopicCards, getEntityConnectionChains, getEmergingTopics, getRecentTimelineEvents, getTopEntitiesByType, getCategoryCounts } from '@/lib/topics'
 import { getTodayInsights } from '@/lib/insights'
 import { entityIcon } from '@/lib/icons'
 
@@ -101,8 +101,8 @@ const TOP10_GROUPS: { type: string; title: string }[] = [
 
 export default async function Home() {
   const { silenceStories, totalOutlets } = await getData()
-  const [topicCards, chains, insights, emergingTopics, timelineEvents, topCompanies, topPeople, topCountries] = await Promise.all([
-    getHomeTopicCards(12),
+  const [topicCards, chains, insights, emergingTopics, timelineEvents, topCompanies, topPeople, topCountries, categories] = await Promise.all([
+    getHomeTopicCards(5),
     getEntityConnectionChains(3),
     getTodayInsights(5),
     getEmergingTopics(5),
@@ -110,6 +110,7 @@ export default async function Home() {
     getTopEntitiesByType('company', 8),
     getTopEntitiesByType('person', 8),
     getTopEntitiesByType('country', 8),
+    getCategoryCounts(8),
   ])
   const top10Lists = [topCompanies, topPeople, topCountries]
 
@@ -210,6 +211,35 @@ export default async function Home() {
               </Link>
             ))}
           </div>
+          <div style={{ textAlign: 'center', marginTop: 20 }}>
+            <Link href="/topic" style={{
+              display: 'inline-block', padding: '10px 24px', borderRadius: 10,
+              fontSize: 12, fontWeight: 700, color: 'var(--text)', border: '1px solid var(--border2)',
+              textDecoration: 'none',
+            }}>
+              전체 이슈 보기 →
+            </Link>
+          </div>
+        </section>
+      )}
+
+      {/* 분야별 세상 보기 */}
+      {categories.length > 0 && (
+        <section style={{ marginBottom: 56 }}>
+          <p style={labelStyle}>분야별 세상 보기</p>
+          <h2 style={headingStyle}>원하는 분야만 골라서 볼 수 있습니다</h2>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {categories.map((c: any) => (
+              <Link key={c.category} href={`/category/${encodeURIComponent(c.category)}`} style={{ textDecoration: 'none' }}>
+                <div style={{
+                  fontSize: 13, fontWeight: 600, padding: '10px 16px', borderRadius: 20,
+                  background: 'var(--card)', border: '1px solid var(--border)', color: 'var(--text)',
+                }}>
+                  {c.category} <span style={{ color: 'var(--muted)', fontSize: 11 }}>{c.count}</span>
+                </div>
+              </Link>
+            ))}
+          </div>
         </section>
       )}
 
@@ -283,13 +313,18 @@ export default async function Home() {
               return (
                 <div key={g.type} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 16, padding: '18px 20px' }}>
                   <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', marginBottom: 12 }}>{g.title}</p>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                     {list.map((e: any, rank: number) => (
-                      <Link key={e.slug} href={`/entity/${e.slug}`} style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span style={{ fontSize: 11, color: 'var(--muted)', width: 16 }}>{rank + 1}</span>
-                        <span>{entityIcon(g.type, e.name)}</span>
-                        <span style={{ fontSize: 13, color: 'var(--text)', flex: 1 }}>{e.name}</span>
-                        <span style={{ fontSize: 11, color: 'var(--accent)' }}>{e.count}</span>
+                      <Link key={e.slug} href={`/entity/${e.slug}`} style={{ textDecoration: 'none' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ fontSize: 11, color: 'var(--muted)', width: 16 }}>{rank + 1}</span>
+                          <span>{entityIcon(g.type, e.name)}</span>
+                          <span style={{ fontSize: 13, color: 'var(--text)', flex: 1 }}>{e.name}</span>
+                          <span style={{ fontSize: 11, color: 'var(--accent)' }}>{e.count}</span>
+                        </div>
+                        {e.reason && (
+                          <p style={{ fontSize: 11, color: 'var(--muted)', marginLeft: 24, marginTop: 2, lineHeight: 1.5 }}>{e.reason}</p>
+                        )}
                       </Link>
                     ))}
                   </div>
@@ -325,17 +360,28 @@ export default async function Home() {
         <section style={{ marginBottom: 64 }}>
           <p style={labelStyle}>실시간 TIMELINE</p>
           <h2 style={headingStyle}>오늘 하루, 세상은 이렇게 흘렀습니다</h2>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 0, borderLeft: '2px solid var(--border)', paddingLeft: 18 }}>
-            {timelineEvents.map((e: any) => (
-              <Link key={e.id} href={`/topic/${e.topics.slug}`} style={{ textDecoration: 'none' }}>
-                <div style={{ padding: '10px 0', position: 'relative' }}>
-                  <span style={{ position: 'absolute', left: -23, top: 15, width: 8, height: 8, borderRadius: '50%', background: 'var(--accent)' }} />
-                  <span style={{ fontSize: 10, color: 'var(--muted)' }}>
-                    {new Date(e.event_date).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })} · {e.topics.name}
-                  </span>
-                  <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginTop: 2 }}>{e.title}</p>
-                </div>
-              </Link>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+            {timelineEvents.map((e: any, i: number) => (
+              <div key={e.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', width: '100%' }}>
+                <Link href={`/topic/${e.topics.slug}`} style={{ textDecoration: 'none', width: '100%' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0' }}>
+                    <span style={{
+                      fontFamily: "'Bebas Neue', cursive", fontSize: 15, color: 'var(--accent)',
+                      background: 'var(--card)', border: '1px solid var(--border2)', borderRadius: 8,
+                      padding: '4px 10px', flexShrink: 0,
+                    }}>
+                      {new Date(e.event_date).toLocaleString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })}
+                    </span>
+                    <div>
+                      <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{e.title}</p>
+                      <p style={{ fontSize: 10, color: 'var(--muted)', marginTop: 2 }}>{e.topics.name}</p>
+                    </div>
+                  </div>
+                </Link>
+                {i < timelineEvents.length - 1 && (
+                  <span style={{ color: 'var(--border2)', fontSize: 13, paddingLeft: 24 }}>↓</span>
+                )}
+              </div>
             ))}
           </div>
         </section>

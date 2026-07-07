@@ -30,13 +30,19 @@ async function supabasePost(table, data, prefer) {
   return text ? JSON.parse(text) : [];
 }
 
-async function claudeInsights(topics) {
-  const list = topics.map((t, i) => `${i}. [${t.id}] ${t.name} — ${t.summary || t.description || '(요약 없음)'} (관련: ${(t.entityNames || []).join(', ') || '없음'})`).join('\n');
-  const prompt = `다음은 뉴스저울이 오늘 추적 중인 주요 이슈 목록이다.
-이 중 서로 연결되거나 인과관계가 있어 보이는 것들을 골라, "왜 A인데 B인가" 같은 통찰 문장 3~5개를 만들어라.
-기사 요약이 아니라 AI의 해석/의견이어야 한다. 확실하지 않으면 추측이라고 표현해라. 설명 없이 JSON만 반환해라.
+async function claudeInsights(topics, categoryCounts) {
+  const list = topics.map((t, i) => `${i}. [${t.id}] ${t.name} — ${t.summary || t.description || '(요약 없음)'} (연결된 유형: ${(t.entityTypes || []).join(', ') || '없음'})`).join('\n');
+  const categoryLine = categoryCounts.map(c => `${c.category} ${c.count}건`).join(', ') || '(분류 데이터 없음)';
 
-이슈 목록:
+  const prompt = `다음은 뉴스저울이 오늘 실제로 집계한 데이터다. 이 데이터에 근거해서 "발견"처럼 느껴지는 비교/확산형 통찰 문장 3~5개를 만들어라.
+반드시 아래 실제 수치나 목록에 근거해서만 말해라(근거 없는 추측 금지). 예시 스타일:
+- "오늘 정치보다 경제 관련 이슈가 더 많이 연결되고 있습니다" (카테고리 건수 비교 시에만)
+- "OO 이슈가 △△·□□ 등 서로 다른 분야까지 번지고 있습니다" (한 Topic이 여러 타입의 Entity와 연결된 경우만)
+기사 요약이 아니라 AI의 해석이어야 한다. 확실하지 않으면 "~로 보입니다"처럼 추측으로 표현해라. 설명 없이 JSON만 반환해라.
+
+오늘 카테고리별 이슈 건수: ${categoryLine}
+
+오늘 주요 이슈와 연결된 실체 유형:
 ${list}
 
 반환 형식:
@@ -79,15 +85,30 @@ exports.handler = async function (event) {
     const topics = await supabaseGet('topics', '?status=eq.active&select=id,name,summary,description&order=importance_score.desc,popularity_score.desc&limit=8');
     if (!topics.length) return { statusCode: 200, headers, body: JSON.stringify({ ok: true, created: 0 }) };
 
+    // 카테고리별 이슈 건수 — 비교형 인사이트("정치보다 경제")의 실제 근거
+    const allActiveTopics = await supabaseGet('topics', '?status=eq.active&select=category').catch(() => []);
+    const categoryMap = new Map();
+    for (const t of allActiveTopics) {
+      const c = (t.category || '').trim();
+      if (!c) continue;
+      categoryMap.set(c, (categoryMap.get(c) || 0) + 1);
+    }
+    const categoryCounts = [...categoryMap.entries()]
+      .map(([category, count]) => ({ category, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10);
+
+    // Topic마다 연결된 Entity의 타입 다양성 — 확산형 인사이트("식품·전력·농업까지")의 실제 근거
     const withEntities = await Promise.all(topics.map(async (t) => {
-      const rows = await supabaseGet('topic_entities', `?topic_id=eq.${t.id}&select=entities(name)&order=strength_score.desc&limit=3`).catch(() => []);
-      return { ...t, entityNames: rows.map(r => r.entities?.name).filter(Boolean) };
+      const rows = await supabaseGet('topic_entities', `?topic_id=eq.${t.id}&select=entities(type)&order=strength_score.desc&limit=10`).catch(() => []);
+      const types = [...new Set(rows.map(r => r.entities?.type).filter(Boolean))];
+      return { ...t, entityTypes: types };
     }));
 
-    const insights = await claudeInsights(withEntities);
+    const insights = await claudeInsights(withEntities, categoryCounts);
 
     if (isDry) {
-      return { statusCode: 200, headers, body: JSON.stringify({ ok: true, dry: true, topicsUsed: withEntities.length, insights }) };
+      return { statusCode: 200, headers, body: JSON.stringify({ ok: true, dry: true, topicsUsed: withEntities.length, categoryCounts, insights }) };
     }
 
     let created = 0;
