@@ -67,7 +67,7 @@ exports.handler = async function (event) {
   const isDry = event.queryStringParameters?.dry === 'true';
 
   try {
-    const topicsToFill = await supabaseGet('topics', `?status=eq.active&ai_outlook=is.null&select=id,name,summary,description&order=importance_score.desc&limit=${BATCH_SIZE}`);
+    const topicsToFill = await supabaseGet('topics', `?status=eq.active&ai_outlook=is.null&select=id,name,summary,description,category&order=importance_score.desc&limit=${BATCH_SIZE}`);
     const entitiesToFill = await supabaseGet('entities', `?status=eq.active&ai_analysis=is.null&select=id,name,type,description&limit=${BATCH_SIZE}`);
 
     let topicsFilled = 0;
@@ -75,16 +75,30 @@ exports.handler = async function (event) {
     const dryResults = { topics: [], entities: [] };
 
     for (const t of topicsToFill) {
-      const prompt = `다음 이슈에 대해 (1) 향후 전망(outlook) (2) 반대 시각/다른 해석(counter_view)을 각각 2~3문장으로 작성해라. 확정된 사실이 아니라 가능성으로 표현해라. 설명 없이 JSON만 반환해라.
+      const prompt = `다음 이슈에 대해 아래 8가지를 작성해라. 확정된 사실이 아니라 가능성으로 표현하고, 근거 없는 단정은 하지 마라. 설명 없이 JSON만 반환해라.
 
-이슈: "${t.name}" — ${t.summary || t.description || ''}
+이슈: "${t.name}" (분야: ${t.category || '미분류'}) — ${t.summary || t.description || ''}
 
-반환 형식: {"outlook": "...", "counter_view": "..."}`;
-      const text = await claudeCall(prompt, 500);
+1. outlook: 향후 전망 2~3문장
+2. counter_view: 반대 시각/다른 해석 2~3문장
+3. industry_impact: 이 이슈가 관련 산업에 미치는 영향 2~3문장
+4. historical_comparison: 최근 1~2년 내 비슷한 성격의 사건과 비교 2~3문장 (구체적 사례가 떠오르지 않으면 "뚜렷한 선례를 찾기 어렵다"고 써라)
+5. international_response: 해외에서는 유사 사안에 어떻게 대응했는지 2~3문장 (모르면 위와 동일하게 솔직히 써라)
+6. watchpoints: 앞으로 주목해야 할 변화 3가지 (배열, 각 항목 1문장)
+7. similar_cases: 구조가 비슷한 다른 사건 1~2개 (배열, 각 항목 1문장, 없으면 빈 배열)
+8. related_issues: 이 이슈를 이해하면 함께 이해되는 다른 이슈 1~2개 (배열, 각 항목 1문장, 없으면 빈 배열)
+
+반환 형식: {"outlook": "...", "counter_view": "...", "industry_impact": "...", "historical_comparison": "...", "international_response": "...", "watchpoints": ["...", "...", "..."], "similar_cases": ["..."], "related_issues": ["..."]}`;
+      const text = await claudeCall(prompt, 1200);
       const parsed = extractJson(text);
       if (!parsed) continue;
-      if (isDry) { dryResults.topics.push({ id: t.id, name: t.name, ...parsed }); continue; }
-      await supabasePatch('topics', `?id=eq.${t.id}`, { ai_outlook: parsed.outlook || null, ai_counter_view: parsed.counter_view || null });
+      const { outlook, counter_view, ...context } = parsed;
+      if (isDry) { dryResults.topics.push({ id: t.id, name: t.name, outlook, counter_view, context }); continue; }
+      await supabasePatch('topics', `?id=eq.${t.id}`, {
+        ai_outlook: outlook || null,
+        ai_counter_view: counter_view || null,
+        ai_context: context,
+      });
       topicsFilled++;
     }
 

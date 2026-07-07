@@ -11,7 +11,7 @@ export async function getActiveTopics(limit = 10) {
   const supabase = client()
   const { data } = await supabase
     .from('topics')
-    .select('id, slug, name, summary, status, lifecycle_stage, importance_score, popularity_score, updated_at')
+    .select('id, slug, name, summary, status, lifecycle_stage, importance_score, popularity_score, updated_at, category')
     .eq('status', 'active')
     .order('importance_score', { ascending: false })
     .order('popularity_score', { ascending: false })
@@ -111,7 +111,7 @@ export async function getHomeTopicCards(limit = 9) {
   const supabase = client()
   const { data: topics } = await supabase
     .from('topics')
-    .select('id, slug, name, summary, description, lifecycle_stage')
+    .select('id, slug, name, summary, description, lifecycle_stage, category')
     .eq('status', 'active')
     .order('importance_score', { ascending: false })
     .order('popularity_score', { ascending: false })
@@ -174,10 +174,22 @@ export async function getRecentTimelineEvents(limit = 10) {
   const supabase = client()
   const { data } = await supabase
     .from('topic_timeline_events')
-    .select('id, event_date, title, summary, topic_id, topics(slug, name)')
+    .select('id, event_date, title, summary, topic_id, topics(slug, name, category)')
     .order('event_date', { ascending: false })
     .limit(limit)
   return (data || []).filter((e: any) => e.topics)
+}
+
+// "오늘 세상을 한 장으로" — 대표 체인 1개 + 오늘의 핵심 이슈 5개를 한 데이터로 묶는다 (재사용 가능한 콘텐츠 패키지)
+export async function getTodayOneCard() {
+  const [chains, topics] = await Promise.all([
+    getEntityConnectionChains(1),
+    getActiveTopics(5),
+  ])
+  return {
+    chain: chains[0] || null,
+    topics: topics.map((t: any) => ({ name: t.name, slug: t.slug })),
+  }
 }
 
 // 홈 "오늘 가장 많이 연결되는 기업/인물/국가" TOP10 — entity_stories 집계, LLM 비용 없음
@@ -215,7 +227,7 @@ export async function getEntityRelationEdges(limit = 30) {
   const supabase = client()
   const { data } = await supabase
     .from('entity_relations')
-    .select('strength_score, explanation, source:entities!entity_relations_source_entity_id_fkey(id,slug,name), target:entities!entity_relations_target_entity_id_fkey(id,slug,name)')
+    .select('strength_score, explanation, source:entities!entity_relations_source_entity_id_fkey(id,slug,name,type), target:entities!entity_relations_target_entity_id_fkey(id,slug,name,type)')
     .order('strength_score', { ascending: false })
     .limit(limit)
   return (data || []).filter((r: any) => r.source && r.target) as any[]
@@ -295,4 +307,35 @@ export async function getTopicsByCategory(category: string, limit = 20) {
     .order('importance_score', { ascending: false })
     .limit(limit)
   return data || []
+}
+
+// "오늘 가장 의외의 연결" — 서로 다른 타입의 Entity를 잇는 가장 강한 관계 (실데이터만, 추측 없음)
+export async function getMostUnusualConnection() {
+  const edges = await getEntityRelationEdges(30)
+  const cross = edges.find((e: any) => e.source.type !== e.target.type)
+  return cross || null
+}
+
+// "오늘 가장 많은 분야에 영향을 준 이슈" — 연결된 Entity 타입 종류가 가장 많은 Topic (실데이터만)
+export async function getMostCrossCategoryTopic() {
+  const supabase = client()
+  const { data: topics } = await supabase
+    .from('topics')
+    .select('id, slug, name')
+    .eq('status', 'active')
+    .order('importance_score', { ascending: false })
+    .limit(15)
+  if (!topics || !topics.length) return null
+
+  const withSpread = await Promise.all(topics.map(async (t: any) => {
+    const { data: rows } = await supabase
+      .from('topic_entities')
+      .select('entities(type)')
+      .eq('topic_id', t.id)
+    const types = [...new Set((rows || []).map((r: any) => r.entities?.type).filter(Boolean))]
+    return { ...t, types }
+  }))
+
+  const best = withSpread.sort((a, b) => b.types.length - a.types.length)[0]
+  return best && best.types.length >= 3 ? best : null
 }

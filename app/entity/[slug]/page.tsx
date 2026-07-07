@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { getEntityBySlug, getEntityStories, getEntityTopics, getEntityTimeline } from '@/lib/entities'
 import { entityIcon } from '@/lib/icons'
+import SignatureCard from '@/components/SignatureCard'
 
 export const dynamic = 'force-dynamic'
 
@@ -140,22 +141,14 @@ export default async function EntityPage({ params }: { params: Promise<{ slug: s
           </div>
           <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 6, WebkitOverflowScrolling: 'touch' }}>
             {topics.map((t: any) => (
-              <Link key={t.id} href={`/topic/${t.slug}`} style={{ textDecoration: 'none', flexShrink: 0, width: 220 }}>
-                <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 14, padding: '14px 16px', height: '100%' }}>
-                  <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent)' }}>이슈</span>
-                  <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', margin: '6px 0' }}>{t.name}</p>
-                  {t.explanation && <p style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.5 }}>{t.explanation}</p>}
-                </div>
-              </Link>
+              <div key={t.id} style={{ flexShrink: 0, width: 180 }}>
+                <SignatureCard href={`/topic/${t.slug}`} seed={t.slug} icon="🔗" badge="이슈" title={t.name} subtitle={t.explanation} size="sm" />
+              </div>
             ))}
             {relatedEntities.map((e: any) => (
-              <Link key={e.id} href={`/entity/${e.slug}`} style={{ textDecoration: 'none', flexShrink: 0, width: 220 }}>
-                <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 14, padding: '14px 16px', height: '100%' }}>
-                  <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--lib)' }}>{TYPE_LABEL[e.type] || e.type}</span>
-                  <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', margin: '6px 0' }}>{e.name}</p>
-                  {e.explanation && <p style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.5 }}>{e.explanation}</p>}
-                </div>
-              </Link>
+              <div key={e.id} style={{ flexShrink: 0, width: 180 }}>
+                <SignatureCard href={`/entity/${e.slug}`} seed={e.slug} icon={entityIcon(e.type, e.name)} badge={TYPE_LABEL[e.type] || e.type} title={e.name} subtitle={e.explanation} size="sm" />
+              </div>
             ))}
           </div>
         </div>

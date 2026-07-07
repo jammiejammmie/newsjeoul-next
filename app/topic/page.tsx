@@ -1,6 +1,8 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { getActiveTopics } from '@/lib/topics'
+import { categoryIcon } from '@/lib/icons'
+import SignatureCard from '@/components/SignatureCard'
 
 export const dynamic = 'force-dynamic'
 
@@ -27,20 +29,16 @@ export default async function TopicIndexPage() {
 
       <div className="nj-topic-grid" style={{ marginBottom: 48 }}>
         {topics.map((t: any) => (
-          <Link key={t.id} href={`/topic/${t.slug}`} style={{ textDecoration: 'none' }}>
-            <div className="nj-topic-card">
-              <div className="nj-topic-card-block" />
-              <p style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)', lineHeight: 1.4 }}>{t.name}</p>
-              {t.summary && (
-                <p style={{
-                  fontSize: 12, color: 'var(--text2)', lineHeight: 1.55,
-                  overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
-                }}>
-                  {t.summary}
-                </p>
-              )}
-            </div>
-          </Link>
+          <SignatureCard
+            key={t.id}
+            href={`/topic/${t.slug}`}
+            seed={t.slug}
+            icon={categoryIcon(t.category)}
+            badge={t.category || undefined}
+            title={t.name}
+            subtitle={t.summary}
+            size="md"
+          />
         ))}
       </div>
 

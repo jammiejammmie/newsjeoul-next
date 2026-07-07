@@ -3,7 +3,9 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { getTopicBySlug, getTopicStories, getTopicEntities, getTopicTimeline, getTopicUpdates, getTopicsByCategory } from '@/lib/topics'
-import { entityIcon } from '@/lib/icons'
+import { getInsightsForTopic } from '@/lib/insights'
+import { entityIcon, categoryIcon } from '@/lib/icons'
+import SignatureCard from '@/components/SignatureCard'
 
 const TYPE_LABEL: Record<string, string> = {
   company: '관련 기업', person: '관련 인물', organization: '관련 기관', country: '관련 국가',
@@ -18,6 +20,15 @@ const STAGE_BADGE: Record<string, string> = {
   active: '🔥 활발히 진행 중',
   cooling: '🧊 잦아드는 중',
   archived: '📦 종료',
+}
+
+function ContextBlock({ icon, label, text }: { icon: string; label: string; text: string }) {
+  return (
+    <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 14, padding: '16px' }}>
+      <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', marginBottom: 8 }}>{icon} {label}</p>
+      <p style={{ fontSize: 13, color: 'var(--text2)', lineHeight: 1.7 }}>{text}</p>
+    </div>
+  )
 }
 
 async function getRelatedTopics(topicId: string) {
@@ -61,13 +72,14 @@ export default async function TopicPage({ params }: { params: Promise<{ slug: st
   const topic = await getTopicBySlug(slug)
   if (!topic) notFound()
 
-  const [stories, entities, timeline, updates, relatedTopics, sameCategoryTopics] = await Promise.all([
+  const [stories, entities, timeline, updates, relatedTopics, sameCategoryTopics, relatedInsights] = await Promise.all([
     getTopicStories(topic.id, 20),
     getTopicEntities(topic.id),
     getTopicTimeline(topic.id, 30),
     getTopicUpdates(topic.id, 10),
     getRelatedTopics(topic.id),
     topic.category ? getTopicsByCategory(topic.category, 6) : Promise.resolve([]),
+    getInsightsForTopic(topic.id, 2),
   ])
   const readNext = sameCategoryTopics.filter((t: any) => t.id !== topic.id).slice(0, 5)
 
@@ -113,6 +125,7 @@ export default async function TopicPage({ params }: { params: Promise<{ slug: st
           )}
         </div>
         <h1 style={{ fontFamily: "'Noto Serif KR',serif", fontSize: 'clamp(20px,3.5vw,30px)', lineHeight: 1.4, marginBottom: 14, color: 'var(--text)' }}>
+          {topic.category && <span style={{ marginRight: 8 }}>{categoryIcon(topic.category)}</span>}
           {topic.name}
         </h1>
         {(topic.summary || topic.description) && (
@@ -199,6 +212,59 @@ export default async function TopicPage({ params }: { params: Promise<{ slug: st
         </div>
       )}
 
+      {/* 넓은 맥락 — 산업 영향/과거 비교/해외 대응/전망/유사 사례/연관 이슈 */}
+      {topic.ai_context && (
+        <div style={{ marginBottom: 28 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 12 }}>
+            더 넓은 맥락
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {topic.ai_context.industry_impact && (
+              <ContextBlock icon="🏭" label="관련 산업에 미치는 영향" text={topic.ai_context.industry_impact} />
+            )}
+            {topic.ai_context.historical_comparison && (
+              <ContextBlock icon="🕰️" label="최근 유사 사례와 비교" text={topic.ai_context.historical_comparison} />
+            )}
+            {topic.ai_context.international_response && (
+              <ContextBlock icon="🌐" label="해외는 어떻게 대응했는가" text={topic.ai_context.international_response} />
+            )}
+            {Array.isArray(topic.ai_context.watchpoints) && topic.ai_context.watchpoints.length > 0 && (
+              <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 14, padding: '16px' }}>
+                <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', marginBottom: 8 }}>👀 앞으로 주목해야 할 변화</p>
+                <ul style={{ display: 'flex', flexDirection: 'column', gap: 4, paddingLeft: 16 }}>
+                  {topic.ai_context.watchpoints.map((w: string, i: number) => (
+                    <li key={i} style={{ fontSize: 13, color: 'var(--text2)', lineHeight: 1.6 }}>{w}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {Array.isArray(topic.ai_context.similar_cases) && topic.ai_context.similar_cases.length > 0 && (
+              <ContextBlock icon="🔁" label="구조가 비슷한 다른 사건" text={topic.ai_context.similar_cases.join(' · ')} />
+            )}
+            {Array.isArray(topic.ai_context.related_issues) && topic.ai_context.related_issues.length > 0 && (
+              <ContextBlock icon="🔗" label="함께 이해하면 좋은 이슈" text={topic.ai_context.related_issues.join(' · ')} />
+            )}
+          </div>
+          <p style={{ fontSize: 9, color: 'var(--muted)', marginTop: 10 }}>뉴스저울 자동 분석 · 참고용</p>
+        </div>
+      )}
+
+      {/* 오늘의 발견 — 이 Topic을 언급한 인사이트 교차 링크 */}
+      {relatedInsights.length > 0 && (
+        <div style={{ marginBottom: 28 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 12 }}>
+            오늘의 발견
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {relatedInsights.map((ins: any) => (
+              <div key={ins.id} style={{ background: 'var(--card)', border: '1px solid var(--border2)', borderRadius: 14, padding: '14px 16px', borderLeft: '3px solid var(--accent)' }}>
+                <p style={{ fontSize: 13, color: 'var(--text2)', lineHeight: 1.6 }}>{ins.insight_text}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* 관련 Topic */}
       {relatedTopics.length > 0 && (
         <div style={{ marginBottom: 28 }}>
@@ -207,13 +273,9 @@ export default async function TopicPage({ params }: { params: Promise<{ slug: st
           </div>
           <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 6, WebkitOverflowScrolling: 'touch' }}>
             {relatedTopics.map((t: any) => (
-              <Link key={t.id} href={`/topic/${t.slug}`} style={{ textDecoration: 'none', flexShrink: 0, width: 220 }}>
-                <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 14, padding: '14px 16px', height: '100%' }}>
-                  <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent)' }}>주제</span>
-                  <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', margin: '6px 0' }}>{t.name}</p>
-                  {t.explanation && <p style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.5 }}>{t.explanation}</p>}
-                </div>
-              </Link>
+              <div key={t.id} style={{ flexShrink: 0, width: 180 }}>
+                <SignatureCard href={`/topic/${t.slug}`} seed={t.slug} icon="🔗" badge="주제" title={t.name} subtitle={t.explanation} size="sm" />
+              </div>
             ))}
           </div>
         </div>
@@ -234,13 +296,9 @@ export default async function TopicPage({ params }: { params: Promise<{ slug: st
               </div>
               <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 6, WebkitOverflowScrolling: 'touch' }}>
                 {list.map((e: any) => (
-                  <Link key={e.id} href={`/entity/${e.slug}`} style={{ textDecoration: 'none', flexShrink: 0, width: 200 }}>
-                    <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 14, padding: '14px 16px', height: '100%' }}>
-                      <span style={{ fontSize: 16 }}>{entityIcon(e.type, e.name)}</span>
-                      <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', margin: '6px 0' }}>{e.name}</p>
-                      {e.explanation && <p style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.5 }}>{e.explanation}</p>}
-                    </div>
-                  </Link>
+                  <div key={e.id} style={{ flexShrink: 0, width: 170 }}>
+                    <SignatureCard href={`/entity/${e.slug}`} seed={e.slug} icon={entityIcon(e.type, e.name)} title={e.name} subtitle={e.explanation} size="sm" />
+                  </div>
                 ))}
               </div>
             </div>
@@ -273,14 +331,9 @@ export default async function TopicPage({ params }: { params: Promise<{ slug: st
           <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 12 }}>
             함께 읽으면 좋은 Topic
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div className="nj-topic-grid">
             {readNext.map((t: any) => (
-              <Link key={t.id} href={`/topic/${t.slug}`} style={{ textDecoration: 'none' }}>
-                <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 14, padding: '14px 16px' }}>
-                  <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', lineHeight: 1.5 }}>{t.name}</p>
-                  {(t.summary || t.description) && <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>{t.summary || t.description}</p>}
-                </div>
-              </Link>
+              <SignatureCard key={t.id} href={`/topic/${t.slug}`} seed={t.slug} icon={categoryIcon(topic.category)} title={t.name} subtitle={t.summary || t.description} size="md" />
             ))}
           </div>
         </div>

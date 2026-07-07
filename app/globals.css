@@ -180,6 +180,66 @@ body {
   font-size: 13px;
 }
 
+/* ── 뉴스저울 시그니처 카드 — 이미지 대신 색상+아이콘 ─────── */
+.nj-sig-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  overflow: hidden;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  transition: border-color .15s, transform .15s;
+}
+
+.nj-sig-card:hover { border-color: var(--border2); }
+
+.nj-sig-card-block {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  filter: saturate(0.85);
+}
+
+.nj-sig-card-badge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 20px;
+  background: rgba(0,0,0,.35);
+  color: #fff;
+  backdrop-filter: blur(4px);
+}
+
+.nj-sig-card-body {
+  padding: 12px 14px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+
+.nj-sig-card-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.4;
+}
+
+.nj-sig-card-subtitle {
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.5;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
 /* ── Spinner ──────────────────────────────────────── */
 @keyframes spin { to { transform: rotate(360deg); } }
 

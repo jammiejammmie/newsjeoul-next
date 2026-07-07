@@ -3,13 +3,14 @@ import type { Metadata } from 'next'
 import type { CSSProperties } from 'react'
 import Link from 'next/link'
 import ShareButtons from '@/components/ShareButtons'
+import SignatureCard from '@/components/SignatureCard'
 import {
   getActiveTopics, getHomeTopicCards, getEntityConnectionChains, getEntityRelationEdges,
   buildChainFromEntity, getEmergingTopics, getRecentTimelineEvents, getTopEntitiesByType,
-  getCategoryCounts,
+  getCategoryCounts, getTodayOneCard, getMostUnusualConnection, getMostCrossCategoryTopic,
 } from '@/lib/topics'
 import { getTodayInsights } from '@/lib/insights'
-import { entityIcon } from '@/lib/icons'
+import { entityIcon, categoryIcon, seedGradient } from '@/lib/icons'
 
 export const dynamic = 'force-dynamic'
 
@@ -107,7 +108,7 @@ export default async function Home() {
   const { silenceStories, totalOutlets } = await getData()
   const [
     briefingTopics, topicCards, chains, chainEdges, insights, emergingTopics, timelineEvents,
-    topCompanies, topPeople, topCountries, categories,
+    topCompanies, topPeople, topCountries, categories, oneCard, unusualConnection, crossCategoryTopic,
   ] = await Promise.all([
     getActiveTopics(5),
     getHomeTopicCards(5),
@@ -120,6 +121,9 @@ export default async function Home() {
     getTopEntitiesByType('person', 6),
     getTopEntitiesByType('country', 6),
     getCategoryCounts(8),
+    getTodayOneCard(),
+    getMostUnusualConnection(),
+    getMostCrossCategoryTopic(),
   ])
   const top10Lists = [topCompanies, topPeople, topCountries]
 
@@ -145,9 +149,61 @@ export default async function Home() {
         </h1>
       </div>
 
-      {/* ① 오늘 30초 브리핑 */}
-      {briefingTopics.length > 0 && (
+      {/* 오늘 세상을 한 장으로 — 뉴스저울 대표 콘텐츠, 이미지 대신 그래픽 카드 */}
+      {(oneCard.chain || oneCard.topics.length > 0) && (
         <section style={{ marginTop: 40, marginBottom: 56 }}>
+          <p style={labelStyle}>뉴스저울 대표 콘텐츠</p>
+          <div style={{
+            borderRadius: 20, overflow: 'hidden', border: '1px solid var(--border2)',
+          }}>
+            <div style={{
+              background: 'linear-gradient(135deg, var(--accent), var(--data-cool))',
+              padding: '28px 24px', filter: 'saturate(0.85)',
+            }}>
+              <p style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,.85)', marginBottom: 6, letterSpacing: '.05em' }}>
+                오늘 세상을 한 장으로
+              </p>
+              <p style={{ fontFamily: "'Noto Serif KR', serif", fontSize: 20, fontWeight: 700, color: '#fff' }}>
+                오늘 세상은 이렇게 움직였습니다
+              </p>
+            </div>
+            <div style={{ background: 'var(--card)', padding: '20px 24px' }}>
+              {oneCard.chain && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+                  {oneCard.chain.nodes.map((n: any, idx: number) => (
+                    <span key={n.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                      {idx > 0 && <span className="nj-chain-arrow">↓</span>}
+                      <Link href={`/entity/${n.slug}`} style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ fontSize: 18 }}>{entityIcon(n.type || '', n.name)}</span>
+                        <span style={{ fontSize: 14, fontWeight: idx === 0 ? 700 : 500, color: idx === 0 ? 'var(--text)' : 'var(--text2)' }}>{n.name}</span>
+                      </Link>
+                    </span>
+                  ))}
+                </div>
+              )}
+              {oneCard.topics.length > 0 && (
+                <div>
+                  <p style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', marginBottom: 8, letterSpacing: '.05em' }}>오늘 가장 중요한 변화</p>
+                  <ol style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {oneCard.topics.map((t: any, i: number) => (
+                      <li key={t.slug}>
+                        <Link href={`/topic/${t.slug}`} style={{ textDecoration: 'none', display: 'flex', gap: 8, alignItems: 'baseline' }}>
+                          <span style={{ fontFamily: "'Bebas Neue', cursive", fontSize: 14, color: 'var(--accent)', width: 18 }}>{i + 1}</span>
+                          <span style={{ fontSize: 13, color: 'var(--text)', fontWeight: 600 }}>{t.name}</span>
+                        </Link>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* 오늘 30초 브리핑 */}
+      {briefingTopics.length > 0 && (
+        <section style={{ marginBottom: 56 }}>
           <p style={labelStyle}>오늘 30초 브리핑</p>
           <div style={{ background: 'var(--card)', border: '1px solid var(--border2)', borderRadius: 16, padding: '20px 24px' }}>
             <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -167,7 +223,7 @@ export default async function Home() {
         </section>
       )}
 
-      {/* ② 오늘의 발견 (구 AI Insight) — 뉴스저울 브랜드 전면화 */}
+      {/* 오늘의 발견 (구 AI Insight) */}
       {insights.length > 0 && (
         <section style={{ marginBottom: 56 }}>
           <p style={labelStyle}>뉴스저울 발견</p>
@@ -186,9 +242,9 @@ export default async function Home() {
         </section>
       )}
 
-      {/* ③ 오늘 세상은 이렇게 움직였습니다 — 대표 기능 */}
+      {/* 오늘 세상은 이렇게 움직였습니다 — 대표 기능 */}
       {chains.length > 0 && (
-        <section style={{ marginBottom: 56 }}>
+        <section style={{ marginBottom: 32 }}>
           <p style={labelStyle}>뉴스저울 연결 분석</p>
           <h2 style={headingStyle}>오늘 세상은 이렇게 움직였습니다</h2>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -197,8 +253,9 @@ export default async function Home() {
                 {c.nodes.map((n: any, idx: number) => (
                   <span key={n.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
                     {idx > 0 && <span className="nj-chain-arrow">↓</span>}
-                    <Link href={`/entity/${n.slug}`} style={{ textDecoration: 'none', fontSize: 14, fontWeight: idx === 0 ? 700 : 500, color: idx === 0 ? 'var(--text)' : 'var(--text2)' }}>
-                      {n.name}
+                    <Link href={`/entity/${n.slug}`} style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ fontSize: 16 }}>{entityIcon(n.type || '', n.name)}</span>
+                      <span style={{ fontSize: 14, fontWeight: idx === 0 ? 700 : 500, color: idx === 0 ? 'var(--text)' : 'var(--text2)' }}>{n.name}</span>
                     </Link>
                   </span>
                 ))}
@@ -211,43 +268,61 @@ export default async function Home() {
         </section>
       )}
 
-      {/* ④ 오늘 가장 중요한 이슈 */}
+      {/* 뉴스저울에서만 보는 발견 — 의외의 연결 / 다분야 확산 */}
+      {(unusualConnection || crossCategoryTopic) && (
+        <section style={{ marginBottom: 56 }}>
+          <div className="nj-topic-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
+            {unusualConnection && (
+              <div className="nj-sig-card">
+                <div className="nj-sig-card-block" style={{ background: 'linear-gradient(135deg, var(--purple), var(--accent))', height: 72, filter: 'saturate(.85)' }}>
+                  <span className="nj-sig-card-badge">오늘 가장 의외의 연결</span>
+                  <span style={{ fontSize: 26 }}>{entityIcon(unusualConnection.source.type)}{entityIcon(unusualConnection.target.type)}</span>
+                </div>
+                <div className="nj-sig-card-body">
+                  <p className="nj-sig-card-title">
+                    <Link href={`/entity/${unusualConnection.source.slug}`} style={{ color: 'inherit', textDecoration: 'none' }}>{unusualConnection.source.name}</Link>
+                    {' ↔ '}
+                    <Link href={`/entity/${unusualConnection.target.slug}`} style={{ color: 'inherit', textDecoration: 'none' }}>{unusualConnection.target.name}</Link>
+                  </p>
+                  {unusualConnection.explanation && <p className="nj-sig-card-subtitle">{unusualConnection.explanation}</p>}
+                </div>
+              </div>
+            )}
+            {crossCategoryTopic && (
+              <Link href={`/topic/${crossCategoryTopic.slug}`} style={{ textDecoration: 'none' }}>
+                <div className="nj-sig-card">
+                  <div className="nj-sig-card-block" style={{ background: 'linear-gradient(135deg, var(--green), var(--data-cool))', height: 72, filter: 'saturate(.85)' }}>
+                    <span className="nj-sig-card-badge">오늘 가장 많은 분야에 영향</span>
+                    <span style={{ fontSize: 26 }}>🌐</span>
+                  </div>
+                  <div className="nj-sig-card-body">
+                    <p className="nj-sig-card-title">{crossCategoryTopic.name}</p>
+                    <p className="nj-sig-card-subtitle">{crossCategoryTopic.types.length}개 분야({crossCategoryTopic.types.map((t: string) => entityIcon(t)).join(' ')})까지 동시에 확산 중</p>
+                  </div>
+                </div>
+              </Link>
+            )}
+          </div>
+        </section>
+      )}
+
+      {/* 오늘 가장 중요한 이슈 */}
       {topicCards.length > 0 && (
         <section id="issues" style={{ marginBottom: 56 }}>
           <p style={labelStyle}>오늘 가장 중요한 이슈</p>
           <h2 style={headingStyle}>지금 세상은 이렇게 움직이고 있습니다</h2>
           <div className="nj-topic-grid">
             {topicCards.map((t: any) => (
-              <Link key={t.id} href={`/topic/${t.slug}`} style={{ textDecoration: 'none' }}>
-                <div className="nj-topic-card">
-                  <div className="nj-topic-card-block" />
-                  <p style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)', lineHeight: 1.4 }}>{t.name}</p>
-                  {(t.summary || t.description) && (
-                    <p style={{
-                      fontSize: 12, color: 'var(--text2)', lineHeight: 1.55,
-                      overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
-                    }}>
-                      {t.summary || t.description}
-                    </p>
-                  )}
-                  {t.entityNames.length > 0 && (
-                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                      {t.entityNames.map((name: string) => (
-                        <span key={name} style={{
-                          fontSize: 10, fontWeight: 600, padding: '3px 9px', borderRadius: 20,
-                          background: 'var(--bg2)', border: '1px solid var(--border)', color: 'var(--text2)',
-                        }}>
-                          {name}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                  <div style={{ marginTop: 'auto', paddingTop: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: 11, color: 'var(--muted)' }}>근거 기사 {t.storyCount}건</span>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent)' }}>전체 흐름 보기 →</span>
-                  </div>
-                </div>
-              </Link>
+              <SignatureCard
+                key={t.id}
+                href={`/topic/${t.slug}`}
+                seed={t.slug}
+                icon={categoryIcon(t.category)}
+                badge={t.category || undefined}
+                title={t.name}
+                subtitle={t.summary || t.description}
+                size="lg"
+              />
             ))}
           </div>
           <div style={{ textAlign: 'center', marginTop: 20 }}>
@@ -261,7 +336,7 @@ export default async function Home() {
         </section>
       )}
 
-      {/* ⑤ 오늘 사람들이 놓친 뉴스 */}
+      {/* 오늘 사람들이 놓친 뉴스 */}
       {silenceStories.length > 0 && (
         <section style={{ marginBottom: 56 }}>
           <p style={labelStyle}>뉴스저울 시그널</p>
@@ -270,27 +345,23 @@ export default async function Home() {
             {silenceStories.map((s: any) => {
               const reportingCount = s.story_articles?.length || 0
               return (
-                <Link key={s.id} href={`/story/${s.id}`} style={{ textDecoration: 'none' }}>
-                  <div style={{
-                    background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 16,
-                    padding: '20px', height: '100%', display: 'flex', flexDirection: 'column', gap: 10,
-                  }}>
-                    <span style={{ fontFamily: "'Bebas Neue', cursive", fontSize: 44, lineHeight: 1, color: 'var(--accent)' }}>
-                      {s.silence_score}
-                    </span>
-                    <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', lineHeight: 1.5 }}>{s.title}</p>
-                    <span style={{ fontSize: 11, color: 'var(--muted)', marginTop: 'auto' }}>
-                      중요도 대비 {totalOutlets}개 중 {reportingCount}개만 보도
-                    </span>
-                  </div>
-                </Link>
+                <SignatureCard
+                  key={s.id}
+                  href={`/story/${s.id}`}
+                  seed={s.id}
+                  icon="🔇"
+                  badge={`${s.silence_score}점`}
+                  title={s.title}
+                  subtitle={`중요도 대비 ${totalOutlets}개 중 ${reportingCount}개만 보도`}
+                  size="md"
+                />
               )
             })}
           </div>
         </section>
       )}
 
-      {/* ⑥ 오늘 가장 많이 연결된 것 */}
+      {/* 오늘 가장 많이 연결된 것 */}
       {top10Lists.some(l => l.length > 0) && (
         <section style={{ marginBottom: 56 }}>
           <p style={labelStyle}>오늘의 랭킹</p>
@@ -302,27 +373,30 @@ export default async function Home() {
               return (
                 <div key={g.type} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 16, padding: '18px 20px' }}>
                   <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', marginBottom: 12 }}>{g.title}</p>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                     {list.map((e: any, rank: number) => {
                       const chain = buildChainFromEntity(e.id, chainEdges, 3)
                       return (
                         <div key={e.slug}>
-                          <Link href={`/entity/${e.slug}`} style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <span style={{ fontSize: 11, color: 'var(--muted)', width: 16 }}>{rank + 1}</span>
-                            <span>{entityIcon(g.type, e.name)}</span>
-                            <span style={{ fontSize: 13, color: 'var(--text)', flex: 1 }}>{e.name}</span>
+                          <Link href={`/entity/${e.slug}`} style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <span style={{
+                              width: 22, height: 22, borderRadius: '50%', background: 'var(--bg2)', border: '1px solid var(--border2)',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: 'var(--accent)', flexShrink: 0,
+                            }}>{rank + 1}</span>
+                            <span style={{ fontSize: 20 }}>{entityIcon(g.type, e.name)}</span>
+                            <span style={{ fontSize: 13, color: 'var(--text)', flex: 1, fontWeight: 600 }}>{e.name}</span>
                             <span style={{ fontSize: 11, color: 'var(--accent)' }}>{e.count}</span>
                           </Link>
                           {chain ? (
-                            <div style={{ marginLeft: 24, marginTop: 4, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 4 }}>
+                            <div style={{ marginLeft: 32, marginTop: 4, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 4 }}>
                               {chain.slice(1).map((n: any, ni: number) => (
                                 <span key={n.id} style={{ fontSize: 10, color: 'var(--muted)' }}>
-                                  {ni === 0 ? '↳' : '→'} {n.name}
+                                  {ni === 0 ? '↳' : '→'} {entityIcon(n.type || '', n.name)} {n.name}
                                 </span>
                               ))}
                             </div>
                           ) : e.reason ? (
-                            <p style={{ fontSize: 11, color: 'var(--muted)', marginLeft: 24, marginTop: 2, lineHeight: 1.5 }}>{e.reason}</p>
+                            <p style={{ fontSize: 11, color: 'var(--muted)', marginLeft: 32, marginTop: 2, lineHeight: 1.5 }}>{e.reason}</p>
                           ) : null}
                         </div>
                       )
@@ -335,20 +409,24 @@ export default async function Home() {
         </section>
       )}
 
-      {/* ⑦ 분야별 세상 */}
+      {/* 분야별 세상 */}
       {categories.length > 0 && (
         <section style={{ marginBottom: 56 }}>
           <p style={labelStyle}>분야별 세상</p>
           <h2 style={headingStyle}>원하는 분야만 골라서 볼 수 있습니다</h2>
-          <div className="nj-top10-grid">
+          <div className="nj-topic-grid">
             {categories.map((c: any) => (
-              <div key={c.category} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 16, padding: '16px 20px' }}>
+              <div key={c.category} className="nj-sig-card">
                 <Link href={`/category/${encodeURIComponent(c.category)}`} style={{ textDecoration: 'none' }}>
-                  <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 10 }}>
-                    {c.category} <span style={{ color: 'var(--muted)', fontSize: 11, fontWeight: 400 }}>{c.count}건</span>
-                  </p>
+                  <div className="nj-sig-card-block" style={{ background: seedGradient(c.category), height: 64 }}>
+                    <span className="nj-sig-card-badge">{c.count}건</span>
+                    <span style={{ fontSize: 28 }}>{categoryIcon(c.category)}</span>
+                  </div>
+                  <div style={{ padding: '12px 14px 0' }}>
+                    <p className="nj-sig-card-title">{c.category}</p>
+                  </div>
                 </Link>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <div style={{ padding: '6px 14px 14px', display: 'flex', flexDirection: 'column', gap: 4 }}>
                   {c.preview.map((p: any) => (
                     <Link key={p.slug} href={`/topic/${p.slug}`} style={{ textDecoration: 'none' }}>
                       <p style={{ fontSize: 11, color: 'var(--text2)', lineHeight: 1.6 }}>· {p.name}</p>
@@ -361,21 +439,16 @@ export default async function Home() {
         </section>
       )}
 
-      {/* ⑧ 계속 읽게 만드는 구조 — 새롭게 떠오르는 Topic + 실시간 Timeline */}
+      {/* 오늘 새롭게 떠오르는 Topic */}
       {emergingTopics.length > 0 && (
         <section style={{ marginBottom: 56 }}>
           <p style={labelStyle}>오늘 새롭게 떠오르는 Topic</p>
           <h2 style={headingStyle}>🌱 이제 막 움직이기 시작한 이슈</h2>
           <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 6 }}>
             {emergingTopics.map((t: any) => (
-              <Link key={t.id} href={`/topic/${t.slug}`} style={{ textDecoration: 'none', flexShrink: 0, width: 220 }}>
-                <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 14, padding: '16px', height: '100%' }}>
-                  <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 6 }}>🌱 {t.name}</p>
-                  {(t.summary || t.description) && (
-                    <p style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.5 }}>{t.summary || t.description}</p>
-                  )}
-                </div>
-              </Link>
+              <div key={t.id} style={{ flexShrink: 0, width: 200 }}>
+                <SignatureCard href={`/topic/${t.slug}`} seed={t.slug} icon="🌱" title={t.name} subtitle={t.summary || t.description} size="sm" />
+              </div>
             ))}
           </div>
         </section>
@@ -391,20 +464,26 @@ export default async function Home() {
                 <Link href={`/topic/${e.topics.slug}`} style={{ textDecoration: 'none', width: '100%' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0' }}>
                     <span style={{
-                      fontFamily: "'Bebas Neue', cursive", fontSize: 15, color: 'var(--accent)',
-                      background: 'var(--card)', border: '1px solid var(--border2)', borderRadius: 8,
-                      padding: '4px 10px', flexShrink: 0,
+                      fontSize: 20, background: 'var(--card)', border: '1px solid var(--border2)', borderRadius: 10,
+                      width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
                     }}>
-                      {new Date(e.event_date).toLocaleString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })}
+                      {categoryIcon(e.topics.category)}
                     </span>
-                    <div>
-                      <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{e.title}</p>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{
+                          fontFamily: "'Bebas Neue', cursive", fontSize: 13, color: 'var(--accent)',
+                        }}>
+                          {new Date(e.event_date).toLocaleString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })}
+                        </span>
+                        <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{e.title}</p>
+                      </div>
                       <p style={{ fontSize: 10, color: 'var(--muted)', marginTop: 2 }}>{e.topics.name}</p>
                     </div>
                   </div>
                 </Link>
                 {i < timelineEvents.length - 1 && (
-                  <span style={{ color: 'var(--border2)', fontSize: 13, paddingLeft: 24 }}>↓</span>
+                  <span style={{ color: 'var(--border2)', fontSize: 13, paddingLeft: 42 }}>↓</span>
                 )}
               </div>
             ))}
