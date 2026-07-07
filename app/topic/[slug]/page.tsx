@@ -195,6 +195,7 @@ export default async function TopicPage({ params }: { params: Promise<{ slug: st
               <p style={{ fontSize: 13, color: 'var(--text2)', lineHeight: 1.7 }}>{topic.ai_counter_view}</p>
             </div>
           )}
+          <p style={{ fontSize: 9, color: 'var(--muted)' }}>뉴스저울 자동 분석 · 참고용</p>
         </div>
       )}
 

@@ -102,11 +102,33 @@ export default async function EntityPage({ params }: { params: Promise<{ slug: s
         )}
       </div>
 
-      {/* AI 분석 — 없으면 숨김 */}
+      {/* 뉴스저울 분석 — 없으면 숨김 (AI는 작은 안내문구로만) */}
       {entity.ai_analysis && (
         <div style={{ marginBottom: 28, background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 14, padding: '16px' }}>
-          <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent)', marginBottom: 8 }}>🤖 AI 분석</p>
+          <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent)', marginBottom: 8 }}>🔍 최근 주목받는 이유</p>
           <p style={{ fontSize: 13, color: 'var(--text2)', lineHeight: 1.7 }}>{entity.ai_analysis}</p>
+          <p style={{ fontSize: 9, color: 'var(--muted)', marginTop: 8 }}>뉴스저울 자동 분석 · 참고용</p>
+        </div>
+      )}
+
+      {/* 자주 함께 등장하는 국가 — country 타입만 별도 강조 */}
+      {relatedEntities.some((e: any) => e.type === 'country') && (
+        <div style={{ marginBottom: 28 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 12 }}>
+            자주 함께 등장하는 국가
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {relatedEntities.filter((e: any) => e.type === 'country').map((e: any) => (
+              <Link key={e.id} href={`/entity/${e.slug}`} style={{ textDecoration: 'none' }}>
+                <div style={{
+                  fontSize: 13, fontWeight: 600, padding: '8px 14px', borderRadius: 20,
+                  background: 'var(--card)', border: '1px solid var(--border)', color: 'var(--text)',
+                }}>
+                  {entityIcon('country', e.name)} {e.name}
+                </div>
+              </Link>
+            ))}
+          </div>
         </div>
       )}
 

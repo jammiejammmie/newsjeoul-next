@@ -210,60 +210,77 @@ export async function getTopEntitiesByType(type: string, limit = 10) {
   }))
 }
 
-// 홈 "세상은 이렇게 연결됩니다" — entity_relations 기반, 가능하면 1홉 더 이어붙인다
-export async function getEntityConnectionChains(limit = 3) {
+// entity_relations 원시 엣지 — 체인 빌더가 재사용하는 공용 데이터
+export async function getEntityRelationEdges(limit = 30) {
   const supabase = client()
   const { data } = await supabase
     .from('entity_relations')
     .select('strength_score, explanation, source:entities!entity_relations_source_entity_id_fkey(id,slug,name), target:entities!entity_relations_target_entity_id_fkey(id,slug,name)')
     .order('strength_score', { ascending: false })
-    .limit(20)
+    .limit(limit)
+  return (data || []).filter((r: any) => r.source && r.target) as any[]
+}
 
-  const edges = (data || []).filter((r: any) => r.source && r.target)
+// 순수 함수 — 특정 entity에서 시작해 엣지 풀을 따라 최대 maxHops만큼 체인을 뻗는다 (DB 호출 없음)
+export function buildChainFromEntity(startId: string, edges: any[], maxHops = 3) {
+  const startEdgeIdx = edges.findIndex(e => e.source.id === startId || e.target.id === startId)
+  if (startEdgeIdx === -1) return null
+  const first = edges[startEdgeIdx]
+  const nodes = first.source.id === startId ? [first.source, first.target] : [first.target, first.source]
+  const used = new Set([startEdgeIdx])
+
+  for (let hop = 0; hop < maxHops - 1; hop++) {
+    const lastId = nodes[nodes.length - 1].id
+    const nextIdx = edges.findIndex((other, j) =>
+      !used.has(j) && (other.source.id === lastId || other.target.id === lastId)
+    )
+    if (nextIdx === -1) break
+    const other = edges[nextIdx]
+    const nextNode = other.source.id === lastId ? other.target : other.source
+    if (nodes.some(n => n.id === nextNode.id)) break // 순환 방지
+    nodes.push(nextNode)
+    used.add(nextIdx)
+  }
+  return nodes.length >= 2 ? nodes : null
+}
+
+// 홈 "오늘 세상은 이렇게 움직였습니다" — entity_relations 기반 대표 체인 3~4개
+export async function getEntityConnectionChains(limit = 3) {
+  const edges = await getEntityRelationEdges(20)
   const chains: any[] = []
-  const usedEdgeIdx = new Set<number>()
+  const usedStarts = new Set<string>()
 
-  for (let i = 0; i < edges.length && chains.length < limit; i++) {
-    if (usedEdgeIdx.has(i)) continue
-    const e = edges[i] as any
-    const nodes = [e.source, e.target]
-    usedEdgeIdx.add(i)
-
-    // 마지막 노드에서 최대 2홉 더 이어붙여 3~4개 노드 체인을 시도한다
-    for (let hop = 0; hop < 2; hop++) {
-      const lastId = nodes[nodes.length - 1].id
-      const nextIdx = edges.findIndex((other: any, j: number) =>
-        !usedEdgeIdx.has(j) && (other.source.id === lastId || other.target.id === lastId)
-      )
-      if (nextIdx === -1) break
-      const other = edges[nextIdx] as any
-      const nextNode = other.source.id === lastId ? other.target : other.source
-      if (nodes.some(n => n.id === nextNode.id)) break // 순환 방지
-      nodes.push(nextNode)
-      usedEdgeIdx.add(nextIdx)
-    }
-
+  for (const e of edges) {
+    if (chains.length >= limit) break
+    if (usedStarts.has(e.source.id)) continue
+    const nodes = buildChainFromEntity(e.source.id, edges, 4)
+    if (!nodes) continue
+    usedStarts.add(e.source.id)
     chains.push({ nodes, explanation: e.explanation })
   }
   return chains
 }
 
-// "분야별 세상 보기" — topics.category 단일 레벨 집계 (LLM 비용 없음)
+// "분야별 세상 보기" — topics.category 단일 레벨 집계 + 분야별 핵심 3개 미리보기 (LLM 비용 없음)
 export async function getCategoryCounts(limit = 10) {
   const supabase = client()
   const { data } = await supabase
     .from('topics')
-    .select('category')
+    .select('category, name, slug, importance_score')
     .eq('status', 'active')
     .not('category', 'is', null)
-  const counts = new Map<string, number>()
+    .order('importance_score', { ascending: false })
+
+  const groups = new Map<string, { name: string; slug: string }[]>()
   for (const row of (data || []) as any[]) {
     const c = (row.category || '').trim()
     if (!c) continue
-    counts.set(c, (counts.get(c) || 0) + 1)
+    if (!groups.has(c)) groups.set(c, [])
+    groups.get(c)!.push({ name: row.name, slug: row.slug })
   }
-  return [...counts.entries()]
-    .map(([category, count]) => ({ category, count }))
+
+  return [...groups.entries()]
+    .map(([category, topics]) => ({ category, count: topics.length, preview: topics.slice(0, 3) }))
     .sort((a, b) => b.count - a.count)
     .slice(0, limit)
 }

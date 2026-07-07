@@ -1,5 +1,7 @@
 // Threads 자동 포스팅 — 오늘의 침묵지수 TOP1
-// Copy template rotates A→E daily so the Threads profile never looks repetitive.
+// Copy template rotates A→O(15종) daily so the Threads profile never looks repetitive.
+// 발행 빈도는 하루 1회 그대로 유지한다 — 매시간 발행은 비용/리스크 항목으로 별도 승인 전까지 보류.
+// 템플릿 배열을 늘리기만 하면 30~50개까지 확장 가능한 구조.
 
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -80,14 +82,19 @@ async function savePostLog(storyId, postId, template) {
   if (!res.ok) console.error('게시 로그 저장 실패:', await res.text());
 }
 
-// ── Copy templates A–E ───────────────────────────────────────────
+// ── Copy templates A–O (15종) ─────────────────────────────────────
 // 원칙: 호기심 우선 / 사용자 중심 / 3~4문장 이내 / 첫 문장에서 시선 확보
+// 전부 뉴스저울 내부 Topic/Story 링크로 유입시킨다.
 function buildPost(story, url) {
   const n = story.reportCount;
   const silent = TOTAL_OUTLETS - n;
-  const idx = Math.floor(Date.now() / 86400000) % 5;
+  const templates = TEMPLATES(story, url, n, silent);
+  const idx = Math.floor(Date.now() / 86400000) % templates.length;
+  return templates[idx];
+}
 
-  const templates = [
+function TEMPLATES(story, url, n, silent) {
+  return [
     // A — 질문 먼저, 숫자로 증명
     `당신은 이 뉴스를 보셨나요?
 
@@ -135,9 +142,90 @@ ${TOTAL_OUTLETS}개 언론사 중 단 ${n}곳만 보도했습니다.
 
 뉴스저울 →
 ${url}`,
-  ];
 
-  return templates[idx];
+    // F — "오늘 사람들이 놓친 뉴스" 브랜드 콘텐츠
+    `오늘 사람들이 놓친 뉴스.
+
+"${story.title}"
+
+${TOTAL_OUTLETS}개 언론사 중 ${n}곳만 다뤘습니다.
+
+뉴스저울 →
+${url}`,
+
+    // G — 오늘의 시그널
+    `오늘의 시그널.
+
+${silent}개 언론사가 조용히 지나간 뉴스가 있습니다.
+
+뉴스저울 →
+${url}`,
+
+    // H — 숫자로 보는 오늘
+    `숫자로 보는 오늘.
+
+${n} / ${TOTAL_OUTLETS}.
+
+이 비율이 무엇을 의미하는지, 뉴스저울에서 확인하세요.
+
+${url}`,
+
+    // I — 5초 브리핑
+    `5초 브리핑.
+
+"${story.title}"
+
+이 뉴스, 오늘 ${n}곳만 다뤘습니다.
+
+뉴스저울 →
+${url}`,
+
+    // J — 오해하기 쉬운 뉴스
+    `오늘 오해하기 쉬운 뉴스가 있습니다.
+
+${TOTAL_OUTLETS}개 언론사 중 ${n}곳만 보도해서, 대부분 놓쳤을 가능성이 높습니다.
+
+뉴스저울 →
+${url}`,
+
+    // K — 짧은 질문형
+    `오늘, 이 뉴스 보셨나요?
+
+${n}/${TOTAL_OUTLETS}개 언론사만 다뤘습니다.
+
+${url}`,
+
+    // L — 데이터 관찰자 톤
+    `뉴스저울이 오늘 관찰한 것.
+
+"${story.title}" — 보도한 언론사 ${n}곳.
+
+나머지는 왜 조용했을까요?
+
+${url}`,
+
+    // M — 놓친 뉴스 직접 지목
+    `당신이 오늘 놓쳤을 가능성이 높은 뉴스.
+
+${TOTAL_OUTLETS}개 중 ${n}개 언론사만 보도.
+
+뉴스저울 →
+${url}`,
+
+    // N — 궁금증 유발형
+    `왜 이 뉴스는 ${silent}개 언론사가 다루지 않았을까요?
+
+궁금하다면, 뉴스저울에서 맥락을 확인하세요.
+
+${url}`,
+
+    // O — 짧고 임팩트 있는 한 줄
+    `오늘의 침묵: ${n}/${TOTAL_OUTLETS}.
+
+"${story.title}"
+
+${url}`,
+  ]
 }
 
 // ── Threads API ──────────────────────────────────────────────────
@@ -187,8 +275,9 @@ exports.handler = async function (event) {
     const connectedTopic = await findConnectedTopic(story.id).catch(() => null);
     const url = connectedTopic ? `${BASE_URL}/topic/${connectedTopic.slug}` : `${BASE_URL}/story/${story.id}`;
     const text = buildPost(story, url);
-    const templateIdx = Math.floor(Date.now() / 86400000) % 5;
-    const templateLabel = ['A', 'B', 'C', 'D', 'E'][templateIdx];
+    const templateList = TEMPLATES(story, url, story.reportCount, TOTAL_OUTLETS - story.reportCount);
+    const templateIdx = Math.floor(Date.now() / 86400000) % templateList.length;
+    const templateLabel = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'[templateIdx] || `#${templateIdx}`;
 
     console.log('포스팅 내용:\n', text);
 
