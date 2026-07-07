@@ -8,7 +8,7 @@ import {
   getActiveTopics, getHomeTopicCards, getEntityConnectionChains, getEntityRelationEdges,
   buildChainFromEntity, getEmergingTopics, getRecentTimelineEvents, getTopEntitiesByType,
   getCategoryCounts, getTodayOneCard, getMostUnusualConnection, getMostCrossCategoryTopic,
-  getMostUnexpectedTopicPair,
+  getMostUnexpectedTopicPair, getInterestTags,
 } from '@/lib/topics'
 import { getTodayInsights } from '@/lib/insights'
 import { entityIcon, categoryIcon, seedGradient } from '@/lib/icons'
@@ -99,10 +99,10 @@ const headingStyle: CSSProperties = {
   marginBottom: 20,
 }
 
+// country는 왼쪽 Today's World 레일에서 별도로 다루므로 메인 TOP10에서는 제외
 const TOP10_GROUPS: { type: string; title: string }[] = [
   { type: 'company', title: '오늘 가장 많이 연결된 기업' },
   { type: 'person', title: '오늘 가장 많이 연결된 인물' },
-  { type: 'country', title: '오늘 가장 많이 등장한 국가' },
 ]
 
 export default async function Home() {
@@ -110,7 +110,7 @@ export default async function Home() {
   const [
     briefingTopics, topicCards, chains, chainEdges, insights, emergingTopics, timelineEvents,
     topCompanies, topPeople, topCountries, categories, oneCard, unusualConnection, crossCategoryTopic,
-    unexpectedTopicPair,
+    unexpectedTopicPair, interestTags,
   ] = await Promise.all([
     getActiveTopics(5),
     getHomeTopicCards(5),
@@ -127,13 +127,15 @@ export default async function Home() {
     getMostUnusualConnection(),
     getMostCrossCategoryTopic(),
     getMostUnexpectedTopicPair(),
+    getInterestTags(),
   ])
-  const top10Lists = [topCompanies, topPeople, topCountries]
+  const top10Lists = [topCompanies, topPeople]
 
   const hasAnyContent = topicCards.length > 0 || silenceStories.length > 0
   const shareText = '뉴스저울 — 3분이면 오늘 세상을 이해할 수 있습니다.'
 
   return (
+    <>
     <div className="nj-container">
 
       {/* HERO */}
@@ -151,10 +153,60 @@ export default async function Home() {
           3분이면<br />오늘 세상을 이해할 수 있습니다.
         </h1>
       </div>
+    </div>
+
+    {/* World Graph 3컬럼 — left: Today's World / main: 발견 콘텐츠 / right: Trending */}
+    <div className="nj-world-container">
+      <div className="nj-world-grid">
+
+        {/* LEFT RAIL — Today's World */}
+        <aside className="nj-world-left">
+          <div className="nj-rail-block">
+            <p className="nj-rail-title">🌍 Today's World</p>
+            {topCountries.length > 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {topCountries.map((c: any, i: number) => (
+                  <Link key={c.slug} href={`/entity/${c.slug}`} style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: 16 }}>{entityIcon('country', c.name)}</span>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', flex: 1 }}>{c.name}</span>
+                    <span style={{ fontSize: 10, color: 'var(--accent)' }}>{c.count}</span>
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <p style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.6 }}>
+                국가별 이슈가 쌓이는 중입니다.
+              </p>
+            )}
+          </div>
+
+          {timelineEvents.length > 0 && (
+            <div className="nj-rail-block">
+              <p className="nj-rail-title">세계 흐름</p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {timelineEvents.slice(0, 5).map((e: any) => (
+                  <Link key={e.id} href={`/topic/${e.topics.slug}`} style={{ textDecoration: 'none', display: 'block' }}>
+                    <p style={{ fontSize: 10, color: 'var(--muted)' }}>
+                      {new Date(e.event_date).toLocaleString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })}
+                    </p>
+                    <p style={{ fontSize: 11, color: 'var(--text2)', lineHeight: 1.4 }}>{e.title}</p>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="nj-rail-placeholder">
+            🗺️<br />세계지도 / 글로브<br />(준비 중)
+          </div>
+        </aside>
+
+        {/* MAIN */}
+        <div className="nj-world-main">
 
       {/* 오늘 세상을 한 장으로 — 뉴스저울 대표 콘텐츠, 이미지 대신 그래픽 카드 */}
       {(oneCard.chain || oneCard.topics.length > 0) && (
-        <section style={{ marginTop: 40, marginBottom: 56 }}>
+        <section style={{ marginTop: 0, marginBottom: 56 }}>
           <p style={labelStyle}>뉴스저울 대표 콘텐츠</p>
           <div style={{
             borderRadius: 20, overflow: 'hidden', border: '1px solid var(--border2)',
@@ -360,6 +412,44 @@ export default async function Home() {
         </section>
       )}
 
+      {/* 오늘의 Timeline */}
+      {timelineEvents.length > 0 && (
+        <section style={{ marginBottom: 56 }}>
+          <p style={labelStyle}>실시간 TIMELINE</p>
+          <h2 style={headingStyle}>오늘 하루, 세상은 이렇게 흘렀습니다</h2>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+            {timelineEvents.map((e: any, i: number) => (
+              <div key={e.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', width: '100%' }}>
+                <Link href={`/topic/${e.topics.slug}`} style={{ textDecoration: 'none', width: '100%' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0' }}>
+                    <span style={{
+                      fontSize: 20, background: 'var(--card)', border: '1px solid var(--border2)', borderRadius: 10,
+                      width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                    }}>
+                      {categoryIcon(e.topics.category)}
+                    </span>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{
+                          fontFamily: "'Bebas Neue', cursive", fontSize: 13, color: 'var(--accent)',
+                        }}>
+                          {new Date(e.event_date).toLocaleString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })}
+                        </span>
+                        <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{e.title}</p>
+                      </div>
+                      <p style={{ fontSize: 10, color: 'var(--muted)', marginTop: 2 }}>{e.topics.name}</p>
+                    </div>
+                  </div>
+                </Link>
+                {i < timelineEvents.length - 1 && (
+                  <span style={{ color: 'var(--border2)', fontSize: 13, paddingLeft: 42 }}>↓</span>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       {/* 오늘 사람들이 놓친 뉴스 */}
       {silenceStories.length > 0 && (
         <section style={{ marginBottom: 56 }}>
@@ -433,34 +523,6 @@ export default async function Home() {
         </section>
       )}
 
-      {/* 세상의 온도 — 분야별 오늘 이슈 비중을 게이지로 */}
-      {categories.length > 0 && (
-        <section style={{ marginBottom: 56 }}>
-          <p style={labelStyle}>세상의 온도</p>
-          <h2 style={headingStyle}>오늘 어느 분야가 가장 뜨거운가</h2>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {(() => {
-              const maxCount = Math.max(...categories.map((c: any) => c.count))
-              return categories.map((c: any) => (
-                <Link key={c.category} href={`/category/${encodeURIComponent(c.category)}`} style={{ textDecoration: 'none' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <span style={{ fontSize: 16, width: 24 }}>{categoryIcon(c.category)}</span>
-                    <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', width: 90, flexShrink: 0 }}>{c.category}</span>
-                    <div style={{ flex: 1, height: 8, borderRadius: 4, background: 'var(--bg2)', overflow: 'hidden' }}>
-                      <div style={{
-                        height: '100%', width: `${Math.max(6, (c.count / maxCount) * 100)}%`,
-                        background: seedGradient(c.category), borderRadius: 4,
-                      }} />
-                    </div>
-                    <span style={{ fontSize: 11, color: 'var(--muted)', width: 28, textAlign: 'right' }}>{c.count}</span>
-                  </div>
-                </Link>
-              ))
-            })()}
-          </div>
-        </section>
-      )}
-
       {/* 분야별 세상 */}
       {categories.length > 0 && (
         <section style={{ marginBottom: 56 }}>
@@ -493,50 +555,13 @@ export default async function Home() {
 
       {/* 오늘 새롭게 떠오르는 Topic */}
       {emergingTopics.length > 0 && (
-        <section style={{ marginBottom: 56 }}>
+        <section style={{ marginBottom: 64 }}>
           <p style={labelStyle}>오늘 새롭게 떠오르는 Topic</p>
           <h2 style={headingStyle}>🌱 이제 막 움직이기 시작한 이슈</h2>
           <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 6 }}>
             {emergingTopics.map((t: any) => (
               <div key={t.id} style={{ flexShrink: 0, width: 200 }}>
                 <SignatureCard href={`/topic/${t.slug}`} seed={t.slug} icon="🌱" title={t.name} subtitle={t.summary || t.description} size="sm" />
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {timelineEvents.length > 0 && (
-        <section style={{ marginBottom: 64 }}>
-          <p style={labelStyle}>실시간 TIMELINE</p>
-          <h2 style={headingStyle}>오늘 하루, 세상은 이렇게 흘렀습니다</h2>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-            {timelineEvents.map((e: any, i: number) => (
-              <div key={e.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', width: '100%' }}>
-                <Link href={`/topic/${e.topics.slug}`} style={{ textDecoration: 'none', width: '100%' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0' }}>
-                    <span style={{
-                      fontSize: 20, background: 'var(--card)', border: '1px solid var(--border2)', borderRadius: 10,
-                      width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                    }}>
-                      {categoryIcon(e.topics.category)}
-                    </span>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span style={{
-                          fontFamily: "'Bebas Neue', cursive", fontSize: 13, color: 'var(--accent)',
-                        }}>
-                          {new Date(e.event_date).toLocaleString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })}
-                        </span>
-                        <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{e.title}</p>
-                      </div>
-                      <p style={{ fontSize: 10, color: 'var(--muted)', marginTop: 2 }}>{e.topics.name}</p>
-                    </div>
-                  </div>
-                </Link>
-                {i < timelineEvents.length - 1 && (
-                  <span style={{ color: 'var(--border2)', fontSize: 13, paddingLeft: 42 }}>↓</span>
-                )}
               </div>
             ))}
           </div>
@@ -563,6 +588,57 @@ export default async function Home() {
         </div>
       )}
 
+        </div>
+        {/* /MAIN */}
+
+        {/* RIGHT RAIL — Trending / Interests */}
+        <aside className="nj-world-right">
+          <div className="nj-rail-block">
+            <p className="nj-rail-title">🔥 Trending</p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {interestTags.map((tag: any) => (
+                tag.topic ? (
+                  <Link key={tag.label} href={`/topic/${tag.topic.slug}`} className="nj-interest-chip is-active" style={{ textDecoration: 'none' }}>
+                    <span>{tag.icon}</span>{tag.label}
+                  </Link>
+                ) : (
+                  <span key={tag.label} className="nj-interest-chip">
+                    <span>{tag.icon}</span>{tag.label}
+                  </span>
+                )
+              ))}
+            </div>
+            <p style={{ fontSize: 10, color: 'var(--muted)', marginTop: 10, lineHeight: 1.5 }}>
+              관심 분야가 쌓이면 자동으로 연결됩니다.
+            </p>
+          </div>
+
+          {categories.length > 0 && (
+            <div className="nj-rail-block">
+              <p className="nj-rail-title">세상의 온도</p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {(() => {
+                  const maxCount = Math.max(...categories.map((c: any) => c.count))
+                  return categories.slice(0, 6).map((c: any) => (
+                    <Link key={c.category} href={`/category/${encodeURIComponent(c.category)}`} style={{ textDecoration: 'none' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ fontSize: 12 }}>{categoryIcon(c.category)}</span>
+                        <span style={{ fontSize: 10, color: 'var(--text2)', flex: 1 }}>{c.category}</span>
+                        <span style={{ fontSize: 10, color: 'var(--muted)' }}>{c.count}</span>
+                      </div>
+                      <div style={{ height: 4, borderRadius: 2, background: 'var(--bg2)', overflow: 'hidden', marginTop: 3 }}>
+                        <div style={{ height: '100%', width: `${Math.max(6, (c.count / maxCount) * 100)}%`, background: seedGradient(c.category) }} />
+                      </div>
+                    </Link>
+                  ))
+                })()}
+              </div>
+            </div>
+          )}
+        </aside>
+
+      </div>
     </div>
+    </>
   )
 }

@@ -273,11 +273,16 @@ exports.handler = async function (event) {
   try {
     const story = await fetchTopSilenceStory();
     const connectedTopic = await findConnectedTopic(story.id).catch(() => null);
-    const url = connectedTopic ? `${BASE_URL}/topic/${connectedTopic.slug}` : `${BASE_URL}/story/${story.id}`;
-    const text = buildPost(story, url);
-    const templateList = TEMPLATES(story, url, story.reportCount, TOTAL_OUTLETS - story.reportCount);
-    const templateIdx = Math.floor(Date.now() / 86400000) % templateList.length;
+    const baseUrl = connectedTopic ? `${BASE_URL}/topic/${connectedTopic.slug}` : `${BASE_URL}/story/${story.id}`;
+
+    // 템플릿은 baseUrl 기준으로 고른다 (템플릿 개수는 url 내용과 무관하게 고정이므로 순서 영향 없음)
+    const templateCount = TEMPLATES(story, baseUrl, story.reportCount, TOTAL_OUTLETS - story.reportCount).length;
+    const templateIdx = Math.floor(Date.now() / 86400000) % templateCount;
     const templateLabel = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'[templateIdx] || `#${templateIdx}`;
+
+    // UTM 부착 — 내부 로그/분석용. 게시 빈도·로직에는 영향 없음.
+    const url = `${baseUrl}?utm_source=threads&utm_medium=social&utm_campaign=${templateLabel}`;
+    const text = buildPost(story, url);
 
     console.log('포스팅 내용:\n', text);
 

@@ -355,3 +355,33 @@ export async function getMostUnexpectedTopicPair() {
   )
   return cross || null
 }
+
+// 오른쪽 레일 "Trending / Interests" — 소비자 관심사 태그. 실데이터 매칭되면 링크, 아니면 조용한 placeholder.
+const INTEREST_TAGS = [
+  { label: 'AI Tools', icon: '🤖', keywords: ['AI', '인공지능', 'GPT'] },
+  { label: 'Cars', icon: '🚗', keywords: ['자동차', '전기차', 'EV'] },
+  { label: 'Smartphones', icon: '📱', keywords: ['스마트폰', '갤럭시', '아이폰'] },
+  { label: 'Luxury', icon: '💎', keywords: ['명품', '럭셔리'] },
+  { label: 'Health', icon: '🏥', keywords: ['건강', '질병', '백신'] },
+  { label: 'Crypto', icon: '🪙', keywords: ['비트코인', '암호화폐', 'Crypto', '이더리움'] },
+  { label: 'Games', icon: '🎮', keywords: ['게임'] },
+  { label: 'Sports', icon: '⚽', keywords: ['스포츠', '올림픽', '월드컵'] },
+  { label: 'Entertainment', icon: '🎬', keywords: ['영화', 'OTT', '드라마', '음악'] },
+  { label: 'Brands', icon: '🏷️', keywords: ['브랜드'] },
+]
+
+export async function getInterestTags() {
+  const supabase = client()
+  const { data } = await supabase
+    .from('topics')
+    .select('slug, name, category')
+    .eq('status', 'active')
+  const topics = (data || []) as any[]
+
+  return INTEREST_TAGS.map(tag => {
+    const match = topics.find(t =>
+      tag.keywords.some(kw => t.name?.includes(kw) || t.category?.includes(kw))
+    )
+    return { ...tag, topic: match ? { slug: match.slug, name: match.name } : null }
+  })
+}

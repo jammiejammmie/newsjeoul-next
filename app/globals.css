@@ -105,6 +105,85 @@ body {
   }
 }
 
+/* ── World Graph 3컬럼 (홈 전용) — left: Today's World / main / right: Trending ── */
+.nj-world-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+.nj-world-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
+}
+
+.nj-world-main  { order: 1; min-width: 0; }
+.nj-world-left  { order: 2; }
+.nj-world-right { order: 3; }
+
+@media (min-width: 1024px) {
+  .nj-world-container { padding: 0 32px; }
+
+  .nj-world-grid {
+    display: grid;
+    grid-template-columns: 200px minmax(0, 1fr) 220px;
+    grid-template-areas: "left main right";
+    gap: 28px;
+    align-items: start;
+  }
+
+  .nj-world-main  { grid-area: main;  order: unset; }
+  .nj-world-left  { grid-area: left;  order: unset; position: sticky; top: 76px; }
+  .nj-world-right { grid-area: right; order: unset; position: sticky; top: 76px; }
+}
+
+.nj-rail-block {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.nj-rail-title {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 12px;
+}
+
+.nj-rail-placeholder {
+  border: 1px dashed var(--border2);
+  border-radius: 14px;
+  padding: 20px 16px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.nj-interest-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 6px 10px;
+  border-radius: 20px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  color: var(--text2);
+}
+
+.nj-interest-chip.is-active {
+  color: var(--text);
+  border-color: var(--border2);
+  background: var(--card);
+}
+
 /* ── 홈 리빌드: 이슈 카드 그리드 ──────────────────────── */
 .nj-topic-grid {
   display: grid;
