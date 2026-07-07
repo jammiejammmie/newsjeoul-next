@@ -339,3 +339,19 @@ export async function getMostCrossCategoryTopic() {
   const best = withSpread.sort((a, b) => b.types.length - a.types.length)[0]
   return best && best.types.length >= 3 ? best : null
 }
+
+// "오늘의 발견: 겉보기엔 다르지만 실제로 연결된 두 사건" — 서로 다른 category의 Topic을 잇는 가장 강한 관계 (실데이터만)
+export async function getMostUnexpectedTopicPair() {
+  const supabase = client()
+  const { data } = await supabase
+    .from('topic_relations')
+    .select('strength_score, explanation, source:topics!topic_relations_source_topic_id_fkey(id,slug,name,category), target:topics!topic_relations_target_topic_id_fkey(id,slug,name,category)')
+    .order('strength_score', { ascending: false })
+    .limit(30)
+
+  const rows = (data || []) as any[]
+  const cross = rows.find((r) =>
+    r.source && r.target && r.source.category && r.target.category && r.source.category !== r.target.category
+  )
+  return cross || null
+}

@@ -8,6 +8,7 @@ import {
   getActiveTopics, getHomeTopicCards, getEntityConnectionChains, getEntityRelationEdges,
   buildChainFromEntity, getEmergingTopics, getRecentTimelineEvents, getTopEntitiesByType,
   getCategoryCounts, getTodayOneCard, getMostUnusualConnection, getMostCrossCategoryTopic,
+  getMostUnexpectedTopicPair,
 } from '@/lib/topics'
 import { getTodayInsights } from '@/lib/insights'
 import { entityIcon, categoryIcon, seedGradient } from '@/lib/icons'
@@ -109,6 +110,7 @@ export default async function Home() {
   const [
     briefingTopics, topicCards, chains, chainEdges, insights, emergingTopics, timelineEvents,
     topCompanies, topPeople, topCountries, categories, oneCard, unusualConnection, crossCategoryTopic,
+    unexpectedTopicPair,
   ] = await Promise.all([
     getActiveTopics(5),
     getHomeTopicCards(5),
@@ -124,6 +126,7 @@ export default async function Home() {
     getTodayOneCard(),
     getMostUnusualConnection(),
     getMostCrossCategoryTopic(),
+    getMostUnexpectedTopicPair(),
   ])
   const top10Lists = [topCompanies, topPeople, topCountries]
 
@@ -268,10 +271,12 @@ export default async function Home() {
         </section>
       )}
 
-      {/* 뉴스저울에서만 보는 발견 — 의외의 연결 / 다분야 확산 */}
-      {(unusualConnection || crossCategoryTopic) && (
+      {/* 뉴스저울에서만 보는 발견 — 의외의 연결 / 다분야 확산 / 다른 분야를 잇는 사건 */}
+      {(unusualConnection || crossCategoryTopic || unexpectedTopicPair) && (
         <section style={{ marginBottom: 56 }}>
-          <div className="nj-topic-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
+          <p style={labelStyle}>뉴스저울 발견</p>
+          <h2 style={headingStyle}>겉보기엔 달라 보여도, 이렇게 연결됩니다</h2>
+          <div className="nj-topic-grid">
             {unusualConnection && (
               <div className="nj-sig-card">
                 <div className="nj-sig-card-block" style={{ background: 'linear-gradient(135deg, var(--purple), var(--accent))', height: 72, filter: 'saturate(.85)' }}>
@@ -301,6 +306,25 @@ export default async function Home() {
                   </div>
                 </div>
               </Link>
+            )}
+            {unexpectedTopicPair && (
+              <div className="nj-sig-card">
+                <div className="nj-sig-card-block" style={{ background: 'linear-gradient(135deg, var(--gold), var(--purple))', height: 72, filter: 'saturate(.85)' }}>
+                  <span className="nj-sig-card-badge">겉보기엔 다른 두 사건</span>
+                  <span style={{ fontSize: 24 }}>{categoryIcon(unexpectedTopicPair.source.category)}↔{categoryIcon(unexpectedTopicPair.target.category)}</span>
+                </div>
+                <div className="nj-sig-card-body">
+                  <p className="nj-sig-card-title">
+                    <Link href={`/topic/${unexpectedTopicPair.source.slug}`} style={{ color: 'inherit', textDecoration: 'none' }}>{unexpectedTopicPair.source.name}</Link>
+                    {' ↔ '}
+                    <Link href={`/topic/${unexpectedTopicPair.target.slug}`} style={{ color: 'inherit', textDecoration: 'none' }}>{unexpectedTopicPair.target.name}</Link>
+                  </p>
+                  <p className="nj-sig-card-subtitle">
+                    {unexpectedTopicPair.source.category} · {unexpectedTopicPair.target.category}
+                    {unexpectedTopicPair.explanation ? ` — ${unexpectedTopicPair.explanation}` : ''}
+                  </p>
+                </div>
+              </div>
             )}
           </div>
         </section>
@@ -405,6 +429,34 @@ export default async function Home() {
                 </div>
               )
             })}
+          </div>
+        </section>
+      )}
+
+      {/* 세상의 온도 — 분야별 오늘 이슈 비중을 게이지로 */}
+      {categories.length > 0 && (
+        <section style={{ marginBottom: 56 }}>
+          <p style={labelStyle}>세상의 온도</p>
+          <h2 style={headingStyle}>오늘 어느 분야가 가장 뜨거운가</h2>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {(() => {
+              const maxCount = Math.max(...categories.map((c: any) => c.count))
+              return categories.map((c: any) => (
+                <Link key={c.category} href={`/category/${encodeURIComponent(c.category)}`} style={{ textDecoration: 'none' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ fontSize: 16, width: 24 }}>{categoryIcon(c.category)}</span>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', width: 90, flexShrink: 0 }}>{c.category}</span>
+                    <div style={{ flex: 1, height: 8, borderRadius: 4, background: 'var(--bg2)', overflow: 'hidden' }}>
+                      <div style={{
+                        height: '100%', width: `${Math.max(6, (c.count / maxCount) * 100)}%`,
+                        background: seedGradient(c.category), borderRadius: 4,
+                      }} />
+                    </div>
+                    <span style={{ fontSize: 11, color: 'var(--muted)', width: 28, textAlign: 'right' }}>{c.count}</span>
+                  </div>
+                </Link>
+              ))
+            })()}
           </div>
         </section>
       )}

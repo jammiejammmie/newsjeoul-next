@@ -63,6 +63,13 @@ async function claudeResolveTopic(storyTitle, candidateTopics) {
 이 스토리가 기존 Topic 중 하나와 같은 이슈를 다루면 그 Topic에 매칭하고, 어느 것과도 다른 새로운 이슈라면 신규 Topic을 제안해라.
 여러 Topic에 동시에 해당되면 여러 개를 배열로 반환해도 된다. 설명 없이 JSON만 반환해라.
 
+뉴스저울은 정치/사회 뉴스만 다루는 사이트가 아니다. category는 세상 전체를 아래 대분류 중 가장 가까운 것으로 분류해라(정치를 특별 취급하지 말고, 아래 목록에서 실제 내용에 맞는 걸 골라라):
+Technology(AI/스마트폰/PC/반도체/로봇/우주/보안), Business(기업/스타트업/투자/M&A/IPO/브랜드),
+Economy(경제/금리/환율/물가/원자재/소비), Automobile(자동차/EV/자율주행),
+Health(질병/백신/병원/의약품/건강식품/정신건강), Lifestyle(여행/음식/카페/명품/패션/뷰티),
+Entertainment(영화/OTT/게임/스포츠/음악), Science(우주/기후/환경/에너지),
+Crypto(Bitcoin/Ethereum/Web3), Society(정치/교육/취업/인구/범죄/복지/국제)
+
 스토리 제목: "${storyTitle}"
 
 기존 Topic 후보:
@@ -71,7 +78,7 @@ ${candidateList}
 반환 형식 (배열):
 [{"action": "match", "topic_id": "기존 topic id"}]
 또는
-[{"action": "new", "name": "이슈 이름", "slug_en": "kebab-case-english", "description": "1문장 설명", "summary": "AI 검색이 그대로 인용할 수 있는 자기완결형 2~3문장 요약 (주어·수치·날짜 명시)", "category": "느슨한 카테고리 텍스트"}]`;
+[{"action": "new", "name": "이슈 이름", "slug_en": "kebab-case-english", "description": "1문장 설명", "summary": "AI 검색이 그대로 인용할 수 있는 자기완결형 2~3문장 요약 (주어·수치·날짜 명시)", "category": "위 대분류 중 하나"}]`;
 
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
