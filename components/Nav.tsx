@@ -4,10 +4,9 @@ import { usePathname } from 'next/navigation'
 import { useState, useEffect } from 'react'
 
 const navLinks = [
-  { href: '/',         label: '오늘의 뉴스' },
-  { href: '/election', label: '선거 결과' },
-  { href: '/youtube',  label: '유튜브' },
-  { href: '/media101', label: '미디어 101' },
+  { href: '/',        label: '오늘' },
+  { href: '/#issues', label: '이슈' },
+  { href: '/top10',   label: '침묵지수' },
 ]
 
 export default function Nav() {

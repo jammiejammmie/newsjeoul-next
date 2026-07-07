@@ -105,3 +105,53 @@ export async function getRecentTopicUpdates(limit = 10) {
     .limit(limit)
   return data || []
 }
+
+// 홈 "오늘 움직이는 이슈" 카드용 — 이슈명/요약/근거 기사 수/관련 Entity를 한 번에
+export async function getHomeTopicCards(limit = 9) {
+  const supabase = client()
+  const { data: topics } = await supabase
+    .from('topics')
+    .select('id, slug, name, summary, description, lifecycle_stage')
+    .eq('status', 'active')
+    .order('importance_score', { ascending: false })
+    .order('popularity_score', { ascending: false })
+    .limit(limit)
+
+  if (!topics || !topics.length) return []
+
+  return Promise.all(topics.map(async (t: any) => {
+    const [{ count: storyCount }, { data: entityRows }] = await Promise.all([
+      supabase.from('topic_stories').select('story_id', { count: 'exact', head: true }).eq('topic_id', t.id),
+      supabase.from('topic_entities').select('strength_score, entities(name)').eq('topic_id', t.id).order('strength_score', { ascending: false }).limit(3),
+    ])
+    return {
+      ...t,
+      storyCount: storyCount || 0,
+      entityNames: (entityRows || []).map((r: any) => r.entities?.name).filter(Boolean),
+    }
+  }))
+}
+
+// 홈 "뉴스저울이 보는 연결" — 현재 보유한 topic_entities 데이터로 만들 수 있는 만큼의 연결 체인
+export async function getTopicChains(limit = 3) {
+  const supabase = client()
+  const { data } = await supabase
+    .from('topics')
+    .select('name, slug, topic_entities(strength_score, entities(name, slug))')
+    .eq('status', 'active')
+    .order('importance_score', { ascending: false })
+    .limit(20)
+
+  return (data || [])
+    .map((t: any) => ({
+      name: t.name,
+      slug: t.slug,
+      entities: (t.topic_entities || [])
+        .sort((a: any, b: any) => (b.strength_score || 0) - (a.strength_score || 0))
+        .map((te: any) => te.entities)
+        .filter((e: any) => e?.name && e?.slug)
+        .slice(0, 3),
+    }))
+    .filter((t: any) => t.entities.length >= 2)
+    .slice(0, limit)
+}
