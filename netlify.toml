@@ -55,3 +55,16 @@
 [functions."post-threads"]
   schedule = "0 1 * * *"
   timeout = 90
+
+# 3.0 Insight/연결 배치 — 비용 최소화 위해 1일 1회만
+[functions."refresh-relationships"]
+  schedule = "0 2 * * *"
+  timeout = 60
+
+[functions."generate-insights"]
+  schedule = "15 2 * * *"
+  timeout = 60
+
+[functions."generate-node-insights"]
+  schedule = "30 2 * * *"
+  timeout = 90

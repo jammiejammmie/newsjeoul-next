@@ -3,6 +3,12 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { getTopicBySlug, getTopicStories, getTopicEntities, getTopicTimeline, getTopicUpdates } from '@/lib/topics'
+import { entityIcon } from '@/lib/icons'
+
+const TYPE_LABEL: Record<string, string> = {
+  company: '관련 기업', person: '관련 인물', organization: '관련 기관', country: '관련 국가',
+  product: '관련 제품', technology: '관련 기술', market: '관련 시장', policy: '관련 정책',
+}
 
 export const dynamic = 'force-dynamic'
 
@@ -169,11 +175,29 @@ export default async function TopicPage({ params }: { params: Promise<{ slug: st
         </div>
       )}
 
-      {/* 연결 — 관련 주제 + 관련 기업/인물 (모바일: 가로 스크롤 캐러셀) */}
-      {(relatedTopics.length > 0 || entities.length > 0) && (
+      {/* 왜 중요한가 / 향후 전망 / 반대 시각 — AI 생성, 없으면 섹션 숨김 */}
+      {(topic.ai_outlook || topic.ai_counter_view) && (
+        <div style={{ marginBottom: 28, display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {topic.ai_outlook && (
+            <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 14, padding: '16px' }}>
+              <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent)', marginBottom: 8 }}>🔮 향후 전망</p>
+              <p style={{ fontSize: 13, color: 'var(--text2)', lineHeight: 1.7 }}>{topic.ai_outlook}</p>
+            </div>
+          )}
+          {topic.ai_counter_view && (
+            <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 14, padding: '16px' }}>
+              <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', marginBottom: 8 }}>🔄 반대 시각</p>
+              <p style={{ fontSize: 13, color: 'var(--text2)', lineHeight: 1.7 }}>{topic.ai_counter_view}</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 관련 Topic */}
+      {relatedTopics.length > 0 && (
         <div style={{ marginBottom: 28 }}>
           <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 12 }}>
-            연결된 것들
+            관련 Topic
           </div>
           <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 6, WebkitOverflowScrolling: 'touch' }}>
             {relatedTopics.map((t: any) => (
@@ -185,16 +209,36 @@ export default async function TopicPage({ params }: { params: Promise<{ slug: st
                 </div>
               </Link>
             ))}
-            {entities.map((e: any) => (
-              <Link key={e.id} href={`/entity/${e.slug}`} style={{ textDecoration: 'none', flexShrink: 0, width: 220 }}>
-                <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 14, padding: '14px 16px', height: '100%' }}>
-                  <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--lib)' }}>{e.type}</span>
-                  <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', margin: '6px 0' }}>{e.name}</p>
-                  {e.explanation && <p style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.5 }}>{e.explanation}</p>}
-                </div>
-              </Link>
-            ))}
           </div>
+        </div>
+      )}
+
+      {/* 관련 기업/인물/국가/정책/기술 — 타입별 그룹핑 */}
+      {entities.length > 0 && (
+        <div style={{ marginBottom: 28 }}>
+          {Object.entries(
+            entities.reduce((acc: Record<string, any[]>, e: any) => {
+              (acc[e.type] = acc[e.type] || []).push(e)
+              return acc
+            }, {})
+          ).map(([type, list]) => (
+            <div key={type} style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 10 }}>
+                {TYPE_LABEL[type] || type}
+              </div>
+              <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 6, WebkitOverflowScrolling: 'touch' }}>
+                {list.map((e: any) => (
+                  <Link key={e.id} href={`/entity/${e.slug}`} style={{ textDecoration: 'none', flexShrink: 0, width: 200 }}>
+                    <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 14, padding: '14px 16px', height: '100%' }}>
+                      <span style={{ fontSize: 16 }}>{entityIcon(e.type, e.name)}</span>
+                      <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', margin: '6px 0' }}>{e.name}</p>
+                      {e.explanation && <p style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.5 }}>{e.explanation}</p>}
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
       )}
 

@@ -155,3 +155,79 @@ export async function getTopicChains(limit = 3) {
     .filter((t: any) => t.entities.length >= 2)
     .slice(0, limit)
 }
+
+// 홈 "새롭게 떠오르는 Topic"
+export async function getEmergingTopics(limit = 5) {
+  const supabase = client()
+  const { data } = await supabase
+    .from('topics')
+    .select('id, slug, name, summary, description, created_at')
+    .eq('status', 'active')
+    .eq('lifecycle_stage', 'emerging')
+    .order('created_at', { ascending: false })
+    .limit(limit)
+  return data || []
+}
+
+// 홈 "실시간 Timeline" — 모든 활성 Topic을 가로질러 최근 이벤트를 시간순으로
+export async function getRecentTimelineEvents(limit = 10) {
+  const supabase = client()
+  const { data } = await supabase
+    .from('topic_timeline_events')
+    .select('id, event_date, title, summary, topic_id, topics(slug, name)')
+    .order('event_date', { ascending: false })
+    .limit(limit)
+  return (data || []).filter((e: any) => e.topics)
+}
+
+// 홈 "오늘 가장 많이 연결되는 기업/인물/국가" TOP10 — entity_stories 집계, LLM 비용 없음
+export async function getTopEntitiesByType(type: string, limit = 10) {
+  const supabase = client()
+  const { data } = await supabase
+    .from('entity_stories')
+    .select('entity_id, entities(id, slug, name, type, status)')
+  const counts = new Map<string, { id: string; name: string; slug: string; count: number }>()
+  for (const row of (data || []) as any[]) {
+    const e = row.entities
+    if (!e || e.type !== type || e.status !== 'active') continue
+    if (!counts.has(e.slug)) counts.set(e.slug, { id: e.id, name: e.name, slug: e.slug, count: 0 })
+    counts.get(e.slug)!.count++
+  }
+  return [...counts.values()].sort((a, b) => b.count - a.count).slice(0, limit)
+}
+
+// 홈 "세상은 이렇게 연결됩니다" — entity_relations 기반, 가능하면 1홉 더 이어붙인다
+export async function getEntityConnectionChains(limit = 3) {
+  const supabase = client()
+  const { data } = await supabase
+    .from('entity_relations')
+    .select('strength_score, explanation, source:entities!entity_relations_source_entity_id_fkey(id,slug,name), target:entities!entity_relations_target_entity_id_fkey(id,slug,name)')
+    .order('strength_score', { ascending: false })
+    .limit(20)
+
+  const edges = (data || []).filter((r: any) => r.source && r.target)
+  const chains: any[] = []
+  const usedEdgeIdx = new Set<number>()
+
+  for (let i = 0; i < edges.length && chains.length < limit; i++) {
+    if (usedEdgeIdx.has(i)) continue
+    const e = edges[i] as any
+    const nodes = [e.source, e.target]
+    usedEdgeIdx.add(i)
+
+    // 마지막 노드에서 한 홉 더 이어붙일 수 있는지 탐색
+    const lastId = nodes[nodes.length - 1].id
+    const nextIdx = edges.findIndex((other: any, j: number) =>
+      !usedEdgeIdx.has(j) && (other.source.id === lastId || other.target.id === lastId)
+    )
+    if (nextIdx !== -1) {
+      const other = edges[nextIdx] as any
+      const nextNode = other.source.id === lastId ? other.target : other.source
+      nodes.push(nextNode)
+      usedEdgeIdx.add(nextIdx)
+    }
+
+    chains.push({ nodes, explanation: e.explanation })
+  }
+  return chains
+}

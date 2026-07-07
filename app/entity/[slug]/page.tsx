@@ -2,7 +2,8 @@ import { createClient } from '@supabase/supabase-js'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { getEntityBySlug, getEntityStories, getEntityTopics } from '@/lib/entities'
+import { getEntityBySlug, getEntityStories, getEntityTopics, getEntityTimeline } from '@/lib/entities'
+import { entityIcon } from '@/lib/icons'
 
 export const dynamic = 'force-dynamic'
 
@@ -53,10 +54,11 @@ export default async function EntityPage({ params }: { params: Promise<{ slug: s
   const entity = await getEntityBySlug(slug)
   if (!entity) notFound()
 
-  const [topics, stories, relatedEntities] = await Promise.all([
+  const [topics, stories, relatedEntities, timeline] = await Promise.all([
     getEntityTopics(entity.id),
     getEntityStories(entity.id, 20),
     getRelatedEntities(entity.id),
+    getEntityTimeline(entity.id, 15),
   ])
 
   const jsonLd = {
@@ -93,12 +95,20 @@ export default async function EntityPage({ params }: { params: Promise<{ slug: s
           </div>
         </div>
         <h1 style={{ fontFamily: "'Noto Serif KR',serif", fontSize: 'clamp(20px,3.5vw,30px)', lineHeight: 1.4, marginBottom: 14, color: 'var(--text)' }}>
-          {entity.name}
+          {entityIcon(entity.type, entity.name)} {entity.name}
         </h1>
         {entity.description && (
           <p style={{ fontSize: 13, color: 'var(--text2)', lineHeight: 1.7 }}>{entity.description}</p>
         )}
       </div>
+
+      {/* AI 분석 — 없으면 숨김 */}
+      {entity.ai_analysis && (
+        <div style={{ marginBottom: 28, background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 14, padding: '16px' }}>
+          <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent)', marginBottom: 8 }}>🤖 AI 분석</p>
+          <p style={{ fontSize: 13, color: 'var(--text2)', lineHeight: 1.7 }}>{entity.ai_analysis}</p>
+        </div>
+      )}
 
       {/* 연결 — 관련 이슈 + 관련 기업 */}
       {(topics.length > 0 || relatedEntities.length > 0) && (
@@ -122,6 +132,30 @@ export default async function EntityPage({ params }: { params: Promise<{ slug: s
                   <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--lib)' }}>{TYPE_LABEL[e.type] || e.type}</span>
                   <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', margin: '6px 0' }}>{e.name}</p>
                   {e.explanation && <p style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.5 }}>{e.explanation}</p>}
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 관련 Timeline */}
+      {timeline.length > 0 && (
+        <div style={{ marginBottom: 28 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 12 }}>
+            관련 Timeline
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {timeline.map((t: any) => (
+              <Link key={t.id} href={`/topic/${t.topics.slug}`} style={{ textDecoration: 'none' }}>
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <div style={{ fontSize: 11, color: 'var(--muted)', flexShrink: 0, width: 70 }}>
+                    {new Date(t.event_date).toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' })}
+                  </div>
+                  <div>
+                    <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{t.title}</p>
+                    <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>{t.topics.name}</p>
+                  </div>
                 </div>
               </Link>
             ))}

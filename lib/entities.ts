@@ -59,3 +59,22 @@ export async function getEntityTopics(entityId: string) {
     }))
     .filter((t: any) => t.id && t.status === 'active')
 }
+
+// Entity 페이지 "관련 Timeline" — 이 Entity가 연결된 Topic들의 Timeline 이벤트를 모아서
+export async function getEntityTimeline(entityId: string, limit = 15) {
+  const supabase = client()
+  const { data: topicLinks } = await supabase
+    .from('topic_entities')
+    .select('topic_id')
+    .eq('entity_id', entityId)
+  const topicIds = (topicLinks || []).map((r: any) => r.topic_id)
+  if (!topicIds.length) return []
+
+  const { data } = await supabase
+    .from('topic_timeline_events')
+    .select('id, event_date, title, summary, topic_id, topics(slug, name)')
+    .in('topic_id', topicIds)
+    .order('event_date', { ascending: false })
+    .limit(limit)
+  return (data || []).filter((e: any) => e.topics)
+}
