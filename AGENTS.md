@@ -19,3 +19,18 @@ This version has breaking changes — APIs, conventions, and file structure may 
 4. 같은 파일의 같은 위치를 두 번 이상 Edit로 재시도하지 않는다 — 실패 시 즉시 위 절차로 전환.
 5. 새 기능은 가능한 새 파일(lib, docs 등)로 분리한다. 대형 파일(page.tsx 등)은 최소 줄만 수정한다.
 6. 승인 화면에서 같은 컬럼/함수/import/index가 두 번 보이면 그 수정은 실패로 간주하고 재시도하지 않는다 — 원인 설명 후 승인을 다시 받는다.
+
+# 뉴스저울 바이블 (2026-07-10 신설)
+
+새 작업을 시작하기 전 아래 4개 문서를 먼저 확인한다. 새로운 아이디어가 나오면 구현보다 먼저 여기에 기록한다.
+
+- `docs/newsjeoul-content-bible.md` — 콘텐츠 원칙(질문형 제목, CTR 4문항, 전문가급 본문, 금지 문구)
+- `docs/newsjeoul-ux-bible.md` — UX/디자인 원칙(디자인 잠금 상태, 카드→드로어→Question Detail 루프, 이미지 원칙)
+- `docs/newsjeoul-ai-editorial-bible.md` — 파이프라인 구조, 진단 기록, 승인 경계
+- `docs/newsjeoul-ctr-bible.md` — CTR 원칙(Hero 기준, 카드/Threads 디자인, 좋은/나쁜 예시)
+
+## 승인 경계 (2026-07-10 확정)
+
+**승인 없이 계속 진행**: 문서화/조사 기록, 파이프라인 원인 조사(읽기 전용), 기존 기능을 깨뜨리지 않는 admin 편의 기능 추가, 코드 정리(리팩토링/주석/미사용 코드 조사/Deprecated 정리), UX·CTR·SEO·콘텐츠 사례 조사(구현 없이).
+
+**반드시 승인 필요**: Hero 변경, 메인 UI 변경, 콘텐츠 생성 방식/질문 생성 로직 변경, importance_score 알고리즘, topic_relations 생성 방식, Hero 화이트리스트, 이미지 컬럼 추가, DB 스키마 변경/마이그레이션, 자동 스케줄 변경, 파이프라인 구조 변경, AI 프롬프트 변경. **승인을 구하는 질문 자체도 반복해서 올리지 말 것** — 위 목록에 없으면 그냥 진행하고 결과만 보고한다.
