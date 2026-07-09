@@ -32,9 +32,9 @@ export async function GET() {
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0">
   <channel>
-    <title>뉴스저울 — 당신이 못 본 절반</title>
+    <title>뉴스저울 — 3분이면 오늘 세상을 이해합니다</title>
     <link>${BASE}</link>
-    <description>오늘 언론사 90%가 침묵한 뉴스가 있습니다.</description>
+    <description>뉴스를 정렬하지 않습니다. 세상을 배치합니다.</description>
     <language>ko</language>
     <lastBuildDate>${new Date().toUTCString()}</lastBuildDate>
 ${items}

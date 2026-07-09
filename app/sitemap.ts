@@ -7,13 +7,12 @@ export const revalidate = 1800  // 30분마다 재생성 (pipeline이 3시간 �
 const BASE_URL = 'https://newsjeoul.co.kr'
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  // /top10, /youtube, /media101, /story/* — 구브랜드(침묵지수·보수/진보 비교) 라우트.
+  // 홈으로 redirect 처리됐으므로 sitemap에서 제외한다 (브랜드 Audit P1/P3).
   const staticRoutes: MetadataRoute.Sitemap = [
     { url: `${BASE_URL}/`,         changeFrequency: 'daily',  priority: 1.0 },
     { url: `${BASE_URL}/topic`,    changeFrequency: 'daily',  priority: 0.9 },
-    { url: `${BASE_URL}/top10`,    changeFrequency: 'daily',  priority: 0.9 },
     { url: `${BASE_URL}/election`, changeFrequency: 'daily',  priority: 0.7 },
-    { url: `${BASE_URL}/youtube`,  changeFrequency: 'weekly', priority: 0.6 },
-    { url: `${BASE_URL}/media101`, changeFrequency: 'weekly', priority: 0.6 },
   ]
 
   try {
@@ -21,8 +20,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     )
-    const [{ data: stories }, { data: topics }, { data: entities }] = await Promise.all([
-      supabase.from('stories').select('id, created_at').order('created_at', { ascending: false }).limit(500),
+    const [{ data: topics }, { data: entities }] = await Promise.all([
       supabase.from('topics').select('slug, category, updated_at').eq('status', 'active').order('updated_at', { ascending: false }).limit(1000),
       supabase.from('entities').select('slug, updated_at').eq('status', 'active').order('updated_at', { ascending: false }).limit(1000),
     ])
@@ -33,13 +31,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         changeFrequency: 'daily' as const,
         priority: 0.7,
       }))
-
-    const storyRoutes: MetadataRoute.Sitemap = (stories || []).map((s: any) => ({
-      url: `${BASE_URL}/story/${s.id}`,
-      lastModified: s.created_at ? new Date(s.created_at) : new Date(),
-      changeFrequency: 'weekly',
-      priority: 0.8,
-    }))
 
     const topicRoutes: MetadataRoute.Sitemap = (topics || []).map((t: any) => ({
       url: `${BASE_URL}/topic/${t.slug}`,
@@ -71,7 +62,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       )
     ).flat()
 
-    return [...staticRoutes, ...topicRoutes, ...categoryRoutes, ...entityRoutes, ...storyRoutes, ...genericContentRoutes]
+    return [...staticRoutes, ...topicRoutes, ...categoryRoutes, ...entityRoutes, ...genericContentRoutes]
   } catch {
     return staticRoutes
   }

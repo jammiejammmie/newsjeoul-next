@@ -115,12 +115,12 @@ export default function AdminPage() {
     logArea: { background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 10, padding: 12, minHeight: 120, maxHeight: 280, overflowY: 'auto' as const, fontSize: 12, fontFamily: 'monospace', lineHeight: 1.7 } as const,
   }
 
-  const logColors: Record<string, string> = { success: 'var(--green)', error: 'var(--con)', info: 'var(--lib)', warn: 'var(--gold)' }
+  const logColors: Record<string, string> = { success: 'var(--green)', error: 'var(--rose)', info: 'var(--blue)', warn: 'var(--gold)' }
 
   if (!savedKey) return (
     <div style={s.wrap}>
       <div style={{ fontFamily: "'Bebas Neue', cursive", fontSize: 24, marginBottom: 4 }}>
-        뉴스<span style={{color:'var(--con)'}}>저</span><span style={{color:'var(--lib)'}}>울</span>
+        뉴스<span style={{color:'var(--accent)'}}>저</span><span style={{color:'var(--blue)'}}>울</span>
       </div>
       <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 28 }}>관리자 페이지</div>
       <div style={s.card}>
@@ -130,7 +130,7 @@ export default function AdminPage() {
           onChange={e => setAdminKey(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && login()}
           placeholder="관리자 키 입력..." />
-        <button style={s.btn('var(--con)')} onClick={login}>로그인 →</button>
+        <button style={s.btn('var(--accent)')} onClick={login}>로그인 →</button>
       </div>
     </div>
   )
@@ -138,7 +138,7 @@ export default function AdminPage() {
   return (
     <div style={s.wrap}>
       <div style={{ fontFamily: "'Bebas Neue', cursive", fontSize: 24, marginBottom: 4 }}>
-        뉴스<span style={{color:'var(--con)'}}>저</span><span style={{color:'var(--lib)'}}>울</span>
+        뉴스<span style={{color:'var(--accent)'}}>저</span><span style={{color:'var(--blue)'}}>울</span>
       </div>
       <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 20 }}>관리자 페이지</div>
 
@@ -169,7 +169,7 @@ export default function AdminPage() {
       </div>
 
       {/* 2.0 파이프라인 */}
-      <div style={{ ...s.card, background: 'linear-gradient(135deg,var(--con-soft),var(--lib-soft))' }}>
+      <div style={{ ...s.card, background: 'linear-gradient(135deg,var(--accent-soft),rgba(124,140,255,.08))' }}>
         <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>⚡ 2.0 전체 파이프라인</div>
         <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 14 }}>기사 수집 → 클러스터링 → 스토리 생성</div>
         <button style={s.btn('rgba(94,62,161,.8)')} onClick={runPipeline} disabled={!!loading}>

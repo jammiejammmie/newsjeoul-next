@@ -320,7 +320,6 @@ export default async function TopicPage({ params }: { params: Promise<{ slug: st
               <Link key={s.id} href={`/story/${s.id}`} style={{ textDecoration: 'none' }}>
                 <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 14, padding: '14px 16px' }}>
                   <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', lineHeight: 1.5 }}>{s.title}</p>
-                  <span style={{ fontSize: 11, color: 'var(--muted)' }}>침묵지수 {s.silence_score ?? '—'}</span>
                 </div>
               </Link>
             ))}

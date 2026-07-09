@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from '@supabase/supabase-js'
-import { getTopicBySlug, getTopicStories, getTopicEntities } from '@/lib/topics'
+import { getTopicBySlug, getTopicStories, getTopicEntities, getActiveTopics } from '@/lib/topics'
 
 function client() {
   return createClient(
@@ -23,7 +23,7 @@ async function getRelatedTopics(topicId: string) {
     .select('explanation, strength_score, source_topic_id, target_topic_id, source:topics!topic_relations_source_topic_id_fkey(id,slug,name,category), target:topics!topic_relations_target_topic_id_fkey(id,slug,name,category)')
     .or(`source_topic_id.eq.${topicId},target_topic_id.eq.${topicId}`)
     .order('strength_score', { ascending: false })
-    .limit(6)
+    .limit(10)
   return (data || [])
     .map((row: any) => {
       const other = row.source_topic_id === topicId ? row.target : row.source
@@ -53,6 +53,21 @@ export async function getTopicDrawerData(slug: string): Promise<TopicDrawerData 
     getRelatedTopics(topic.id),
   ])
 
+  let nextQuestions = related.map((t) => ({ slug: t.slug, name: t.name, explanation: t.explanation }))
+
+  // 리프(관련 Topic이 없거나 적은) 상황에도 탐험이 끊기지 않도록, 오늘 중요도 높은
+  // 다른 Topic으로 최소 6개까지 채운다 (브랜드 Audit P2 — 카드→드로어→다음질문 흐름 유지).
+  const MIN_NEXT_QUESTIONS = 6
+  if (nextQuestions.length < MIN_NEXT_QUESTIONS) {
+    const usedSlugs = new Set([topic.slug, ...nextQuestions.map((r) => r.slug)])
+    const fallback = await getActiveTopics(MIN_NEXT_QUESTIONS + usedSlugs.size)
+    const padding = fallback
+      .filter((t: any) => !usedSlugs.has(t.slug))
+      .slice(0, MIN_NEXT_QUESTIONS - nextQuestions.length)
+      .map((t: any) => ({ slug: t.slug, name: t.name, explanation: '오늘 많은 사람이 함께 보고 있는 이슈입니다' }))
+    nextQuestions = [...nextQuestions, ...padding]
+  }
+
   return {
     slug: topic.slug,
     domain: topic.category,
@@ -60,6 +75,6 @@ export async function getTopicDrawerData(slug: string): Promise<TopicDrawerData 
     body: topic.summary || topic.description || '',
     tags: entities.map((e: any) => ({ category: TYPE_LABEL[e.type], value: e.name })),
     articles: stories.map((s: any) => ({ id: s.id, title: s.title })),
-    related: related.map((t) => ({ slug: t.slug, name: t.name, explanation: t.explanation })),
+    related: nextQuestions,
   }
 }

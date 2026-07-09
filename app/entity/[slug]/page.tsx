@@ -88,7 +88,7 @@ export default async function EntityPage({ params }: { params: Promise<{ slug: s
       {/* 지금 */}
       <div style={{ padding: '16px 0 20px', borderBottom: '1px solid var(--border)', marginBottom: 20 }}>
         <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-          <div style={{ fontSize: 10, fontWeight: 700, padding: '4px 10px', borderRadius: 20, background: 'var(--card)', border: '1px solid var(--border)', color: 'var(--lib)' }}>
+          <div style={{ fontSize: 10, fontWeight: 700, padding: '4px 10px', borderRadius: 20, background: 'var(--card)', border: '1px solid var(--border)', color: 'var(--muted)' }}>
             {TYPE_LABEL[entity.type] || entity.type}
           </div>
         </div>
@@ -186,7 +186,6 @@ export default async function EntityPage({ params }: { params: Promise<{ slug: s
               <Link key={s.id} href={`/story/${s.id}`} style={{ textDecoration: 'none' }}>
                 <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 14, padding: '14px 16px' }}>
                   <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', lineHeight: 1.5 }}>{s.title}</p>
-                  <span style={{ fontSize: 11, color: 'var(--muted)' }}>침묵지수 {s.silence_score ?? '—'}</span>
                 </div>
               </Link>
             ))}

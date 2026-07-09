@@ -20,12 +20,6 @@
   --rose: #E0777A;     /* Falling Rose */
   --stone: #8B887E;    /* Muted Stone */
 
-  /* Neutral differentiation (레거시 con/lib 비교 컴포넌트 전용 — 신규 UI에서 사용 금지) */
-  --con: #888;
-  --lib: #666;
-  --con-soft: rgba(255, 255, 255, .025);
-  --lib-soft: rgba(255, 255, 255, .012);
-
   /* Semantic colors for data viz (kept for election/chart pages) */
   --data-warm: #a07060;
   --data-cool: #607090;

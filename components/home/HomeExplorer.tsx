@@ -124,7 +124,8 @@ export default function HomeExplorer({ cards, timelineEvents }: HomeExplorerProp
           <>
             <DrawerBody text={current.body} />
             <DrawerTags tags={current.tags} />
-            <DrawerArticles articles={current.articles.map((a) => ({ title: a.title, href: `/story/${a.id}` }))} />
+            {/* 기사 원문 링크는 구브랜드 /story 상세로 이어지던 곳 — 재작성 전까지는 제목만 노출 (브랜드 Audit P2) */}
+            <DrawerArticles articles={current.articles.map((a) => ({ title: a.title }))} />
             <DrawerNextQuestions
               items={current.related.map((r) => ({
                 label: r.name,

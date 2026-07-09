@@ -29,7 +29,7 @@ export default async function ElectionPage() {
   return (
     <div style={{maxWidth:1100,margin:'0 auto',padding:'0 16px'}}>
       <div style={{padding:'28px 0 22px',borderBottom:'1px solid var(--border)',marginBottom:24}}>
-        <div style={{fontSize:10,fontWeight:700,letterSpacing:'.14em',textTransform:'uppercase',color:'var(--con)',marginBottom:8}}>
+        <div style={{fontSize:10,fontWeight:700,letterSpacing:'.14em',textTransform:'uppercase',color:'var(--muted)',marginBottom:8}}>
           🗳️ 선거 결과 & 여론조사 비교
         </div>
         <h1 style={{fontFamily:"'Noto Serif KR',serif",fontSize:'clamp(20px,3.5vw,34px)',lineHeight:1.35,marginBottom:8}}>
@@ -61,7 +61,7 @@ export default async function ElectionPage() {
                   <div key={i} style={{marginBottom:10}}>
                     <div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}>
                       <span style={{fontSize:13,fontWeight:600,color:'var(--text)'}}>{c.name} <span style={{fontSize:10,color:'var(--muted)'}}>{c.party}</span></span>
-                      <span style={{fontFamily:"'Bebas Neue',cursive",fontSize:20,color: i===0?'var(--lib)':'var(--con)'}}>{c.pct}%</span>
+                      <span style={{fontFamily:"'Bebas Neue',cursive",fontSize:20,color: i===0?'#2563eb':'#e63946'}}>{c.pct}%</span>
                     </div>
                     <div style={{height:7,background:'var(--border)',borderRadius:20,overflow:'hidden'}}>
                       <div style={{height:'100%',borderRadius:20,width:`${c.pct}%`,background: i===0?'linear-gradient(90deg,#2563eb,#60a5fa)':'linear-gradient(90deg,#e63946,#ff6b6b)'}}/>
