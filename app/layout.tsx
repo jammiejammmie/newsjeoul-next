@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import './globals.css'
 import Nav from '@/components/Nav'
+import Footer from '@/components/Footer'
 
 const TAGLINE = '뉴스저울 — 3분이면 오늘 세상을 이해합니다'
 const DESC = '오늘 세상이 가장 궁금해하는 것들. 뉴스를 정렬하지 않습니다. 세상을 배치합니다.'
@@ -36,6 +37,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <Nav />
         <main>{children}</main>
+        <Footer />
       </body>
     </html>
   )

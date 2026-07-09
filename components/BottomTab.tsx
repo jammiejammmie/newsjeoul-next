@@ -3,10 +3,9 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
 const tabs = [
-  { href: '/', icon: '⚖️', label: '메인' },
-  { href: '/election', icon: '🗳️', label: '선거' },
-  { href: '/youtube', icon: '📺', label: '유튜브' },
-  { href: '/media101', icon: '📖', label: '미디어' },
+  { href: '/', icon: '⚖️', label: '오늘' },
+  { href: '/topic', icon: '🧭', label: '이슈' },
+  { href: '/search', icon: '🔍', label: '검색' },
 ]
 
 export default function BottomTab() {
@@ -37,7 +36,7 @@ export default function BottomTab() {
             justifyContent: 'center',
             gap: 3,
             textDecoration: 'none',
-            color: active ? 'var(--con)' : 'var(--muted)',
+            color: active ? 'var(--accent)' : 'var(--muted)',
             fontSize: 10,
             fontWeight: active ? 700 : 400,
             padding: '6px 0',

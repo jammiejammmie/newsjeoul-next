@@ -8,10 +8,15 @@
 export const CONTENT_TYPES = {
   topic: { label: '이슈', card: 'NodeCard', schema: 'NewsArticle' },
   connection: { label: '의외의 연결', card: 'ConnectionCard', schema: 'NewsArticle' },
-  guide: { label: '가이드', card: 'GuideCard', schema: 'HowTo' },
-  review: { label: '리뷰', card: 'ReviewCard', schema: 'Product+Review' },
-  comparison: { label: '비교', card: 'ComparisonCard', schema: 'ItemList' },
-  shopping_pick: { label: '쇼핑', card: 'ShoppingCard', schema: 'Product' },
+  guide: { label: '가이드', card: 'GuideCard', schema: 'HowTo', route: 'guide', table: 'guides' },
+  review: { label: '리뷰', card: 'ReviewCard', schema: 'Product+Review', route: 'review', table: 'reviews' },
+  comparison: { label: '비교', card: 'ComparisonCard', schema: 'ItemList', route: 'compare', table: 'comparisons' },
+  shopping_pick: { label: '쇼핑', card: 'ShoppingCard', schema: 'Product', route: 'shop', table: 'shopping_picks' },
 } as const
 
 export type ContentType = keyof typeof CONTENT_TYPES
+
+// route/table을 가진(=URL 라우트가 실제로 존재하는) content_type만 — sitemap이 순회하는 대상
+export const ROUTABLE_CONTENT_TYPES = Object.entries(CONTENT_TYPES)
+  .filter((entry): entry is [ContentType, typeof entry[1] & { route: string; table: string }] => 'route' in entry[1])
+  .map(([key, spec]) => ({ type: key, ...spec }))

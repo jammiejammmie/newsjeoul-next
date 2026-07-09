@@ -5,6 +5,8 @@ import { notFound } from 'next/navigation'
 import { getEntityBySlug, getEntityStories, getEntityTopics, getEntityTimeline } from '@/lib/entities'
 import { entityIcon } from '@/lib/icons'
 import SignatureCard from '@/components/SignatureCard'
+import { generateEntitySchema } from '@/lib/schema/article'
+import { generateBreadcrumbSchema } from '@/lib/schema/breadcrumb'
 
 export const dynamic = 'force-dynamic'
 
@@ -62,22 +64,17 @@ export default async function EntityPage({ params }: { params: Promise<{ slug: s
     getEntityTimeline(entity.id, 15),
   ])
 
-  const jsonLd = {
-    '@context': 'https://schema.org',
-    '@type': 'Article',
-    headline: entity.name,
+  const jsonLd = generateEntitySchema({
+    name: entity.name,
+    entityType: entity.type,
     description: entity.description,
     dateModified: entity.updated_at,
-    mainEntityOfPage: `${BASE}/entity/${entity.slug}`,
-  }
-  const breadcrumbLd = {
-    '@context': 'https://schema.org',
-    '@type': 'BreadcrumbList',
-    itemListElement: [
-      { '@type': 'ListItem', position: 1, name: '뉴스저울', item: BASE },
-      { '@type': 'ListItem', position: 2, name: entity.name, item: `${BASE}/entity/${entity.slug}` },
-    ],
-  }
+    url: `${BASE}/entity/${entity.slug}`,
+  })
+  const breadcrumbLd = generateBreadcrumbSchema([
+    { name: '뉴스저울', url: BASE },
+    { name: entity.name, url: `${BASE}/entity/${entity.slug}` },
+  ])
 
   return (
     <div style={{ maxWidth: 800, margin: '0 auto', padding: '0 16px' }}>

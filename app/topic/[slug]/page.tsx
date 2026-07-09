@@ -6,6 +6,9 @@ import { getTopicBySlug, getTopicStories, getTopicEntities, getTopicTimeline, ge
 import { getInsightsForTopic } from '@/lib/insights'
 import { entityIcon, categoryIcon } from '@/lib/icons'
 import SignatureCard from '@/components/SignatureCard'
+import { generateArticleSchema } from '@/lib/schema/article'
+import { generateBreadcrumbSchema } from '@/lib/schema/breadcrumb'
+import { generateFaqSchema } from '@/lib/schema/faq'
 
 const TYPE_LABEL: Record<string, string> = {
   company: '관련 기업', person: '관련 인물', organization: '관련 기관', country: '관련 국가',
@@ -86,27 +89,27 @@ export default async function TopicPage({ params }: { params: Promise<{ slug: st
   const recentTimeline = timeline.slice(-5).reverse()
   const olderTimeline = timeline.slice(0, -5).reverse()
 
-  const jsonLd = {
-    '@context': 'https://schema.org',
-    '@type': 'Article',
+  const jsonLd = generateArticleSchema({
     headline: topic.name,
     description: topic.summary || topic.description,
     dateModified: topic.updated_at,
-    mainEntityOfPage: `${BASE}/topic/${topic.slug}`,
-  }
-  const breadcrumbLd = {
-    '@context': 'https://schema.org',
-    '@type': 'BreadcrumbList',
-    itemListElement: [
-      { '@type': 'ListItem', position: 1, name: '뉴스저울', item: BASE },
-      { '@type': 'ListItem', position: 2, name: topic.name, item: `${BASE}/topic/${topic.slug}` },
-    ],
-  }
+    url: `${BASE}/topic/${topic.slug}`,
+  })
+  const breadcrumbLd = generateBreadcrumbSchema([
+    { name: '뉴스저울', url: BASE },
+    { name: topic.name, url: `${BASE}/topic/${topic.slug}` },
+  ])
+  const faqLd = generateFaqSchema(
+    relatedTopics
+      .filter((t: any) => t.explanation)
+      .map((t: any) => ({ question: `${topic.name}와(과) ${t.name}은(는) 어떤 관계가 있나요?`, answer: t.explanation }))
+  )
 
   return (
     <div style={{ maxWidth: 800, margin: '0 auto', padding: '0 16px' }}>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbLd) }} />
+      {faqLd && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqLd) }} />}
 
       <div style={{ padding: '16px 0 0' }}>
         <Link href="/" style={{ fontSize: 12, color: 'var(--muted)', textDecoration: 'none' }}>← 뉴스저울로</Link>

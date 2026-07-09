@@ -38,26 +38,7 @@
   --muted: #8B887E;    /* Muted Stone */
 }
 
-[data-theme="light"] {
-  --bg: #f5f4ef;
-  --bg2: #eeede8;
-  --card: #fff;
-  --card2: #f9f8f4;
-  --border: #e0dfd8;
-  --border2: #d0cfca;
-  --accent: #b8943a;
-  --accent-soft: rgba(184, 148, 58, .07);
-  --con: #777;
-  --lib: #999;
-  --con-soft: rgba(0, 0, 0, .025);
-  --lib-soft: rgba(0, 0, 0, .012);
-  --data-warm: #7d4e3e;
-  --data-cool: #3e5a7d;
-  --gold: #b8943a;
-  --text: #1a1a14;
-  --text2: #666;
-  --muted: #999;
-}
+/* 라이트 테마는 v5 디자인에 존재하지 않아 비활성화함 (다크 전용 브랜드) — Nav.tsx의 테마 토글도 제거됨 */
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 

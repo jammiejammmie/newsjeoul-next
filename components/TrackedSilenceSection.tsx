@@ -1,3 +1,5 @@
+// @deprecated 구 "침묵지수" 정체성 컴포넌트. 어디서도 import되지 않음(2026-07-09 확인).
+// v5 브랜드 전환 이후 폐기 대상 — 삭제는 별도 승인 후 진행.
 export default function TrackedSilenceSection({
   stories,
 }: {

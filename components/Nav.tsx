@@ -1,93 +1,65 @@
 'use client'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useState, useEffect } from 'react'
 
 const navLinks = [
-  { href: '/',        label: '오늘' },
-  { href: '/#issues', label: '이슈' },
-  { href: '/top10',   label: '침묵지수' },
+  { href: '/topic', label: '이슈' },
+  { href: '/search', label: '검색' },
 ]
 
 export default function Nav() {
   const pathname = usePathname()
-  const [theme, setTheme] = useState('dark')
-
-  useEffect(() => {
-    const saved = localStorage.getItem('nj_theme') || 'dark'
-    setTheme(saved)
-    document.documentElement.setAttribute('data-theme', saved)
-  }, [])
-
-  const toggleTheme = () => {
-    const next = theme === 'dark' ? 'light' : 'dark'
-    setTheme(next)
-    localStorage.setItem('nj_theme', next)
-    document.documentElement.setAttribute('data-theme', next)
-  }
 
   return (
     <nav style={{
-      background: theme === 'dark' ? 'rgba(8,8,8,.95)' : 'rgba(245,244,239,.95)',
-      backdropFilter: 'blur(20px)',
-      borderBottom: '1px solid var(--border)',
       position: 'sticky',
       top: 0,
       zIndex: 100,
-      height: 56,
+      background: 'rgba(11,11,13,0.72)',
+      backdropFilter: 'blur(12px)',
+      borderBottom: '1px solid var(--border)',
     }}>
       <div style={{
-        maxWidth: 1200,
+        maxWidth: 1440,
         margin: '0 auto',
-        padding: '0 24px',
-        height: '100%',
+        padding: '16px 24px',
         display: 'flex',
         alignItems: 'center',
-        gap: 0,
+        justifyContent: 'space-between',
+        gap: 16,
       }}>
 
-        {/* Wordmark */}
-        <Link href="/" style={{ textDecoration: 'none', flexShrink: 0, marginRight: 'auto' }}>
-          <span style={{
-            fontFamily: "'Bebas Neue', cursive",
-            fontSize: 22,
-            letterSpacing: '.06em',
-            color: 'var(--text)',
-            display: 'block',
-            lineHeight: 1,
-          }}>
-            뉴스저울
-          </span>
-          <span style={{
-            fontSize: 9,
-            letterSpacing: '.1em',
-            color: 'var(--muted)',
-            textTransform: 'uppercase',
-            display: 'block',
-            marginTop: 1,
-          }}
-            className="hidden sm:block"
-          >
-            당신이 못 본 절반
-          </span>
+        <Link href="/" style={{
+          textDecoration: 'none', fontWeight: 800, fontSize: 16, letterSpacing: '-0.01em',
+          color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0,
+        }}>
+          <span>⚖</span> 뉴스저울
         </Link>
 
-        {/* Desktop links */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+        <div
+          className="hidden sm:flex"
+          style={{ alignItems: 'center', gap: 8, fontSize: 12, fontWeight: 600, color: 'var(--muted)', flex: 1, justifyContent: 'center' }}
+        >
+          <span style={{
+            width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)', display: 'inline-block', flexShrink: 0,
+          }} />
+          오늘 세상의 무게가 실시간으로 기울고 있습니다
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
           {navLinks.map(({ href, label }) => (
             <Link
               key={href}
               href={href}
-              className="hidden md:inline-flex"
               style={{
                 color: pathname === href ? 'var(--text)' : 'var(--muted)',
                 textDecoration: 'none',
                 fontSize: 12,
-                fontWeight: pathname === href ? 600 : 400,
-                padding: '5px 10px',
+                fontWeight: pathname === href ? 700 : 600,
+                padding: '6px 12px',
                 borderRadius: 8,
                 background: pathname === href ? 'var(--card)' : 'transparent',
-                border: pathname === href ? '1px solid var(--border)' : '1px solid transparent',
+                border: pathname === href ? '1px solid var(--border2)' : '1px solid transparent',
                 whiteSpace: 'nowrap',
                 transition: 'color .15s',
               }}
@@ -95,27 +67,6 @@ export default function Nav() {
               {label}
             </Link>
           ))}
-
-          <button
-            onClick={toggleTheme}
-            style={{
-              background: 'transparent',
-              border: '1px solid var(--border)',
-              color: 'var(--muted)',
-              width: 32,
-              height: 32,
-              borderRadius: 8,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 13,
-              cursor: 'pointer',
-              marginLeft: 8,
-              flexShrink: 0,
-            }}
-          >
-            {theme === 'dark' ? '○' : '●'}
-          </button>
         </div>
 
       </div>

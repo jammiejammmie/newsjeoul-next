@@ -1,5 +1,6 @@
 import type { MetadataRoute } from 'next'
 import { createClient } from '@supabase/supabase-js'
+import { ROUTABLE_CONTENT_TYPES } from '@/lib/content-types'
 
 export const revalidate = 1800  // 30분마다 재생성 (pipeline이 3시간 주기이므로 충분)
 
@@ -54,7 +55,23 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.8,
     }))
 
-    return [...staticRoutes, ...topicRoutes, ...categoryRoutes, ...entityRoutes, ...storyRoutes]
+    // 신규 콘텐츠 장르(가이드/리뷰/비교/쇼핑) — 각 테이블이 아직 없으면 조용히 빈 배열만 반환된다.
+    // 새 장르가 늘어도 lib/content-types.ts에 한 줄만 추가하면 여기는 안 건드려도 됨.
+    const genericContentRoutes: MetadataRoute.Sitemap = (
+      await Promise.all(
+        ROUTABLE_CONTENT_TYPES.map(async ({ route, table }) => {
+          const { data } = await supabase.from(table).select('slug, updated_at').limit(1000)
+          return (data || []).map((item: any) => ({
+            url: `${BASE_URL}/${route}/${item.slug}`,
+            lastModified: item.updated_at ? new Date(item.updated_at) : new Date(),
+            changeFrequency: 'weekly' as const,
+            priority: 0.7,
+          }))
+        })
+      )
+    ).flat()
+
+    return [...staticRoutes, ...topicRoutes, ...categoryRoutes, ...entityRoutes, ...storyRoutes, ...genericContentRoutes]
   } catch {
     return staticRoutes
   }
