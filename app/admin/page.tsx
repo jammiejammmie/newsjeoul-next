@@ -66,7 +66,10 @@ export default function AdminPage() {
       else if (res.ok) {
         if (fnName === 'enrich-article-images') {
           addLog('success', `✅ ${label}: 대상 ${data.totalInWindow}건 중 이미지 보유 ${data.alreadyHasImage}건, 이번 실행 ${data.targetedThisRun}건 처리`)
-          addLog('info', `　성공 ${data.success} / og:image 없음 ${data.noOgImage} / Timeout ${data.timeout} / 차단(403 등) ${data.blocked} / 기타오류 ${data.otherError}`)
+          addLog('info', `　성공 ${data.success} / og:image 없음 ${data.noOgImage} / URL미해제 ${data.resolveFailed} / Timeout ${data.timeout} / 차단(403 등) ${data.blocked} / 기타오류 ${data.otherError}`)
+        } else if (fnName === 'resolve-article-urls') {
+          addLog('success', `✅ ${label}: 미해제 ${data.totalPending}건 중 이번 실행 ${data.targetedThisRun}건 처리`)
+          addLog('info', `　해제 성공 ${data.resolved} / 중복 확정 ${data.duplicate} / 해제 실패(재시도 대기) ${data.resolveFailed} / 남은 미해제 ${data.remainingPending}`)
         } else {
           const detail = data.saved ? `${data.saved}건` : data.stories ? `${data.stories}개 스토리` : data.updated ? `${data.updated.length}개` : '완료'
           addLog('success', `✅ ${label}: ${detail}`)
@@ -88,7 +91,7 @@ export default function AdminPage() {
       const r1 = await callFn('collect-news')
       const d1 = await r1.json()
       if (r1.status === 401) { addLog('error', '❌ 관리자 키 오류'); setLoading(null); return }
-      if (r1.ok) addLog('success', `✅ 기사 수집: ${d1.saved || 0}건`)
+      if (r1.ok) addLog('success', `✅ 기사 수집: ${d1.saved || 0}건 (원문 URL 해제 ${d1.urlResolved ?? 0}건, 실패 ${d1.urlFailed ?? 0}건)`)
       else addLog('error', `❌ 수집 실패: ${d1.error}`)
 
       addLog('info', '3초 후 스토리 처리...')
@@ -231,12 +234,26 @@ export default function AdminPage() {
         </button>
       </div>
 
+      {/* 기사 원문 URL 복구 — Google 뉴스 리다이렉트 링크 해제, 스케줄 없음(수동 실행 전용) */}
+      <div style={s.card}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 700 }}>🔗 기사 원문 URL 복구</div>
+            <div style={{ fontSize: 11, color: 'var(--muted)' }}>Google 뉴스 링크 → 실제 언론사 URL 해제(20건씩) — 이미지 보강보다 먼저 실행</div>
+          </div>
+          <div style={{ fontSize: 10, padding: '3px 9px', background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 999, color: 'var(--muted)' }}>수동 실행</div>
+        </div>
+        <button style={s.btn('var(--card)', 'var(--text)')} onClick={() => runFn('resolve-article-urls', '원문 URL 복구')} disabled={!!loading}>
+          {loading === 'resolve-article-urls' ? '실행 중...' : '▶ 지금 실행'}
+        </button>
+      </div>
+
       {/* 기사 이미지 보강 — og:image 백필, 스케줄 없음(수동 실행 전용) */}
       <div style={s.card}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
           <div>
             <div style={{ fontSize: 13, fontWeight: 700 }}>🖼️ 기사 이미지 보강</div>
-            <div style={{ fontSize: 11, color: 'var(--muted)' }}>og_image_url 백필(최근 14일, 15건씩) — articles.og_image_url 컬럼 필요</div>
+            <div style={{ fontSize: 11, color: 'var(--muted)' }}>og_image_url 백필(원문 URL 해제된 기사 중 최근 14일, 15건씩)</div>
           </div>
           <div style={{ fontSize: 10, padding: '3px 9px', background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 999, color: 'var(--muted)' }}>수동 실행</div>
         </div>

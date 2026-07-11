@@ -34,7 +34,13 @@
 # 2.0 파이프라인
 [functions."collect-news"]
   schedule = "0 */3 * * *"
-  timeout = 60
+  timeout = 90 # RSS 수집(~36초) + 원문 URL 해제 시간예산(20초) 여유 확보 위해 60→90 상향(2026-07-11)
+
+[functions."resolve-article-urls"]
+  timeout = 90
+
+[functions."enrich-article-images"]
+  timeout = 90
 
 [functions."process-stories"]
   schedule = "30 */3 * * *"
