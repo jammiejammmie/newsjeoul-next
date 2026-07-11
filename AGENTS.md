@@ -30,6 +30,11 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - `docs/newsjeoul-ctr-bible.md` — CTR 원칙(Hero 기준, 카드/Threads 디자인, 좋은/나쁜 예시)
 - `docs/newsjeoul-editorial-engine-architecture.md` — Editorial Engine 아키텍처(파이프라인 레이어, Event Type 판단, Persona Registry, 구조화 출력 스키마, DB 제안, Phase 계획, 2026-07-11 신설)
 - `docs/newsjeoul-editorial-engine-approval-items.md` — 위 아키텍처에서 파생되는 DB/외부API/비용 승인 목록(구현 착수 신호 아님)
+- `docs/newsjeoul-decision-log.md` — 프로젝트 의사결정 이력("무엇을"이 아니라 "왜") — 프로젝트에 영향을 주는 결정이 날 때마다 여기에 추가(2026-07-11 신설)
+
+## 의사결정 기록 규칙 (2026-07-11 확정)
+
+프로젝트에 영향을 주는 결정(설계 방향 승인/기각, 우선순위 변경 등)이 날 때마다 `docs/newsjeoul-decision-log.md`에 Decision ID를 새로 추가한다. 항목당 필수: 결정 주제, 제안 내용, 최종 결정 내용, **결정 이유(왜 그렇게 정했는지가 핵심)**, 영향받는 문서·섹션, 결정일자. 과거 항목은 수정하지 않고, 결정이 번복되면 새 ID로 추가하고 이전 항목에 대체 표기만 남긴다.
 
 ## 승인 경계 (2026-07-10 확정)
 
