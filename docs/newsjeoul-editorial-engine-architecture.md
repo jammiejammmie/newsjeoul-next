@@ -291,4 +291,20 @@ Editorial Draft
 
 ---
 
+## 14. 다음 연구 주제 (구현 아님 — PM 제안, 2026-07-11)
+
+**CTR Engine + Balance Engine 레이어 추가 제안** (PM 원문 배경: "뉴스저울은 오늘 가장 중요한 뉴스를 보여주는 서비스가 아니라, 사람들이 클릭해서 결국 더 넓은 세상을 이해하게 만드는 서비스"):
+
+```
+뉴스 수집 → Editorial Engine(사건 이해) → CTR Engine(클릭 잠재력 높은 Topic 후보 발굴)
+          → Balance Engine(카테고리 편향 방지·다양성 확보) → 최종 Home 노출
+```
+
+현재 설계(§0~13)는 "화두(Zeitgeist)"가 축·관점 조정에는 관여하지만 **Home 노출 순서 자체를 결정하는 로직**은 없다(지금 Home의 Living Index/Cover Rotation은 `importance_score` 단순 정렬 + 메가토픽 화이트리스트뿐). PM은 Editorial Engine이 "사건을 이해하는 것"과 "그중 무엇을 얼마나 앞세울지"를 분리해, 후자를 별도 레이어(CTR 잠재력 평가 → 카테고리 균형 조정)로 다루자는 방향을 제안함.
+
+**바로 구현하지 않음** — Editorial Engine(Phase 1~4) 완료 후 다음 설계 라운드에서 별도로 연구. 이 절은 그때까지 잊지 않기 위한 기록용.
+관련해 미리 짚어둘 점: 이 레이어는 §11의 `importance_score`/`popularity_score` 미구현 문제와 겹친다 — CTR Engine이 사실상 그 스코어링을 대체하거나 흡수하는 형태가 될 가능성이 있어, 나중에 연구할 때 두 주제를 같이 놓고 봐야 함.
+
+---
+
 관련: `docs/newsjeoul-ai-editorial-bible.md`(기존 파이프라인 진단), `docs/newsjeoul-content-bible.md`(콘텐츠 원칙), `docs/newsjeoul-editorial-engine-approval-items.md`(승인 목록)
