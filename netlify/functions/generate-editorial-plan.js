@@ -1,0 +1,217 @@
+// generate-editorial-plan.js — Editorial Engine Layer 1 (Classification & Planning)
+// 근거: docs/newsjeoul-editorial-engine-architecture.md §2~4, DEC-002~005
+//
+// Rule 예비필터(코드, 무료) → 후보 압축 → LLM 구조화 호출 1회로 event_type/축조정/관점/대립관점여부를
+// 동시 산출한다. FIXED 값(event_type_rules)과 병합해 Editorial Plan을 만들어 topics.ai_context에 저장.
+// 유형9(분쟁)·10(재난)은 안전 오버라이드로 구조 규칙을 하드락(§4).
+
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY;
+const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
+const BATCH_SIZE = 5; // 게이트웨이 타임아웃 방지, 나머지는 다음 실행에서 이어서 처리
+
+// Editorial OS v1 "판별 신호" 기반 Rule 예비필터 — LLM 호출 전 후보를 좁힌다(§4).
+// 정확한 분류가 목적이 아니라 "명백히 아닌 유형"을 먼저 걸러 LLM이 10지선다 대신
+// 좁혀진 후보 중에서만 고르게 하는 것이 목적.
+const DETECTION_PATTERNS = [
+  { type: '신제품·모델출시', re: /(공개|출시|발표).*(신제품|신형|모델|스펙|가격)|신제품|신형 출시/ },
+  { type: 'M&A·투자', re: /인수|합병|지분\s?투자|M&A|펀딩|IPO/ },
+  { type: '규제·정책', re: /시행령|법안|규제|가이드라인|정책 발표/ },
+  { type: '오픈소스·기술공개', re: /오픈소스|공개.*(코드|모델|저장소)|깃허브|GitHub/ },
+  { type: '선언·전망·논쟁', re: /전망|논쟁|주장|밝혔다|우려|경고/ },
+  { type: '보안사고·장애', re: /유출|해킹|장애|중단|보안 사고/ },
+  { type: '실적·시장변화', re: /실적|분기|매출|영업이익|전년\s?대비|주가/ },
+  { type: '인물교체·조직변화', re: /선임|사임|교체|경질|조직개편|신임/ },
+  { type: '분쟁·외교·전쟁', re: /공격|협상|제재|정상회담|분쟁|전쟁|외교/ },
+  { type: '재난·긴급상황', re: /지진|화재|침수|폭발|붕괴|대피|긴급|사고 발생/ },
+];
+
+function ruleCandidates(text) {
+  const hits = DETECTION_PATTERNS.filter((p) => p.re.test(text)).map((p) => p.type);
+  return [...new Set(hits)];
+}
+
+// 유형9·10 안전 오버라이드용 — Rule이 강신호를 감지하면 LLM 분류와 무관하게 구조 규칙을 하드락(§4)
+const SAFETY_LOCK_PATTERNS = {
+  '분쟁·외교·전쟁': /공격|전쟁|분쟁|제재|정상회담/,
+  '재난·긴급상황': /지진|화재|침수|폭발|붕괴|대피|긴급 상황/,
+};
+
+async function supabaseGet(table, params) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}${params || ''}`, {
+    headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+  });
+  if (!res.ok) throw new Error('Supabase GET error: ' + await res.text());
+  return res.json();
+}
+
+async function supabasePatch(table, params, data) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}${params}`, {
+    method: 'PATCH',
+    headers: {
+      'apikey': SUPABASE_KEY,
+      'Authorization': 'Bearer ' + SUPABASE_KEY,
+      'Content-Type': 'application/json',
+      'Prefer': 'return=minimal',
+    },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(`Supabase PATCH ${table} 실패: ` + await res.text());
+}
+
+async function claudePlan(topic, candidateTypes, allTypeNames, rules, zeitgeistTags) {
+  const typePool = candidateTypes.length ? candidateTypes : allTypeNames;
+  const ruleSummaries = typePool.map((t) => {
+    const r = rules.find((x) => x.event_type === t);
+    if (!r) return `- ${t}`;
+    return `- ${t}: 관점 후보[${(r.perspective_candidates || []).join(',')}], 대립관점${r.requires_dual_perspective_fixed === null ? '(AI 판단)' : r.requires_dual_perspective_fixed ? '(항상 필수)' : '(원칙적으로 없음)'}`;
+  }).join('\n');
+
+  const prompt = `아래 이슈(Topic)를 Editorial OS 사건 유형 체계에 따라 분류하고 편집 계획을 세워라.
+설명 없이 JSON 객체만 반환해라.
+
+이슈 이름: ${topic.name}
+요약: ${topic.summary || '(요약 없음)'}
+카테고리: ${topic.category || '(미분류)'}
+오늘의 화두: ${zeitgeistTags.length ? zeitgeistTags.join(', ') : '(없음)'}
+
+후보 유형과 각 유형의 관점 후보:
+${ruleSummaries}
+
+반환 형식:
+{
+  "event_type": "위 후보 중 하나(정확히 같은 문자열)",
+  "type_confidence": 0.0~1.0,
+  "axis_overrides_reason": "오늘의 화두를 반영해 축 비중을 조정했다면 그 이유, 없으면 빈 문자열",
+  "perspectives": ["해당 유형의 관점 후보 중 1~3개 선택"],
+  "requires_dual_perspective": true 또는 false
+}`;
+
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': ANTHROPIC_KEY,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-5',
+      max_tokens: 600,
+      messages: [{ role: 'user', content: prompt }],
+    }),
+  });
+  if (!res.ok) throw new Error('Claude API 에러: ' + await res.text());
+  const data = await res.json();
+  const text = data.content.filter((b) => b.type === 'text').map((b) => b.text).join('');
+  const match = text.match(/\{[\s\S]*\}/);
+  if (!match) return null;
+  try { return JSON.parse(match[0]); } catch { return null; }
+}
+
+exports.handler = async function (event) {
+  const headers = { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' };
+  if (event.httpMethod === 'OPTIONS') return { statusCode: 200, headers, body: '' };
+
+  if (event.httpMethod) {
+    const adminKey = event.headers?.['x-admin-key'] || event.queryStringParameters?.key;
+    if (adminKey !== process.env.ADMIN_KEY) {
+      return { statusCode: 401, headers, body: JSON.stringify({ error: 'Unauthorized' }) };
+    }
+  }
+  const isDry = event.queryStringParameters?.dry === 'true';
+
+  try {
+    const rules = await supabaseGet('event_type_rules', '?select=*');
+    if (!rules.length) {
+      return { statusCode: 200, headers, body: JSON.stringify({ ok: true, processed: 0, note: 'event_type_rules 비어있음 — Phase 1 마이그레이션 먼저 실행 필요' }) };
+    }
+    const allTypeNames = rules.map((r) => r.event_type);
+
+    const today = new Date().toISOString().slice(0, 10);
+    const [zeitgeistRow] = await supabaseGet('daily_zeitgeist', `?date=eq.${today}&select=tags`);
+    const zeitgeistTags = zeitgeistRow?.tags || [];
+
+    const pending = await supabaseGet(
+      'topics',
+      `?status=eq.active&editorial_status=eq.pending&select=id,name,summary,category&order=updated_at.desc&limit=${BATCH_SIZE}`
+    );
+    if (!pending.length) {
+      return { statusCode: 200, headers, body: JSON.stringify({ ok: true, processed: 0 }) };
+    }
+
+    const results = [];
+    let planned = 0, lowConfidence = 0, failed = 0;
+
+    for (const topic of pending) {
+      try {
+        const text = `${topic.name} ${topic.summary || ''}`;
+        const candidates = ruleCandidates(text);
+        const plan = await claudePlan(topic, candidates, allTypeNames, rules, zeitgeistTags);
+
+        if (!plan || !allTypeNames.includes(plan.event_type)) {
+          failed++;
+          results.push({ topic_id: topic.id, name: topic.name, error: 'LLM 응답 파싱 실패 또는 미지정 유형' });
+          continue;
+        }
+
+        // 안전 오버라이드(§4): 강신호 감지 시 LLM 분류와 무관하게 유형9·10 구조 규칙 하드락
+        let finalType = plan.event_type;
+        for (const [lockType, re] of Object.entries(SAFETY_LOCK_PATTERNS)) {
+          if (re.test(text) && finalType !== lockType) {
+            finalType = lockType; // 안전 우선 — 재난/분쟁 신호가 강하면 그 유형의 규칙으로 강제
+          }
+        }
+
+        const rule = rules.find((r) => r.event_type === finalType);
+        const requiresDual = rule.requires_dual_perspective_fixed !== null
+          ? rule.requires_dual_perspective_fixed
+          : !!plan.requires_dual_perspective;
+
+        const editorialPlan = {
+          event_type: finalType,
+          type_confidence: typeof plan.type_confidence === 'number' ? plan.type_confidence : 0.5,
+          domain: topic.category || null,
+          zeitgeist_ref: today,
+          axis_weights: rule.axis_weights,
+          axis_overrides_reason: plan.axis_overrides_reason || '',
+          perspectives: Array.isArray(plan.perspectives) && plan.perspectives.length ? plan.perspectives : rule.perspective_candidates.slice(0, 2),
+          requires_dual_perspective: requiresDual,
+          evidence_required: rule.evidence_required,
+          target_length_range: [rule.target_length_min, rule.target_length_max],
+          qa_flags: ['evidence_completeness', 'length_range', 'dual_perspective_check'],
+          generated_at: new Date().toISOString(),
+        };
+
+        if (editorialPlan.type_confidence < 0.7) lowConfidence++;
+
+        if (!isDry) {
+          const newStatus = editorialPlan.type_confidence < 0.7 ? 'pending' : 'planned'; // §4 재분류 루프: 낮은 신뢰도는 다음 배치에서 재시도
+          await supabasePatch('topics', `?id=eq.${topic.id}`, {
+            ai_context: { plan: editorialPlan },
+            editorial_status: newStatus,
+            editorial_retry_count: editorialPlan.type_confidence < 0.7 ? (topic.editorial_retry_count || 0) + 1 : 0,
+          });
+          if (newStatus === 'planned') planned++;
+        }
+
+        results.push({ topic_id: topic.id, name: topic.name, plan: editorialPlan });
+      } catch (e) {
+        failed++;
+        console.error('generate-editorial-plan topic 처리 오류:', topic.id, e.message);
+      }
+    }
+
+    return {
+      statusCode: 200,
+      headers,
+      body: JSON.stringify({
+        ok: true, dry: isDry, targetedThisRun: pending.length,
+        planned, lowConfidence, failed,
+        results: isDry ? results : undefined,
+      }),
+    };
+  } catch (e) {
+    console.error('generate-editorial-plan 에러:', e.message);
+    return { statusCode: 500, headers, body: JSON.stringify({ error: e.message }) };
+  }
+};

@@ -62,6 +62,16 @@
   schedule = "0 1 * * *"
   timeout = 90
 
+# Editorial Engine (2026-07-11 Phase 2~3 착수) — 검증 전이라 스케줄 없음, 관리자 수동 실행 전용
+[functions."generate-zeitgeist"]
+  timeout = 60
+
+[functions."generate-editorial-plan"]
+  timeout = 90
+
+[functions."generate-editorial-draft"]
+  timeout = 90
+
 # 3.0 Insight/연결 배치 — 비용 최소화 위해 1일 1회만
 [functions."refresh-relationships"]
   schedule = "0 2 * * *"

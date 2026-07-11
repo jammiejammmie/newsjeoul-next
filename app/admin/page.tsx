@@ -70,6 +70,12 @@ export default function AdminPage() {
         } else if (fnName === 'resolve-article-urls') {
           addLog('success', `✅ ${label}: 미해제 ${data.totalPending}건 중 이번 실행 ${data.targetedThisRun}건 처리(토픽연결 우선 ${data.topicLinkedTargeted}건)`)
           addLog('info', `　해제 성공 ${data.resolved} / 중복 확정 ${data.duplicate} / 해제 실패(재시도 대기) ${data.resolveFailed} / 남은 미해제 ${data.remainingPending}`)
+        } else if (fnName === 'generate-zeitgeist') {
+          addLog('success', `✅ ${label}: ${data.date} 화두 ${data.tags?.length ?? 0}개 — ${(data.tags || []).join(', ')}`)
+        } else if (fnName === 'generate-editorial-plan') {
+          addLog('success', `✅ ${label}: 대상 ${data.targetedThisRun}건 — 계획수립 ${data.planned} / 신뢰도낮음(재시도) ${data.lowConfidence} / 실패 ${data.failed}`)
+        } else if (fnName === 'generate-editorial-draft') {
+          addLog('success', `✅ ${label}: 대상 ${data.targetedThisRun}건 — 발행 ${data.published} / 재시도 ${data.retried} / 강등 ${data.degraded} / 실패 ${data.failed}`)
         } else {
           const detail = data.saved ? `${data.saved}건` : data.stories ? `${data.stories}개 스토리` : data.updated ? `${data.updated.length}개` : '완료'
           addLog('success', `✅ ${label}: ${detail}`)
@@ -259,6 +265,21 @@ export default function AdminPage() {
         </div>
         <button style={s.btn('var(--card)', 'var(--text)')} onClick={() => runFn('enrich-article-images', '이미지 보강')} disabled={!!loading}>
           {loading === 'enrich-article-images' ? '실행 중...' : '▶ 지금 실행'}
+        </button>
+      </div>
+
+      {/* Editorial Engine — Phase 2~3, 검증 전이라 스케줄 없음(수동 실행 전용), 순서대로 실행 */}
+      <div style={{ ...s.card, background: 'linear-gradient(135deg,rgba(185,140,255,.08),rgba(124,140,255,.06))' }}>
+        <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>🖋️ Editorial Engine</div>
+        <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 14 }}>화두 생성 → 편집계획 수립 → 장문 생성+QA (순서대로 실행)</div>
+        <button style={{ ...s.btn('var(--card)', 'var(--text)'), marginBottom: 8 }} onClick={() => runFn('generate-zeitgeist', '① 오늘의 화두')} disabled={!!loading}>
+          {loading === 'generate-zeitgeist' ? '실행 중...' : '① 오늘의 화두 생성'}
+        </button>
+        <button style={{ ...s.btn('var(--card)', 'var(--text)'), marginBottom: 8 }} onClick={() => runFn('generate-editorial-plan', '② 편집 계획')} disabled={!!loading}>
+          {loading === 'generate-editorial-plan' ? '실행 중...' : '② 편집 계획 수립(5건씩)'}
+        </button>
+        <button style={s.btn('var(--card)', 'var(--text)')} onClick={() => runFn('generate-editorial-draft', '③ 장문 생성')} disabled={!!loading}>
+          {loading === 'generate-editorial-draft' ? '실행 중...' : '③ 장문 생성+QA(3건씩)'}
         </button>
       </div>
 
