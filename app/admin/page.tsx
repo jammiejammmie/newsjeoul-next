@@ -64,8 +64,13 @@ export default function AdminPage() {
       const data = await res.json()
       if (res.status === 401) addLog('error', '❌ 관리자 키 오류')
       else if (res.ok) {
-        const detail = data.saved ? `${data.saved}건` : data.stories ? `${data.stories}개 스토리` : data.updated ? `${data.updated.length}개` : '완료'
-        addLog('success', `✅ ${label}: ${detail}`)
+        if (fnName === 'enrich-article-images') {
+          addLog('success', `✅ ${label}: 대상 ${data.totalInWindow}건 중 이미지 보유 ${data.alreadyHasImage}건, 이번 실행 ${data.targetedThisRun}건 처리`)
+          addLog('info', `　성공 ${data.success} / og:image 없음 ${data.noOgImage} / Timeout ${data.timeout} / 차단(403 등) ${data.blocked} / 기타오류 ${data.otherError}`)
+        } else {
+          const detail = data.saved ? `${data.saved}건` : data.stories ? `${data.stories}개 스토리` : data.updated ? `${data.updated.length}개` : '완료'
+          addLog('success', `✅ ${label}: ${detail}`)
+        }
         loadStats()
       } else addLog('error', `❌ ${label} 실패: ${data.error}`)
     } catch(e: any) { addLog('error', `❌ 실패: ${e.message}`) }

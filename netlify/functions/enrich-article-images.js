@@ -16,6 +16,17 @@ async function supabaseGet(table, params) {
   return res.json();
 }
 
+// count=exact로 Content-Range 헤더만 읽어 전체 건수를 구한다 (row body 불필요 — HEAD로 가볍게)
+async function supabaseCount(table, params) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}${params}`, {
+    method: 'HEAD',
+    headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Prefer': 'count=exact' }
+  });
+  if (!res.ok) throw new Error('Supabase COUNT error: ' + res.status);
+  const range = res.headers.get('content-range'); // 예: "0-0/123" 또는 "*/123"
+  return range ? parseInt(range.split('/')[1], 10) : null;
+}
+
 async function supabasePatch(table, params, data) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}${params}`, {
     method: 'PATCH',
@@ -30,27 +41,37 @@ async function supabasePatch(table, params, data) {
   if (!res.ok) console.error(`Supabase PATCH ${table} 실패:`, await res.text());
 }
 
+// 반환값의 reason으로 실패 원인을 구분한다: success / no_og_image / timeout / blocked / other_error
 async function fetchOgImage(url) {
+  let res;
   try {
-    const res = await fetch(url, {
+    res = await fetch(url, {
       headers: { 'User-Agent': 'Mozilla/5.0 (compatible; NewsjeoulBot/1.0; +https://newsjeoul.co.kr)' },
       redirect: 'follow',
       signal: AbortSignal.timeout(6000),
     });
-    if (!res.ok) return null;
-    // 페이지 전체를 다 받지 않고 <head> 근처만 읽으면 충분 — 응답 스트림 앞부분만 잘라 읽는다
-    const html = await res.text();
-    const head = html.slice(0, 60000);
-    const match =
-      head.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i) ||
-      head.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i);
-    const src = match?.[1];
-    if (!src) return null;
-    // 상대경로 방어 (드물지만 일부 사이트는 절대경로가 아닐 수 있음)
-    try { return new URL(src, url).toString(); } catch { return null; }
   } catch (e) {
-    return null;
+    if (e.name === 'TimeoutError' || e.name === 'AbortError') return { reason: 'timeout' };
+    return { reason: 'other_error', detail: e.message };
   }
+
+  if (!res.ok) {
+    if ([401, 403, 429].includes(res.status)) return { reason: 'blocked', status: res.status };
+    return { reason: 'other_error', detail: `HTTP ${res.status}` };
+  }
+
+  // 페이지 전체를 다 받지 않고 <head> 근처만 읽으면 충분 — 응답 스트림 앞부분만 잘라 읽는다
+  const html = await res.text();
+  const head = html.slice(0, 60000);
+  const match =
+    head.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i) ||
+    head.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i);
+  const src = match?.[1];
+  if (!src) return { reason: 'no_og_image' };
+
+  // 상대경로 방어 (드물지만 일부 사이트는 절대경로가 아닐 수 있음)
+  try { return { reason: 'success', imageUrl: new URL(src, url).toString() }; }
+  catch { return { reason: 'other_error', detail: 'invalid_image_url' }; }
 }
 
 exports.handler = async function (event) {
@@ -66,26 +87,35 @@ exports.handler = async function (event) {
 
   try {
     const since = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
-    const candidates = await supabaseGet(
-      'articles',
-      `?og_image_url=is.null&created_at=gte.${since}&select=id,url&order=created_at.desc&limit=${BATCH_SIZE}`
-    );
+    const windowFilter = `created_at=gte.${since}`;
 
-    if (!candidates.length) {
-      return { statusCode: 200, headers, body: JSON.stringify({ ok: true, checked: 0, found: 0 }) };
-    }
+    const [totalInWindow, alreadyHasImage, candidates] = await Promise.all([
+      supabaseCount('articles', `?${windowFilter}`),
+      supabaseCount('articles', `?${windowFilter}&og_image_url=neq.`), // null/빈문자열 둘 다 제외됨(둘 다 neq 비교에서 걸러짐)
+      supabaseGet('articles', `?og_image_url=is.null&${windowFilter}&select=id,url&order=created_at.desc&limit=${BATCH_SIZE}`),
+    ]);
 
-    let found = 0;
+    const stats = { success: 0, no_og_image: 0, timeout: 0, blocked: 0, other_error: 0 };
     for (const article of candidates) {
-      const ogImage = await fetchOgImage(article.url);
+      const result = await fetchOgImage(article.url);
+      stats[result.reason] = (stats[result.reason] || 0) + 1;
       // 못 찾아도 og_image_url='' 로 표시해 다음 배치에서 같은 기사를 계속 재시도하지 않게 한다
-      await supabasePatch('articles', `?id=eq.${article.id}`, { og_image_url: ogImage || '' });
-      if (ogImage) found++;
+      await supabasePatch('articles', `?id=eq.${article.id}`, { og_image_url: result.imageUrl || '' });
     }
 
     return {
       statusCode: 200, headers,
-      body: JSON.stringify({ ok: true, checked: candidates.length, found }),
+      body: JSON.stringify({
+        ok: true,
+        totalInWindow,
+        alreadyHasImage,
+        targetedThisRun: candidates.length,
+        success: stats.success,
+        noOgImage: stats.no_og_image,
+        timeout: stats.timeout,
+        blocked: stats.blocked,
+        otherError: stats.other_error,
+      }),
     };
   } catch (e) {
     console.error('enrich-article-images 에러:', e.message);
