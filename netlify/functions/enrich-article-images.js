@@ -3,6 +3,11 @@
 // 이미지 자체를 다운로드/재호스팅하지 않고 URL만 저장 — 재가공 없이 "출처 링크 미리보기" 수준으로만 사용.
 // collect-news.js와 분리된 별도 함수로 둔 이유: RSS 수집 경로에 원문 페이지 fetch를 얹으면
 // 타임아웃 리스크가 커지므로, 실패해도 안전한 배치 백필로 분리했다 (관리자 수동 실행 전용, 스케줄 없음).
+//
+// 재시도 정책(2026-07-11 확정): og_image_url이 NULL이면 "아직 판정 안 됨" = 다음 배치에서 다시 시도 대상.
+// - 성공: 실제 이미지 URL 저장
+// - og:image 태그가 확실히 없음(no_og_image): 빈 문자열('')로 저장해 영구 확정 — 재시도 안 함
+// - timeout/blocked(403·429·401)/other_error: 아무것도 쓰지 않고 NULL 유지 — 일시적 오류이므로 다음 배치가 자동 재시도
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY;
@@ -99,8 +104,13 @@ exports.handler = async function (event) {
     for (const article of candidates) {
       const result = await fetchOgImage(article.url);
       stats[result.reason] = (stats[result.reason] || 0) + 1;
-      // 못 찾아도 og_image_url='' 로 표시해 다음 배치에서 같은 기사를 계속 재시도하지 않게 한다
-      await supabasePatch('articles', `?id=eq.${article.id}`, { og_image_url: result.imageUrl || '' });
+      if (result.reason === 'success') {
+        await supabasePatch('articles', `?id=eq.${article.id}`, { og_image_url: result.imageUrl });
+      } else if (result.reason === 'no_og_image') {
+        // og:image가 확실히 없는 경우만 빈 문자열로 영구 확정 (재시도 안 함)
+        await supabasePatch('articles', `?id=eq.${article.id}`, { og_image_url: '' });
+      }
+      // timeout / blocked / other_error: NULL 유지 → 다음 실행에서 자동 재시도 대상에 그대로 남는다
     }
 
     return {
