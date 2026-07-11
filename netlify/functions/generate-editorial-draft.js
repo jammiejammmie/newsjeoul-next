@@ -10,7 +10,11 @@
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY;
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
-const BATCH_SIZE = 3; // 장문 생성은 토큰이 커서(1000~2300자) 배치를 작게
+// 장문 생성은 1건당 LLM 응답이 크고(최대 3000토큰) 근거수집+생성+QA를 다 거쳐서 느리다.
+// 2026-07-11: BATCH_SIZE=3 순차 처리에서 함수가 응답을 못 돌려주고 죽는 문제(빈 응답으로
+// JSON 파싱 실패) 확인 — 3건 합산 시간이 함수 실행 제한을 넘긴 것으로 추정. 1건으로 낮춤
+// (여러 번 눌러서 이어서 처리하는 기존 배치 함수들과 같은 패턴 — 안전 우선).
+const BATCH_SIZE = 1;
 const MAX_RETRY = 2;
 
 async function supabaseGet(table, params) {
@@ -105,6 +109,7 @@ async function claudeGenerate(prompt) {
       max_tokens: 3000,
       messages: [{ role: 'user', content: prompt }],
     }),
+    signal: AbortSignal.timeout(70000), // 함수 자체 타임아웃(90s)보다 여유있게 짧게 끊어 빈 응답 대신 명확한 에러를 남긴다
   });
   if (!res.ok) throw new Error('Claude API 에러: ' + await res.text());
   const data = await res.json();

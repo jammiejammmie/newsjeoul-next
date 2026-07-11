@@ -279,7 +279,7 @@ export default function AdminPage() {
           {loading === 'generate-editorial-plan' ? '실행 중...' : '② 편집 계획 수립(5건씩)'}
         </button>
         <button style={s.btn('var(--card)', 'var(--text)')} onClick={() => runFn('generate-editorial-draft', '③ 장문 생성')} disabled={!!loading}>
-          {loading === 'generate-editorial-draft' ? '실행 중...' : '③ 장문 생성+QA(3건씩)'}
+          {loading === 'generate-editorial-draft' ? '실행 중...' : '③ 장문 생성+QA(1건씩, 계획 수립된 게 여러 개면 여러 번 클릭)'}
         </button>
       </div>
 
