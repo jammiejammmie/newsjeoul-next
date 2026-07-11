@@ -97,34 +97,67 @@ function buildPrompt(topic, plan, evidence) {
 }`;
 }
 
+// 반환값: { draft, diagnostic } — 실패해도 원인을 즉시 알 수 있도록 진단 정보를 항상 함께 준다
+// (2026-07-11: Background Function은 응답 본문을 아무도 못 보므로, 실패 원인을 topics.ai_context에
+// 바로 남기지 않으면 "출력 파싱 실패"라는 말만 남고 진짜 이유를 알 방법이 없었다).
 async function claudeGenerate(prompt) {
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': ANTHROPIC_KEY,
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify({
-      model: 'claude-sonnet-5',
-      max_tokens: 3000,
-      messages: [{ role: 'user', content: prompt }],
-    }),
-    signal: AbortSignal.timeout(120000), // Background라 여유 있음 — 진짜 행(hang)만 끊어서 명확한 에러를 남긴다
-  });
-  if (!res.ok) throw new Error('Claude API 에러: ' + await res.text());
+  let res;
+  try {
+    res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': ANTHROPIC_KEY,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-5',
+        max_tokens: 8000, // 2026-07-11: 3000으로는 1400~2300자 구조화 출력이 잘려서(stop_reason=max_tokens)
+                           // 매번 파싱 실패하던 것으로 확인 — 여유있게 상향
+        messages: [{ role: 'user', content: prompt }],
+      }),
+      signal: AbortSignal.timeout(120000),
+    });
+  } catch (e) {
+    return { draft: null, diagnostic: { stage: 'fetch', detail: e.name === 'TimeoutError' || e.name === 'AbortError' ? 'timeout' : e.message } };
+  }
+
+  if (!res.ok) {
+    const body = await res.text();
+    return { draft: null, diagnostic: { stage: 'http_error', status: res.status, detail: body.slice(0, 300) } };
+  }
+
   const data = await res.json();
   const text = data.content.filter((b) => b.type === 'text').map((b) => b.text).join('');
+  const diagnosticBase = { stopReason: data.stop_reason, textLength: text.length, usage: data.usage };
+
+  if (data.stop_reason === 'max_tokens') {
+    return { draft: null, diagnostic: { stage: 'truncated', ...diagnosticBase, tail: text.slice(-200) } };
+  }
+
   const match = text.match(/\{[\s\S]*\}/);
-  if (!match) return null;
-  try { return JSON.parse(match[0]); } catch { return null; }
+  if (!match) {
+    return { draft: null, diagnostic: { stage: 'no_json_found', ...diagnosticBase, tail: text.slice(-200) } };
+  }
+  try {
+    return { draft: JSON.parse(match[0]), diagnostic: { stage: 'ok', ...diagnosticBase } };
+  } catch (e) {
+    return { draft: null, diagnostic: { stage: 'json_parse_error', ...diagnosticBase, parseError: e.message, tail: text.slice(-200) } };
+  }
 }
 
 // 3a — 결정론적 QA(코드, 무료, §10)
-function deterministicQA(draft, plan) {
+function deterministicQA(draft, plan, diagnostic) {
   const reasons = [];
   if (!draft || !draft.lead || !Array.isArray(draft.blocks)) {
-    return { pass: false, reasons: ['출력 파싱 실패 또는 필수 필드 누락'] };
+    const stageLabel = {
+      fetch: 'LLM 호출 실패(네트워크/타임아웃)',
+      http_error: `LLM API 오류(HTTP ${diagnostic?.status})`,
+      truncated: `응답 잘림(max_tokens 도달, ${diagnostic?.textLength}자)`,
+      no_json_found: 'JSON 형식을 찾을 수 없음',
+      json_parse_error: `JSON 파싱 오류: ${diagnostic?.parseError}`,
+    }[diagnostic?.stage] || '출력 파싱 실패 또는 필수 필드 누락';
+    return { pass: false, reasons: [stageLabel], diagnostic };
   }
 
   const requiredAxes = Object.entries(plan.axis_weights).filter(([, w]) => w > 0).map(([a]) => a);
@@ -173,8 +206,8 @@ exports.handler = async function (event) {
 
       try {
         const evidence = await gatherEvidence(topic.id);
-        const draft = await claudeGenerate(buildPrompt(topic, plan, evidence));
-        const qa = deterministicQA(draft, plan);
+        const { draft, diagnostic } = await claudeGenerate(buildPrompt(topic, plan, evidence));
+        const qa = deterministicQA(draft, plan, diagnostic);
 
         if (qa.pass) {
           const counterMarker = (draft.perspective_markers || []).find((m, i) => i > 0);
@@ -196,13 +229,13 @@ exports.handler = async function (event) {
             await supabasePatch('topics', `?id=eq.${topic.id}`, {
               editorial_status: 'degraded',
               editorial_retry_count: retryCount,
-              ai_context: { ...topic.ai_context, lastQaFail: qa.reasons },
+              ai_context: { ...topic.ai_context, lastQaFail: qa.reasons, lastDiagnostic: diagnostic },
             });
             stats.degraded++;
           } else {
             await supabasePatch('topics', `?id=eq.${topic.id}`, {
               editorial_retry_count: retryCount,
-              ai_context: { ...topic.ai_context, lastQaFail: qa.reasons },
+              ai_context: { ...topic.ai_context, lastQaFail: qa.reasons, lastDiagnostic: diagnostic },
             });
             stats.retried++;
           }
@@ -210,6 +243,9 @@ exports.handler = async function (event) {
       } catch (e) {
         stats.failed++;
         console.error('generate-editorial-draft topic 처리 오류:', topic.id, e.message);
+        await supabasePatch('topics', `?id=eq.${topic.id}`, {
+          ai_context: { ...topic.ai_context, lastQaFail: [`예외 발생: ${e.message}`] },
+        }).catch(() => {});
       }
     }
 
