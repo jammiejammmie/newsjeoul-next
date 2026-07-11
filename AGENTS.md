@@ -28,7 +28,8 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - `docs/newsjeoul-ux-bible.md` — UX/디자인 원칙(디자인 잠금 상태, 카드→드로어→Question Detail 루프, 이미지 원칙)
 - `docs/newsjeoul-ai-editorial-bible.md` — 파이프라인 구조, 진단 기록, 승인 경계
 - `docs/newsjeoul-ctr-bible.md` — CTR 원칙(Hero 기준, 카드/Threads 디자인, 좋은/나쁜 예시)
-- `docs/newsjeoul-editorial-engine-architecture.md` — Editorial Engine 아키텍처(파이프라인 레이어, Event Type 판단, Persona Registry, Prompt/QA Layer 설계, 2026-07-11 신설)
+- `docs/newsjeoul-editorial-engine-architecture.md` — Editorial Engine 아키텍처(파이프라인 레이어, Event Type 판단, Persona Registry, 구조화 출력 스키마, DB 제안, Phase 계획, 2026-07-11 신설)
+- `docs/newsjeoul-editorial-engine-approval-items.md` — 위 아키텍처에서 파생되는 DB/외부API/비용 승인 목록(구현 착수 신호 아님)
 
 ## 승인 경계 (2026-07-10 확정)
 
