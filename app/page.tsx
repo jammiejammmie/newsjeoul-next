@@ -1,23 +1,31 @@
 import type { Metadata } from 'next'
-import {
-  getActiveTopics, getMostUnexpectedTopicPair, getRecentTimelineEvents, getRecentTopicUpdates, pickHeroTopic, getTopicImage,
-} from '@/lib/topics'
-import WeightHero from '@/components/home/WeightHero'
-import HomeExplorer, { type GridCardDescriptor } from '@/components/home/HomeExplorer'
+import Link from 'next/link'
+import { getActiveTopics, getDiscoveryCards, pickHeroTopic } from '@/lib/topics'
+import { domainColors } from '@/lib/design-tokens'
 
 export const dynamic = 'force-dynamic'
 
 const BASE = 'https://newsjeoul.co.kr'
 const TAGLINE = '뉴스저울 — 3분이면 오늘 세상을 이해합니다'
 
+// 도메인(카테고리)별 그라디언트 배경 — Cover Rotation 카드용. domainColors에 없는 카테고리는
+// 중립 스톤 톤으로 폴백(색이 없다고 카드가 비어 보이지 않게).
+function topicGradient(category: string | null) {
+  const c = category ? domainColors[category] : undefined
+  const base = c || '#8B887E'
+  return {
+    bg: `linear-gradient(155deg, ${base}29, rgba(11,11,13,.75))`,
+    border: `${base}4D`,
+  }
+}
+
 export async function generateMetadata(): Promise<Metadata> {
-  const [top] = await getActiveTopics(1)
+  const topics = await getActiveTopics(30)
+  const top = pickHeroTopic(topics)
   const desc = top
     ? `오늘 세상은 "${top.name}" 쪽으로 기울어 있습니다.`
     : '3분이면 오늘 세상을 이해할 수 있습니다.'
-  const ogImageUrl = top
-    ? `${BASE}/og?type=weight&title=${encodeURIComponent(top.name)}`
-    : `${BASE}/og?type=weight&title=${encodeURIComponent('뉴스저울')}`
+  const ogImageUrl = `${BASE}/og?type=weight&title=${encodeURIComponent(top?.name || '뉴스저울')}`
 
   return {
     title: TAGLINE,
@@ -30,17 +38,13 @@ export async function generateMetadata(): Promise<Metadata> {
   }
 }
 
-const SPAN_CYCLE: [number, number][] = [[2, 1], [1, 1], [2, 1], [1, 1], [2, 1], [1, 1], [2, 1]]
-
 export default async function Home() {
-  const [activeTopicsPool, connectionPair, timelineEventsRaw, recentUpdates] = await Promise.all([
-    getActiveTopics(30), // 지금 규모(active 약 30개 안팎)에서는 사실상 전체 풀 — Hero 후보 판단에 필요
-    getMostUnexpectedTopicPair(),
-    getRecentTimelineEvents(8),
-    getRecentTopicUpdates(1),
+  const [activeTopics, discoveryCards] = await Promise.all([
+    getActiveTopics(41), // 지금 규모(active 약 41개)에서는 사실상 전체 풀
+    getDiscoveryCards(),
   ])
 
-  if (activeTopicsPool.length === 0) {
+  if (activeTopics.length === 0) {
     return (
       <div style={{ padding: '120px 32px', textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>
         오늘의 이슈를 정리하는 중입니다.
@@ -48,83 +52,136 @@ export default async function Home() {
     )
   }
 
-  // Hero는 "메가 토픽" 화이트리스트 우선 — 나머지 그리드는 기존 정렬 그대로, Hero로 뽑힌 것만 맨 앞으로
-  const heaviestTopic = pickHeroTopic(activeTopicsPool)!
-  const activeTopics = [heaviestTopic, ...activeTopicsPool.filter((t) => t.slug !== heaviestTopic.slug)]
-  const secondTopic = activeTopics[1] ?? activeTopics[0]
+  // Hero는 메가토픽 화이트리스트 우선(§lib/topics.ts pickHeroTopic 주석 참고 —
+  // importance_score가 아직 실제 계산되지 않아 순수 정렬만으로는 단발성 사건이 우연히 1등이 될 수 있음).
+  // 나머지(사이드/Living Index)는 화이트리스트 없이 있는 그대로의 순위를 보여준다.
+  const heroTopic = pickHeroTopic(activeTopics)!
+  const rest = activeTopics.filter((t) => t.slug !== heroTopic.slug)
+  const sideTopics = rest.slice(0, 2)
 
-  const leftWeight = Math.round(secondTopic.importance_score ?? 0)
-  const rightWeight = Math.round(heaviestTopic.importance_score ?? 0)
-  const totalW = leftWeight + rightWeight || 1
-  const beamAngle = ((rightWeight - leftWeight) / totalW) * -10
-  const leftOrbSize = 34 + (rightWeight ? (leftWeight / rightWeight) * 44 : 0)
-  const rightOrbSize = 34 + 44
+  // Living Index는 목업과 동일하게 히어로/사이드 포함 전체를 순위대로 다시 나열한다.
+  const rankedAll = [heroTopic, ...rest]
 
-  const truncate = (s: string, n: number) => (s.length > n ? s.slice(0, n) + '…' : s)
-
-  const usedSlugs = new Set([heaviestTopic.slug])
-  const cards: GridCardDescriptor[] = []
-
-  // 실사 이미지는 Hero/피처카드부터 우선 적용(CTR 우선 결정 §1) — 없으면 기존 색상 카드로 자연 폴백
-  const heroImage = await getTopicImage(heaviestTopic.id)
-
-  cards.push({
-    kind: 'feature', slug: heaviestTopic.slug, domain: heaviestTopic.category || '이슈',
-    heatLabel: '오늘 가장 무거움', label: heaviestTopic.name,
-    body: heaviestTopic.summary || '',
-    imageUrl: heroImage || undefined,
-  })
-
-  const latestUpdate = recentUpdates[0] as any
-  if (latestUpdate) {
-    cards.push({
-      kind: 'weight',
-      slug: latestUpdate.topics?.slug || heaviestTopic.slug,
-      label: latestUpdate.title,
-      body: '오늘 가장 최근에 업데이트된 소식입니다.',
-    })
-  }
-
-  if (connectionPair) {
-    const connSlug = connectionPair.target.slug !== heaviestTopic.slug
-      ? connectionPair.target.slug
-      : connectionPair.source.slug
-    usedSlugs.add(connSlug)
-    cards.push({
-      kind: 'connection', slug: connSlug,
-      label: `${connectionPair.source.name}와 ${connectionPair.target.name}, 무슨 상관이지?`,
-      body: connectionPair.explanation || '서로 다른 분야지만 함께 연결되어 있습니다.',
-    })
-  }
-
-  activeTopics.slice(1).filter((t) => !usedSlugs.has(t.slug)).forEach((t, i) => {
-    const [colSpan, rowSpan] = SPAN_CYCLE[i % SPAN_CYCLE.length]
-    cards.push({ kind: 'node', slug: t.slug, domain: t.category || '이슈', label: t.name, colSpan, rowSpan })
-  })
-
-  const timelineEvents = timelineEventsRaw.map((e: any) => ({
-    time: new Date(e.event_date).toLocaleString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false }),
-    title: e.title,
-  }))
+  const weightOf = (t: (typeof activeTopics)[number]) => Math.round(t.importance_score ?? 0)
 
   return (
-    <>
-      <WeightHero
-        heaviestLabel={heaviestTopic.name}
-        leftLabel={truncate(secondTopic.name, 14)}
-        rightLabel={truncate(heaviestTopic.name, 14)}
-        leftWeight={leftWeight}
-        rightWeight={rightWeight}
-        beamAngle={beamAngle}
-        leftOrbSize={leftOrbSize}
-        rightOrbSize={rightOrbSize}
-      />
+    <div style={{ fontFamily: "'Pretendard',-apple-system,sans-serif" }}>
+      {/* 상단 라이브 표시줄 */}
+      <div style={{ maxWidth: 1240, margin: '0 auto', padding: '14px 32px 0', display: 'flex', justifyContent: 'flex-end' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11.5, fontWeight: 600, color: 'var(--muted)' }}>
+          <span className="nj-live-dot" />
+          오늘 {activeTopics.length}개의 세계가 열려 있습니다
+        </div>
+      </div>
 
-      <section style={{ padding: '24px 32px 96px' }}>
-        <div style={{ maxWidth: 1440, margin: '0 auto' }}>
-          <HomeExplorer cards={cards} timelineEvents={timelineEvents} />
+      {/* COVER ROTATION HERO */}
+      <section style={{ maxWidth: 1240, margin: '0 auto', padding: '18px 32px 0' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 14, height: 'min(56vw, 540px)' }}>
+          <Link
+            href={`/topic/${heroTopic.slug}`}
+            className="nj-cover-card"
+            style={{
+              position: 'relative', borderRadius: 20, overflow: 'hidden',
+              background: topicGradient(heroTopic.category).bg,
+              border: `1px solid ${topicGradient(heroTopic.category).border}`,
+            }}
+          >
+            <div style={{ position: 'absolute', inset: 0, padding: 32, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+              <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: 'var(--accent)', marginBottom: 14 }}>
+                오늘의 표지 · 무게 {weightOf(heroTopic)}g
+              </div>
+              <div style={{ fontSize: 'clamp(24px,3.2vw,38px)', fontWeight: 800, lineHeight: 1.28, maxWidth: 600 }}>
+                {heroTopic.name}
+              </div>
+            </div>
+          </Link>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {sideTopics.map((t) => (
+              <Link
+                key={t.slug}
+                href={`/topic/${t.slug}`}
+                className="nj-cover-card"
+                style={{
+                  flex: 1, position: 'relative', borderRadius: 16, overflow: 'hidden',
+                  background: topicGradient(t.category).bg,
+                  border: `1px solid ${topicGradient(t.category).border}`,
+                }}
+              >
+                <div style={{ position: 'absolute', inset: 0, padding: 18, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+                  <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 10, color: 'var(--muted)', marginBottom: 8 }}>
+                    {weightOf(t)}g
+                  </div>
+                  <div style={{ fontSize: 14.5, fontWeight: 800, lineHeight: 1.4 }}>{t.name}</div>
+                </div>
+              </Link>
+            ))}
+          </div>
         </div>
       </section>
-    </>
+
+      {/* LIVING INDEX */}
+      <section style={{ maxWidth: 1240, margin: '56px auto 0', padding: '0 32px' }}>
+        <div style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 16 }}>
+          오늘의 무게 — 실시간 인덱스
+        </div>
+        <div style={{ border: '1px solid var(--border)', borderRadius: 16, overflow: 'hidden' }}>
+          {rankedAll.map((t, i) => (
+            <Link
+              key={t.slug}
+              href={`/topic/${t.slug}`}
+              className="nj-index-row"
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '13px 20px', borderBottom: i < rankedAll.length - 1 ? '1px solid rgba(243,239,230,.06)' : 'none',
+                fontFamily: "'JetBrains Mono',monospace", fontSize: 12.5,
+              }}
+            >
+              <span style={{ display: 'flex', alignItems: 'center', gap: 12, fontFamily: "'Pretendard'", fontWeight: 700, fontSize: 13 }}>
+                <span style={{ color: '#605D54', fontFamily: "'JetBrains Mono',monospace", fontSize: 11 }}>
+                  {String(i + 1).padStart(2, '0')}
+                </span>
+                {t.name}
+              </span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                {/* 모멘텀(▲/▼/🔥) 델타는 importance_score 시계열 추적이 필요 — 아직 미구현이라
+                    거짓 수치를 보여주지 않고 중립 표시로 남겨둔다(§docs/newsjeoul-decision-log.md 참고 예정). */}
+                <span style={{ color: 'var(--muted)' }}>—</span>
+                <span style={{ color: 'var(--muted)' }}>{weightOf(t)}g</span>
+              </span>
+            </Link>
+          ))}
+        </div>
+      </section>
+
+      {/* DISCOVERY FEED */}
+      {discoveryCards.length > 0 && (
+        <section style={{ maxWidth: 1240, margin: '56px auto 0', padding: '0 32px 90px' }}>
+          <div style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--violet)', marginBottom: 16 }}>
+            오늘의 발견 — 연결된 궁금증
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gridAutoRows: 130, gap: 14 }}>
+            {discoveryCards.map((d, i) => (
+              <Link
+                key={i}
+                href={d.href}
+                className="nj-discovery-card"
+                style={{
+                  gridColumn: `span ${d.colSpan}`, gridRow: `span ${d.rowSpan}`,
+                  border: '1px solid rgba(243,239,230,.08)', background: 'rgba(243,239,230,.03)',
+                  borderRadius: 16, padding: 18, flexDirection: 'column', justifyContent: 'flex-end', gap: 8,
+                }}
+              >
+                <span style={{ fontSize: 10.5, fontWeight: 700, color: d.accent, textTransform: 'uppercase', letterSpacing: '.06em' }}>
+                  {d.kicker}
+                </span>
+                <span style={{ fontSize: d.colSpan === 2 && d.rowSpan === 2 ? 16 : 13.5, fontWeight: 800, lineHeight: 1.4 }}>
+                  {d.title}
+                </span>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
+    </div>
   )
 }

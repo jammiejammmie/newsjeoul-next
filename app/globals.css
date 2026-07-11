@@ -644,3 +644,21 @@ body {
   transform-origin: center center;
   transition: transform 1.4s cubic-bezier(.22, 1, .36, 1);
 }
+
+/* ── Home v6(Cover Rotation + Living Index + Discovery Feed) ──────── */
+@keyframes nj-live-pulse { 0%, 100% { opacity: .5; } 50% { opacity: 1; } }
+
+.nj-live-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--accent);
+  animation: nj-live-pulse 1.8s ease-in-out infinite;
+}
+
+.nj-cover-card { transition: transform .25s ease; display: block; }
+.nj-cover-card:hover { transform: translateY(-3px); }
+
+.nj-index-row { transition: background .2s ease; }
+.nj-index-row:hover { background: rgba(243, 239, 230, .03); }
+
+.nj-discovery-card { transition: transform .25s ease; display: flex; }
+.nj-discovery-card:hover { transform: translateY(-3px); }

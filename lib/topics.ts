@@ -419,6 +419,55 @@ const INTEREST_TAGS = [
   { label: 'Brands', icon: '🏷️', keywords: ['브랜드'] },
 ]
 
+// 홈 Cover Rotation "오늘의 발견" — 목업의 5개 카드 중 실데이터로 채울 수 있는 4개만 사용.
+// "🔥 가장 많이 눌린 질문"(클릭수 집계 데이터 없음), "💬 스몰톡" 카드는 실데이터가 없어 뺐다 —
+// 없는 지표를 지어내지 않는다는 원칙(콘텐츠 바이블)에 따라 그리드를 4카드로 재구성했다(§4카드가
+// 정확히 2열×2행 그리드를 채워 5카드였을 때와 시각적으로 빈틈없이 맞음).
+export async function getDiscoveryCards() {
+  const [pair, [latestUpdate], [topPerson], [topCountry]] = await Promise.all([
+    getMostUnexpectedTopicPair(),
+    getRecentTopicUpdates(1),
+    getTopEntitiesByType('person', 1),
+    getTopEntitiesByType('country', 1),
+  ])
+
+  const cards: {
+    kicker: string; title: string; href: string
+    colSpan: number; rowSpan: number; accent: string
+  }[] = []
+
+  if (pair) {
+    cards.push({
+      kicker: '🧩 의외의 연결',
+      title: `${pair.source.name}와 ${pair.target.name}, 무슨 상관이지?`,
+      href: `/topic/${pair.source.slug}`,
+      colSpan: 2, rowSpan: 2, accent: '#D9A441',
+    })
+  }
+  if (latestUpdate) {
+    const t = (latestUpdate as any).topics
+    cards.push({
+      kicker: '🕐 방금 업데이트',
+      title: latestUpdate.title,
+      href: t?.slug ? `/topic/${t.slug}` : '/',
+      colSpan: 2, rowSpan: 1, accent: '#7CC2B8',
+    })
+  }
+  if (topPerson) {
+    cards.push({
+      kicker: '👤 사람', title: topPerson.name, href: `/entity/${topPerson.slug}`,
+      colSpan: 1, rowSpan: 1, accent: '#B98CFF',
+    })
+  }
+  if (topCountry) {
+    cards.push({
+      kicker: '🌍 국가', title: topCountry.name, href: `/entity/${topCountry.slug}`,
+      colSpan: 1, rowSpan: 1, accent: '#7C8CFF',
+    })
+  }
+  return cards
+}
+
 export async function getInterestTags() {
   const supabase = client()
   const { data } = await supabase
