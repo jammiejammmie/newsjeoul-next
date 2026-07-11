@@ -63,7 +63,21 @@ async function gatherEvidence(topicId) {
   return { sources, timeline, imageUrl };
 }
 
-function buildPrompt(topic, plan, evidence) {
+// Persona 스니펫(§7) — Editorial Plan의 editors_assigned를 실제 문체 지시문으로 변환.
+// §6의 "사건유형 클램프": 대립관점이 항상 고정인 유형(9·10)은 Persona 개성보다 구조 규칙이 우선이므로
+// 페르소나 문체는 유지하되 "안전 규칙을 절대 어기지 말라"는 문구를 덧붙인다.
+function buildPersonaSnippet(editorsDetail, requiresDual, isSafetyLocked) {
+  if (!editorsDetail.length) return '(배정된 에디터 없음 — 중립적인 뉴스저울 기본 문체로 작성)';
+  const lines = editorsDetail.map((e) =>
+    `- ${e.name}(${e.perspective_tag}): ${e.style_signature || ''} / 리듬: ${e.rhythm_profile || ''} / 강조: ${e.emphasis_pattern || ''}`
+  ).join('\n');
+  const clamp = isSafetyLocked
+    ? '\n(주의: 이 사건 유형은 구조 규칙이 우선이다 — 에디터 개성보다 대립관점 병치·톤 절제가 항상 우선한다.)'
+    : '';
+  return `이 글은 아래 에디터(들)의 목소리로 쓴다:\n${lines}${clamp}`;
+}
+
+function buildPrompt(topic, plan, evidence, personaSnippet) {
   const [minLen, maxLen] = plan.target_length_range;
   const axisList = Object.entries(plan.axis_weights)
     .filter(([, w]) => w > 0)
@@ -72,6 +86,8 @@ function buildPrompt(topic, plan, evidence) {
   return `너는 뉴스저울의 에디토리얼 엔진이다. 아래 이슈에 대해 장문 에디토리얼을 작성해라.
 독자가 "이 사이트는 뉴스를 나열하지 않고 세상을 이해시켜준다"고 느끼게 쓰는 게 목표다.
 보도자료 요약체나 사실 나열이 아니라, 관점이 있는 해설체로 써라. 확인 안 된 사실을 단정하지 마라.
+
+${personaSnippet}
 
 이슈: ${topic.name}
 요약: ${topic.summary || ''}
@@ -86,7 +102,8 @@ function buildPrompt(topic, plan, evidence) {
 타임라인(${evidence.timeline.length}건): ${evidence.timeline.map((t) => t.title).join(' / ') || '(없음)'}
 
 작성 전에 스스로 점검해라(Self-Review): 위에 나열된 축을 전부 다뤘는가? 대립 관점이 필요한데 빠뜨리지 않았는가?
-분량 범위를 지켰는가? 확인이 안 된 내용을 단정적으로 쓰지 않았는가? 문제가 있으면 출력하기 전에 스스로 고쳐라.
+분량 범위를 지켰는가? 확인이 안 된 내용을 단정적으로 쓰지 않았는가? 배정된 에디터의 문체·리듬·강조 방식이 실제로 드러나는가?
+문제가 있으면 출력하기 전에 스스로 고쳐라.
 
 설명 없이 아래 JSON 형식만 반환해라(코드블록 없이):
 {
@@ -178,6 +195,51 @@ function deterministicQA(draft, plan, diagnostic) {
   return { pass: reasons.length === 0, reasons, totalLength };
 }
 
+// 3b — LLM 정성 QA(§10, Phase 4). 3a 통과분만 실행(비용 절감). Editorial OS의 유형별
+// "흔한 저품질 패턴"(common_pitfalls)을 체크리스트로 그대로 이식해 pass/fail+사유+신뢰도를 받는다.
+async function claudeQualitativeQA(draft, commonPitfalls) {
+  const bodyText = [draft.lead, ...draft.blocks.map((b) => b.content)].join('\n');
+  const pitfallList = (commonPitfalls || []).map((p) => `- ${p}`).join('\n') || '(체크리스트 없음)';
+
+  const prompt = `아래 장문 에디토리얼이 이 사건 유형의 "흔한 저품질 패턴"에 해당하는지 점검해라.
+설명 없이 JSON만 반환해라.
+
+저품질 패턴 체크리스트:
+${pitfallList}
+
+본문:
+${bodyText}
+
+반환 형식:
+{"pass": true 또는 false, "reason": "해당하면 어떤 패턴인지, 통과면 빈 문자열", "qa_confidence": 0.0~1.0}`;
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': ANTHROPIC_KEY,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-5',
+        max_tokens: 400,
+        messages: [{ role: 'user', content: prompt }],
+      }),
+      signal: AbortSignal.timeout(60000),
+    });
+    if (!res.ok) return { pass: true, reason: '3b 호출 실패 — 3a만으로 통과 처리', qa_confidence: 0 }; // 3b 자체 장애로 발행이 막히지 않게
+    const data = await res.json();
+    const text = data.content.filter((b) => b.type === 'text').map((b) => b.text).join('');
+    const match = text.match(/\{[\s\S]*\}/);
+    if (!match) return { pass: true, reason: '3b 파싱 실패 — 3a만으로 통과 처리', qa_confidence: 0 };
+    const parsed = JSON.parse(match[0]);
+    return { pass: !!parsed.pass, reason: parsed.reason || '', qa_confidence: typeof parsed.qa_confidence === 'number' ? parsed.qa_confidence : 0.5 };
+  } catch {
+    return { pass: true, reason: '3b 예외 — 3a만으로 통과 처리', qa_confidence: 0 };
+  }
+}
+
 exports.handler = async function (event) {
   const headers = { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' };
   if (event.httpMethod === 'OPTIONS') return { statusCode: 200, headers, body: '' };
@@ -198,22 +260,39 @@ exports.handler = async function (event) {
       return { statusCode: 200, headers, body: JSON.stringify({ ok: true, targetedThisRun: 0 }) };
     }
 
-    const stats = { published: 0, retried: 0, degraded: 0, failed: 0 };
+    const eventTypeRules = await supabaseGet('event_type_rules', '?select=event_type,common_pitfalls');
+
+    const stats = { published: 0, retried: 0, degraded: 0, failed: 0, qualitativeRejected: 0 };
 
     for (const topic of pending) {
       const plan = topic.ai_context?.plan;
       if (!plan) { stats.failed++; continue; }
 
       try {
+        // Persona Registry(§7) — 배정된 에디터 상세를 가져와 문체 스니펫으로 조립
+        const editorIds = (plan.editors_assigned || []).map((e) => e.id).filter(Boolean);
+        const editorsDetail = editorIds.length
+          ? await supabaseGet('editors', `?id=in.(${editorIds.join(',')})&select=name,perspective_tag,style_signature,rhythm_profile,emphasis_pattern`)
+          : [];
+        const isSafetyLocked = plan.event_type === '분쟁·외교·전쟁' || plan.event_type === '재난·긴급상황';
+        const personaSnippet = buildPersonaSnippet(editorsDetail, plan.requires_dual_perspective, isSafetyLocked);
+
         const evidence = await gatherEvidence(topic.id);
-        const { draft, diagnostic } = await claudeGenerate(buildPrompt(topic, plan, evidence));
+        const { draft, diagnostic } = await claudeGenerate(buildPrompt(topic, plan, evidence, personaSnippet));
         const qa = deterministicQA(draft, plan, diagnostic);
 
+        // 3b — 3a 통과분만 실행(비용 절감, §10)
+        let qualitative = null;
         if (qa.pass) {
+          const pitfalls = eventTypeRules.find((r) => r.event_type === plan.event_type)?.common_pitfalls;
+          qualitative = await claudeQualitativeQA(draft, pitfalls);
+        }
+
+        if (qa.pass && qualitative.pass) {
           const counterMarker = (draft.perspective_markers || []).find((m, i) => i > 0);
           const { lastQaFail, ...cleanContext } = topic.ai_context || {}; // 이전 실패기록은 성공 시 정리
           await supabasePatch('topics', `?id=eq.${topic.id}`, {
-            ai_context: { ...cleanContext, draft, evidence, qa },
+            ai_context: { ...cleanContext, draft, evidence, qa, qualitative },
             ai_outlook: draft.lead,
             ai_counter_view: counterMarker ? counterMarker.claim : null,
             editorial_status: 'published',
@@ -222,6 +301,10 @@ exports.handler = async function (event) {
           });
           stats.published++;
         } else {
+          if (qa.pass && !qualitative.pass) {
+            stats.qualitativeRejected++;
+            qa.reasons = [`[3b 정성QA] ${qualitative.reason}`];
+          }
           const retryCount = (topic.editorial_retry_count || 0) + 1;
           if (retryCount > MAX_RETRY) {
             // §10 자동 강등 — 사람 검토 큐 없음(DEC-005). 짧은 기존 형식(summary)만으로 계속 서빙,

@@ -48,6 +48,22 @@ async function supabaseGet(table, params) {
   return res.json();
 }
 
+// Persona Registry(§7, DEC-003) — perspective_tag별로 도메인 매칭 우선 + 로테이션(가장 오래전에
+// 배정된 에디터 우선)으로 실제 인격을 배정한다. recentlyAssigned는 같은 배치 실행 안에서 방금
+// 배정한 것도 반영해, 한 배치 안에서 같은 에디터가 몰리지 않게 한다.
+function pickEditor(pool, perspectiveTag, domain, recentlyAssigned) {
+  const candidates = pool.filter((e) => e.perspective_tag === perspectiveTag);
+  if (!candidates.length) return null;
+  const domainMatched = domain ? candidates.filter((e) => (e.domains || []).includes(domain)) : [];
+  const scoped = domainMatched.length ? domainMatched : candidates;
+  const sorted = [...scoped].sort((a, b) => {
+    const aTime = recentlyAssigned.get(a.id) || a.last_assigned_at || '';
+    const bTime = recentlyAssigned.get(b.id) || b.last_assigned_at || '';
+    return aTime < bTime ? -1 : aTime > bTime ? 1 : 0; // 오래 안 쓰인 에디터 우선
+  });
+  return sorted[0];
+}
+
 async function supabasePatch(table, params, data) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}${params}`, {
     method: 'PATCH',
@@ -142,6 +158,9 @@ exports.handler = async function (event) {
       return { statusCode: 200, headers, body: JSON.stringify({ ok: true, processed: 0 }) };
     }
 
+    const editorsPool = await supabaseGet('editors', '?active=eq.true&select=id,name,perspective_tag,domains,last_assigned_at');
+    const recentlyAssigned = new Map(); // 이 배치 안에서 방금 배정한 것도 반영(같은 에디터 몰림 방지)
+
     const results = [];
     let planned = 0, lowConfidence = 0, failed = 0;
 
@@ -170,6 +189,14 @@ exports.handler = async function (event) {
           ? rule.requires_dual_perspective_fixed
           : !!plan.requires_dual_perspective;
 
+        const perspectives = Array.isArray(plan.perspectives) && plan.perspectives.length ? plan.perspectives : rule.perspective_candidates.slice(0, 2);
+
+        // Persona Registry resolve(§7, DEC-003) — 관점마다 실제 에디터를 배정
+        const assignedEditors = perspectives
+          .map((p) => pickEditor(editorsPool, p, topic.category, recentlyAssigned))
+          .filter(Boolean);
+        assignedEditors.forEach((e) => recentlyAssigned.set(e.id, new Date().toISOString()));
+
         const editorialPlan = {
           event_type: finalType,
           type_confidence: typeof plan.type_confidence === 'number' ? plan.type_confidence : 0.5,
@@ -177,7 +204,8 @@ exports.handler = async function (event) {
           zeitgeist_ref: today,
           axis_weights: rule.axis_weights,
           axis_overrides_reason: plan.axis_overrides_reason || '',
-          perspectives: Array.isArray(plan.perspectives) && plan.perspectives.length ? plan.perspectives : rule.perspective_candidates.slice(0, 2),
+          perspectives,
+          editors_assigned: assignedEditors.map((e) => ({ id: e.id, name: e.name, perspective: e.perspective_tag })),
           requires_dual_perspective: requiresDual,
           evidence_required: rule.evidence_required,
           target_length_range: [rule.target_length_min, rule.target_length_max],
@@ -197,6 +225,10 @@ exports.handler = async function (event) {
             editorial_retry_count: editorialPlan.type_confidence < 0.7 ? (topic.editorial_retry_count || 0) + 1 : 0,
           });
           if (newStatus === 'planned') planned++;
+
+          for (const e of assignedEditors) {
+            await supabasePatch('editors', `?id=eq.${e.id}`, { last_assigned_at: new Date().toISOString() }).catch(() => {});
+          }
         }
 
         results.push({ topic_id: topic.id, name: topic.name, plan: editorialPlan });
