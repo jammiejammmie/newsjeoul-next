@@ -9,6 +9,7 @@
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY;
 const { resolveGoogleNewsUrl, mapWithConcurrency } = require('./resolve-google-news-url');
+const { getTopicLinkedArticleIds } = require('./topic-priority');
 
 const BATCH_SIZE = 30; // 2026-07-11: 첫 실행(20건, 100% 성공) 확인 후 1차 단계적 상향
 const CONCURRENCY = 3; // Google에 순간적으로 과도한 요청을 보내지 않기 위한 동시성 제한
@@ -56,10 +57,27 @@ exports.handler = async function (event) {
   }
 
   try {
-    const [totalPending, candidates] = await Promise.all([
+    // 우선순위: topic/story에 이미 걸려 실제 화면에 쓰이는 기사부터 처리 — 그래야 Hero/카드 이미지가
+    // "가장 최근에 수집된 잡기사"가 아니라 "실제 노출되는 기사"부터 채워진다(2026-07-11 확인된 문제 대응).
+    const topicLinkedIds = await getTopicLinkedArticleIds().catch(() => []);
+
+    const [totalPending, priorityCandidates] = await Promise.all([
       supabaseCount('articles', '?url_resolution_status=eq.pending'),
-      supabaseGet('articles', `?url_resolution_status=eq.pending&select=id,url&order=created_at.desc&limit=${BATCH_SIZE}`),
+      topicLinkedIds.length
+        ? supabaseGet('articles', `?url_resolution_status=eq.pending&id=in.(${topicLinkedIds.join(',')})&select=id,url&order=created_at.desc&limit=${BATCH_SIZE}`)
+        : [],
     ]);
+
+    let candidates = priorityCandidates;
+    if (candidates.length < BATCH_SIZE) {
+      const excludeIds = candidates.map((c) => c.id);
+      const excludeFilter = excludeIds.length ? `&id=not.in.(${excludeIds.join(',')})` : '';
+      const rest = await supabaseGet(
+        'articles',
+        `?url_resolution_status=eq.pending${excludeFilter}&select=id,url&order=created_at.desc&limit=${BATCH_SIZE - candidates.length}`
+      );
+      candidates = [...candidates, ...rest];
+    }
 
     const stats = { resolved: 0, duplicate: 0, resolveFailed: 0 };
 
@@ -96,6 +114,7 @@ exports.handler = async function (event) {
         ok: true,
         totalPending,
         targetedThisRun: candidates.length,
+        topicLinkedTargeted: priorityCandidates.length,
         resolved: stats.resolved,
         duplicate: stats.duplicate,
         resolveFailed: stats.resolveFailed,

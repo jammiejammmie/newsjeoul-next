@@ -65,10 +65,10 @@ export default function AdminPage() {
       if (res.status === 401) addLog('error', '❌ 관리자 키 오류')
       else if (res.ok) {
         if (fnName === 'enrich-article-images') {
-          addLog('success', `✅ ${label}: 대상 ${data.totalInWindow}건 중 이미지 보유 ${data.alreadyHasImage}건, 이번 실행 ${data.targetedThisRun}건 처리`)
+          addLog('success', `✅ ${label}: 대상 ${data.totalInWindow}건 중 이미지 보유 ${data.alreadyHasImage}건, 이번 실행 ${data.targetedThisRun}건 처리(토픽연결 우선 ${data.topicLinkedTargeted}건)`)
           addLog('info', `　성공 ${data.success} / og:image 없음 ${data.noOgImage} / URL미해제 ${data.resolveFailed} / Timeout ${data.timeout} / 차단(403 등) ${data.blocked} / 기타오류 ${data.otherError}`)
         } else if (fnName === 'resolve-article-urls') {
-          addLog('success', `✅ ${label}: 미해제 ${data.totalPending}건 중 이번 실행 ${data.targetedThisRun}건 처리`)
+          addLog('success', `✅ ${label}: 미해제 ${data.totalPending}건 중 이번 실행 ${data.targetedThisRun}건 처리(토픽연결 우선 ${data.topicLinkedTargeted}건)`)
           addLog('info', `　해제 성공 ${data.resolved} / 중복 확정 ${data.duplicate} / 해제 실패(재시도 대기) ${data.resolveFailed} / 남은 미해제 ${data.remainingPending}`)
         } else {
           const detail = data.saved ? `${data.saved}건` : data.stories ? `${data.stories}개 스토리` : data.updated ? `${data.updated.length}개` : '완료'

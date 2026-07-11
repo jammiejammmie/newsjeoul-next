@@ -20,6 +20,7 @@
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY;
 const { mapWithConcurrency } = require('./resolve-google-news-url');
+const { getTopicLinkedArticleIds } = require('./topic-priority');
 const BATCH_SIZE = 25; // 2026-07-11: 순차 처리→동시성 3으로 바꾸면서 15→25로 소폭 상향(1차 단계적 조정)
 const CONCURRENCY = 3;
 
@@ -107,11 +108,29 @@ exports.handler = async function (event) {
     const since = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
     const windowFilter = `created_at=gte.${since}`;
 
-    const [totalInWindow, alreadyHasImage, candidates] = await Promise.all([
+    // 우선순위: topic/story에 이미 걸려 실제 화면에 쓰이는 기사부터 이미지를 채운다 — 그래야 Hero/카드가
+    // "가장 최근 수집된 잡기사"가 아니라 실제 노출 기사부터 이미지를 갖게 된다(2026-07-11 확인된 문제 대응).
+    const topicLinkedIds = await getTopicLinkedArticleIds().catch(() => []);
+    const baseFilter = `og_image_url=is.null&url_resolution_status=eq.resolved&${windowFilter}`;
+
+    const [totalInWindow, alreadyHasImage, priorityCandidates] = await Promise.all([
       supabaseCount('articles', `?${windowFilter}`),
       supabaseCount('articles', `?${windowFilter}&og_image_url=neq.`), // null/빈문자열 둘 다 제외됨(둘 다 neq 비교에서 걸러짐)
-      supabaseGet('articles', `?og_image_url=is.null&url_resolution_status=eq.resolved&${windowFilter}&select=id,url&order=created_at.desc&limit=${BATCH_SIZE}`),
+      topicLinkedIds.length
+        ? supabaseGet('articles', `?${baseFilter}&id=in.(${topicLinkedIds.join(',')})&select=id,url&order=created_at.desc&limit=${BATCH_SIZE}`)
+        : [],
     ]);
+
+    let candidates = priorityCandidates;
+    if (candidates.length < BATCH_SIZE) {
+      const excludeIds = candidates.map((c) => c.id);
+      const excludeFilter = excludeIds.length ? `&id=not.in.(${excludeIds.join(',')})` : '';
+      const rest = await supabaseGet(
+        'articles',
+        `?${baseFilter}${excludeFilter}&select=id,url&order=created_at.desc&limit=${BATCH_SIZE - candidates.length}`
+      );
+      candidates = [...candidates, ...rest];
+    }
 
     const stats = { success: 0, no_og_image: 0, resolve_failed: 0, timeout: 0, blocked: 0, other_error: 0 };
     await mapWithConcurrency(candidates, CONCURRENCY, async (article) => {
@@ -133,6 +152,7 @@ exports.handler = async function (event) {
         totalInWindow,
         alreadyHasImage,
         targetedThisRun: candidates.length,
+        topicLinkedTargeted: priorityCandidates.length,
         success: stats.success,
         noOgImage: stats.no_og_image,
         resolveFailed: stats.resolve_failed,
