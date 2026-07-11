@@ -178,8 +178,9 @@ exports.handler = async function (event) {
 
         if (qa.pass) {
           const counterMarker = (draft.perspective_markers || []).find((m, i) => i > 0);
+          const { lastQaFail, ...cleanContext } = topic.ai_context || {}; // 이전 실패기록은 성공 시 정리
           await supabasePatch('topics', `?id=eq.${topic.id}`, {
-            ai_context: { ...topic.ai_context, draft, evidence, qa },
+            ai_context: { ...cleanContext, draft, evidence, qa },
             ai_outlook: draft.lead,
             ai_counter_view: counterMarker ? counterMarker.claim : null,
             editorial_status: 'published',

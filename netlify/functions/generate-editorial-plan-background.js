@@ -136,7 +136,7 @@ exports.handler = async function (event) {
 
     const pending = await supabaseGet(
       'topics',
-      `?status=eq.active&editorial_status=eq.pending&select=id,name,summary,category&order=updated_at.desc&limit=${BATCH_SIZE}`
+      `?status=eq.active&editorial_status=eq.pending&select=id,name,summary,category,ai_context,editorial_retry_count&order=updated_at.desc&limit=${BATCH_SIZE}`
     );
     if (!pending.length) {
       return { statusCode: 200, headers, body: JSON.stringify({ ok: true, processed: 0 }) };
@@ -189,8 +189,10 @@ exports.handler = async function (event) {
 
         if (!isDry) {
           const newStatus = editorialPlan.type_confidence < 0.7 ? 'pending' : 'planned'; // §4 재분류 루프: 낮은 신뢰도는 다음 배치에서 재시도
+          // 재분류(재시도) 시 이전 draft/evidence/qa를 실수로 지우지 않도록 기존 ai_context를 보존하며 병합한다
+          // (2026-07-11 확인된 버그 — 통째로 덮어쓰면 이미 발행된 장문이 사라질 수 있었음).
           await supabasePatch('topics', `?id=eq.${topic.id}`, {
-            ai_context: { plan: editorialPlan },
+            ai_context: { ...(topic.ai_context || {}), plan: editorialPlan },
             editorial_status: newStatus,
             editorial_retry_count: editorialPlan.type_confidence < 0.7 ? (topic.editorial_retry_count || 0) + 1 : 0,
           });
