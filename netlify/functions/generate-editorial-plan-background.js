@@ -1,14 +1,17 @@
-// generate-editorial-plan.js — Editorial Engine Layer 1 (Classification & Planning)
+// generate-editorial-plan-background.js — Editorial Engine Layer 1 (Classification & Planning)
 // 근거: docs/newsjeoul-editorial-engine-architecture.md §2~4, DEC-002~005
 //
 // Rule 예비필터(코드, 무료) → 후보 압축 → LLM 구조화 호출 1회로 event_type/축조정/관점/대립관점여부를
 // 동시 산출한다. FIXED 값(event_type_rules)과 병합해 Editorial Plan을 만들어 topics.ai_context에 저장.
 // 유형9(분쟁)·10(재난)은 안전 오버라이드로 구조 규칙을 하드락(§4).
+//
+// Background Function(2026-07-11): Netlify 동기 함수 26초 하드캡 회피 + 365일 무인 운영 목표에 맞춰
+// Cron 자동 호출 전제로 전환(운영은 자동, 관리자 버튼은 개발·검증용). 호출자는 202 즉시 수신.
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY;
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
-const BATCH_SIZE = 5; // 게이트웨이 타임아웃 방지, 나머지는 다음 실행에서 이어서 처리
+const BATCH_SIZE = 10; // Background 전환으로 여유 생김 — 5→10 상향(이벤트 유형 판별은 상대적으로 가벼움)
 
 // Editorial OS v1 "판별 신호" 기반 Rule 예비필터 — LLM 호출 전 후보를 좁힌다(§4).
 // 정확한 분류가 목적이 아니라 "명백히 아닌 유형"을 먼저 걸러 LLM이 10지선다 대신

@@ -1,7 +1,11 @@
-// generate-zeitgeist.js — Editorial Engine Layer 0
+// generate-zeitgeist-background.js — Editorial Engine Layer 0
 // 근거: docs/newsjeoul-editorial-engine-architecture.md §5, DEC-001
 // 오늘 활성 토픽 전체를 훑어 "오늘의 화두" 태그를 하루 1번만 생성한다. 이벤트(토픽)마다
-// 반복 추출하지 않고, generate-editorial-plan.js가 이 값을 참조만 하도록 분리했다.
+// 반복 추출하지 않고, generate-editorial-plan-background.js가 이 값을 참조만 하도록 분리했다.
+//
+// Background Function(2026-07-11): 365일 무인 운영 목표에 맞춰 Cron 자동 호출 전제로 전환
+// (운영은 자동, 관리자 버튼은 개발·검증용). 호출 자체는 가벼워 26초 캡과는 무관했지만,
+// 나머지 두 함수와 같은 실행 방식·전제를 맞추기 위해 함께 전환했다.
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY;

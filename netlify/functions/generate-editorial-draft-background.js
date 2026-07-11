@@ -1,4 +1,4 @@
-// generate-editorial-draft.js — Editorial Engine Layer 2a(생성+Self-Review) + Layer 2b(근거 수집) + 3a(결정론적 QA)
+// generate-editorial-draft-background.js — Editorial Engine Layer 2a(생성+Self-Review) + Layer 2b(근거 수집) + 3a(결정론적 QA)
 // 근거: docs/newsjeoul-editorial-engine-architecture.md §2, §8, §9, §10, DEC-005
 //
 // editorial_status='planned'(Editorial Plan이 있는) 토픽을 대상으로 장문 Editorial Draft를 생성한다.
@@ -6,15 +6,16 @@
 // (이미지: enrich-article-images.js, 타임라인: topic_timeline_events, 출처: story_articles).
 // 사람 검토 큐 없음(DEC-005) — 3a 통과 실패가 재시도 상한에 도달하면 자동 강등(draft 없이 종료,
 // 화면은 기존 summary만으로 폴백 — Topic 화면이 draft 유무를 분기해서 처리).
+//
+// Background Function(2026-07-11 전환): 동기 함수는 Netlify 플랫폼상 26초 하드캡이 있어(netlify.toml의
+// timeout 설정은 스케줄/백그라운드에만 적용됨) 장문 생성(실측 1건 약 40초) 자체가 구조적으로 불가능했다.
+// -background 접미사로 최대 15분까지 실행 가능해져 배치 크기를 다시 늘렸다. 호출자는 202를 즉시 받고
+// 결과를 못 받으므로(운영은 Cron 자동 호출, 관리자 화면은 상태만 별도 조회) 반환값은 로그 확인용일 뿐이다.
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY;
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
-// 장문 생성은 1건당 LLM 응답이 크고(최대 3000토큰) 근거수집+생성+QA를 다 거쳐서 느리다.
-// 2026-07-11: BATCH_SIZE=3 순차 처리에서 함수가 응답을 못 돌려주고 죽는 문제(빈 응답으로
-// JSON 파싱 실패) 확인 — 3건 합산 시간이 함수 실행 제한을 넘긴 것으로 추정. 1건으로 낮춤
-// (여러 번 눌러서 이어서 처리하는 기존 배치 함수들과 같은 패턴 — 안전 우선).
-const BATCH_SIZE = 1;
+const BATCH_SIZE = 5; // Background라 15분 예산 안에서 여유있게 — 1건당 근거수집+생성+QA 약 40~60초
 const MAX_RETRY = 2;
 
 async function supabaseGet(table, params) {
@@ -109,7 +110,7 @@ async function claudeGenerate(prompt) {
       max_tokens: 3000,
       messages: [{ role: 'user', content: prompt }],
     }),
-    signal: AbortSignal.timeout(70000), // 함수 자체 타임아웃(90s)보다 여유있게 짧게 끊어 빈 응답 대신 명확한 에러를 남긴다
+    signal: AbortSignal.timeout(120000), // Background라 여유 있음 — 진짜 행(hang)만 끊어서 명확한 에러를 남긴다
   });
   if (!res.ok) throw new Error('Claude API 에러: ' + await res.text());
   const data = await res.json();

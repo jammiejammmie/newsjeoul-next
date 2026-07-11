@@ -62,15 +62,17 @@
   schedule = "0 1 * * *"
   timeout = 90
 
-# Editorial Engine (2026-07-11 Phase 2~3 착수) — 검증 전이라 스케줄 없음, 관리자 수동 실행 전용
-[functions."generate-zeitgeist"]
-  timeout = 60
+# Editorial Engine (2026-07-11 Phase 2~3, Background Function 전환) — 365일 무인 운영 목표.
+# 동기 함수 26초 하드캡을 피하기 위해 -background 접미사로 전환(최대 15분 실행, 응답은 즉시 202).
+# timeout 설정은 이 컨텍스트에선 사실상 상한 없음을 의미(플랫폼 기본값을 그대로 둠).
+[functions."generate-zeitgeist-background"]
+  schedule = "50 1 * * *" # 하루 1회, 02시대 배치(refresh-relationships 등)보다 먼저
 
-[functions."generate-editorial-plan"]
-  timeout = 90
+[functions."generate-editorial-plan-background"]
+  schedule = "50 */3 * * *" # generate-updates(45) 다음 — 3시간 주기
 
-[functions."generate-editorial-draft"]
-  timeout = 90
+[functions."generate-editorial-draft-background"]
+  schedule = "55 */3 * * *" # editorial-plan(50) 다음 — 계획 수립분을 받아 생성
 
 # 3.0 Insight/연결 배치 — 비용 최소화 위해 1일 1회만
 [functions."refresh-relationships"]

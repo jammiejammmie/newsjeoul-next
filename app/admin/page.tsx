@@ -11,10 +11,11 @@ export default function AdminPage() {
   const [logs, setLogs] = useState<{time:string,type:string,msg:string}[]>([])
   const [loading, setLoading] = useState<string|null>(null)
   const [stats, setStats] = useState<any>({})
+  const [editorialStatus, setEditorialStatus] = useState<any>(null)
 
   useEffect(() => {
     const k = localStorage.getItem('nj_admin_key') || ''
-    if (k) { setSavedKey(k); loadStats() }
+    if (k) { setSavedKey(k); loadStats(); loadEditorialStatus() }
   }, [])
 
   function addLog(type: string, msg: string) {
@@ -41,6 +42,25 @@ export default function AdminPage() {
     } catch(e) {}
   }
 
+  // Editorial Engine 상태 — 관리자 키 없이도(anon key) 조회 가능한 읽기 전용 패널.
+  // 운영은 Cron이 자동으로 돌리므로, 이 패널은 "지금 어디까지 진행됐는지"만 보여주는 역할.
+  async function loadEditorialStatus() {
+    try {
+      const headers = { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Prefer': 'count=exact' }
+      const countOf = async (status: string) => {
+        const r = await fetch(`${SUPABASE_URL}/rest/v1/topics?select=id&status=eq.active&editorial_status=eq.${status}`, { method: 'HEAD', headers })
+        return parseInt((r.headers.get('content-range') || '/0').split('/')[1]) || 0
+      }
+      const today = new Date().toISOString().slice(0, 10)
+      const [pending, planned, published, degraded, zRes] = await Promise.all([
+        countOf('pending'), countOf('planned'), countOf('published'), countOf('degraded'),
+        fetch(`${SUPABASE_URL}/rest/v1/daily_zeitgeist?date=eq.${today}&select=tags,generated_at`, { headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY } }),
+      ])
+      const zRows = await zRes.json().catch(() => [])
+      setEditorialStatus({ pending, planned, published, degraded, zeitgeist: zRows[0] || null })
+    } catch (e) {}
+  }
+
   function login() {
     if (!adminKey.trim()) return
     localStorage.setItem('nj_admin_key', adminKey)
@@ -57,25 +77,35 @@ export default function AdminPage() {
     return res
   }
 
+  // Background Function은 202를 즉시 반환하고 본문이 없다 — Cron이 운영을 담당하고 이 버튼은
+  // 개발·검증용 트리거일 뿐이므로 결과를 기다리지 않고 "접수됨"만 표시한 뒤 상태 패널 새로고침을 유도한다.
+  const BACKGROUND_FUNCTIONS = new Set(['generate-zeitgeist-background', 'generate-editorial-plan-background', 'generate-editorial-draft-background'])
+
   async function runFn(fnName: string, label: string) {
     setLoading(fnName)
     try {
       const res = await callFn(fnName)
+      if (res.status === 401) { addLog('error', '❌ 관리자 키 오류'); setLoading(null); return }
+
+      if (BACKGROUND_FUNCTIONS.has(fnName)) {
+        if (res.status === 202 || res.ok) {
+          addLog('success', `🚀 ${label}: 접수됨 — Background에서 실행 중(수 분 소요 가능). 잠시 후 아래 "Editorial Engine 상태" 새로고침으로 확인하세요.`)
+          setTimeout(loadEditorialStatus, 15000)
+        } else {
+          addLog('error', `❌ ${label} 접수 실패: HTTP ${res.status}`)
+        }
+        setLoading(null)
+        return
+      }
+
       const data = await res.json()
-      if (res.status === 401) addLog('error', '❌ 관리자 키 오류')
-      else if (res.ok) {
+      if (res.ok) {
         if (fnName === 'enrich-article-images') {
           addLog('success', `✅ ${label}: 대상 ${data.totalInWindow}건 중 이미지 보유 ${data.alreadyHasImage}건, 이번 실행 ${data.targetedThisRun}건 처리(토픽연결 우선 ${data.topicLinkedTargeted}건)`)
           addLog('info', `　성공 ${data.success} / og:image 없음 ${data.noOgImage} / URL미해제 ${data.resolveFailed} / Timeout ${data.timeout} / 차단(403 등) ${data.blocked} / 기타오류 ${data.otherError}`)
         } else if (fnName === 'resolve-article-urls') {
           addLog('success', `✅ ${label}: 미해제 ${data.totalPending}건 중 이번 실행 ${data.targetedThisRun}건 처리(토픽연결 우선 ${data.topicLinkedTargeted}건)`)
           addLog('info', `　해제 성공 ${data.resolved} / 중복 확정 ${data.duplicate} / 해제 실패(재시도 대기) ${data.resolveFailed} / 남은 미해제 ${data.remainingPending}`)
-        } else if (fnName === 'generate-zeitgeist') {
-          addLog('success', `✅ ${label}: ${data.date} 화두 ${data.tags?.length ?? 0}개 — ${(data.tags || []).join(', ')}`)
-        } else if (fnName === 'generate-editorial-plan') {
-          addLog('success', `✅ ${label}: 대상 ${data.targetedThisRun}건 — 계획수립 ${data.planned} / 신뢰도낮음(재시도) ${data.lowConfidence} / 실패 ${data.failed}`)
-        } else if (fnName === 'generate-editorial-draft') {
-          addLog('success', `✅ ${label}: 대상 ${data.targetedThisRun}건 — 발행 ${data.published} / 재시도 ${data.retried} / 강등 ${data.degraded} / 실패 ${data.failed}`)
         } else {
           const detail = data.saved ? `${data.saved}건` : data.stories ? `${data.stories}개 스토리` : data.updated ? `${data.updated.length}개` : '완료'
           addLog('success', `✅ ${label}: ${detail}`)
@@ -268,18 +298,50 @@ export default function AdminPage() {
         </button>
       </div>
 
-      {/* Editorial Engine — Phase 2~3, 검증 전이라 스케줄 없음(수동 실행 전용), 순서대로 실행 */}
+      {/* Editorial Engine — Background Function + Cron 자동화(2026-07-11). 운영은 자동, 여기는 상태 확인 + 개발용 트리거 */}
       <div style={{ ...s.card, background: 'linear-gradient(135deg,rgba(185,140,255,.08),rgba(124,140,255,.06))' }}>
-        <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>🖋️ Editorial Engine</div>
-        <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 14 }}>화두 생성 → 편집계획 수립 → 장문 생성+QA (순서대로 실행)</div>
-        <button style={{ ...s.btn('var(--card)', 'var(--text)'), marginBottom: 8 }} onClick={() => runFn('generate-zeitgeist', '① 오늘의 화두')} disabled={!!loading}>
-          {loading === 'generate-zeitgeist' ? '실행 중...' : '① 오늘의 화두 생성'}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+          <div style={{ fontSize: 13, fontWeight: 700 }}>🖋️ Editorial Engine 상태</div>
+          <button onClick={loadEditorialStatus} style={{ fontSize: 10, padding: '3px 9px', background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 999, color: 'var(--muted)', cursor: 'pointer' }}>
+            ↻ 새로고침
+          </button>
+        </div>
+        <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 14 }}>
+          운영은 Cron이 자동 실행(화두 매일 01:50, 계획·생성 3시간마다) — 아래 버튼은 개발·검증용 트리거
+        </div>
+
+        {editorialStatus && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 8, marginBottom: 14 }}>
+            {[
+              ['미계획', editorialStatus.pending, 'var(--muted)'],
+              ['계획수립', editorialStatus.planned, 'var(--blue,#7C8CFF)'],
+              ['발행됨', editorialStatus.published, 'var(--green,#7CC2B8)'],
+              ['강등', editorialStatus.degraded, 'var(--gold,#D9A441)'],
+            ].map(([label, count, color]: any) => (
+              <div key={label} style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 8px', textAlign: 'center' }}>
+                <div style={{ fontSize: 18, fontWeight: 800, color }}>{count}</div>
+                <div style={{ fontSize: 10, color: 'var(--muted)' }}>{label}</div>
+              </div>
+            ))}
+          </div>
+        )}
+        {editorialStatus?.zeitgeist && (
+          <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 14, lineHeight: 1.6 }}>
+            오늘의 화두: {(editorialStatus.zeitgeist.tags || []).join(', ')}
+          </div>
+        )}
+        {editorialStatus && !editorialStatus.zeitgeist && (
+          <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 14 }}>오늘의 화두 아직 없음</div>
+        )}
+
+        <button style={{ ...s.btn('var(--card)', 'var(--text)'), marginBottom: 8 }} onClick={() => runFn('generate-zeitgeist-background', '① 오늘의 화두(개발용)')} disabled={!!loading}>
+          {loading === 'generate-zeitgeist-background' ? '실행 중...' : '① 오늘의 화두 생성(개발용)'}
         </button>
-        <button style={{ ...s.btn('var(--card)', 'var(--text)'), marginBottom: 8 }} onClick={() => runFn('generate-editorial-plan', '② 편집 계획')} disabled={!!loading}>
-          {loading === 'generate-editorial-plan' ? '실행 중...' : '② 편집 계획 수립(5건씩)'}
+        <button style={{ ...s.btn('var(--card)', 'var(--text)'), marginBottom: 8 }} onClick={() => runFn('generate-editorial-plan-background', '② 편집 계획(개발용)')} disabled={!!loading}>
+          {loading === 'generate-editorial-plan-background' ? '실행 중...' : '② 편집 계획 수립(개발용, 10건씩)'}
         </button>
-        <button style={s.btn('var(--card)', 'var(--text)')} onClick={() => runFn('generate-editorial-draft', '③ 장문 생성')} disabled={!!loading}>
-          {loading === 'generate-editorial-draft' ? '실행 중...' : '③ 장문 생성+QA(1건씩, 계획 수립된 게 여러 개면 여러 번 클릭)'}
+        <button style={s.btn('var(--card)', 'var(--text)')} onClick={() => runFn('generate-editorial-draft-background', '③ 장문 생성(개발용)')} disabled={!!loading}>
+          {loading === 'generate-editorial-draft-background' ? '실행 중...' : '③ 장문 생성+QA(개발용, 5건씩)'}
         </button>
       </div>
 
