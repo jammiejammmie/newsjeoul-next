@@ -21,4 +21,4 @@ INSERT INTO editors (name, perspective_tag, style_signature, rhythm_profile, emp
 ('레오', '국제정치분석가', '신중하고 균형 잡힌, 양측 입장을 병기', '양측입장-배경-전망 순서', '당사국 공식 발언 인용을 강조', ARRAY['국제','정치'], '#7CC2B8', '분쟁의 양측을 편들지 않고 구조로 설명하는 국제정치분석가'),
 ('미아', '경제파급분석가', '실용적, 자국 경제에 미치는 영향에 집중', '파급경로-수치-전망 순서', '유가·환율 같은 지표를 강조', ARRAY['경제','국제'], '#D9A441', '해외 사건이 우리 경제에 미치는 파급을 계산하는 분석가'),
 ('하나', '안전정보전문가', '가장 절제되고 명료한 어조, 감정 표현 최소화', '가장 짧은 문장, 속보체', '행동요령을 최우선으로 강조', ARRAY['사회','재난'], '#E0996B', '재난 상황에서 오직 필요한 정보만 전달하는 안전정보 전문가')
-ON CONFLICT DO NOTHING;
+ON CONFLICT (name, perspective_tag) DO NOTHING; -- 2026-07-11: editors_name_perspective_unique 제약 추가 후(dedup 마이그레이션) 재실행해도 안전
