@@ -1,5 +1,7 @@
+'use client'
+
 import Link from 'next/link'
-import type { CSSProperties, ReactNode } from 'react'
+import { useState, type CSSProperties, type ReactNode } from 'react'
 
 // 디지털 편집국 연결 자리 — 지금은 항상 undefined, 에디터 시스템이 채우기 시작하면
 // 카드 컴포넌트를 고치지 않고도 표시가 자연스럽게 나타남
@@ -36,6 +38,12 @@ export default function CardShell({
   href, colSpan, rowSpan, bg, border, padding = '22px', justify = 'flex-start',
   hoverBg, hoverBorder, hoverTransform, imageUrl, onClick, children,
 }: CardShellProps) {
+  // 원문 이미지가 깨진 링크(만료된 인증서, 404, hotlink 차단 등)일 수 있어 로드 실패 시 자동으로
+  // 기존 색상 카드로 폴백한다 — og:image URL을 저장할 때는 접근 가능했어도 이후 원본이 내려가거나
+  // 언론사 CDN 인증서가 만료되는 경우가 실제로 있었다(2026-07-11 확인, pressian.com CDN 사례).
+  const [imageBroken, setImageBroken] = useState(false)
+  const showImage = imageUrl && !imageBroken
+
   const style: CardStyle = {
     gridColumn: `span ${colSpan}`,
     gridRow: `span ${rowSpan}`,
@@ -49,12 +57,13 @@ export default function CardShell({
 
   const content = (
     <div className="nj-card-shell" style={style}>
-      {imageUrl && (
+      {showImage && (
         <>
           <img
             src={imageUrl}
             alt=""
             loading="lazy"
+            onError={() => setImageBroken(true)}
             style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', zIndex: 0 }}
           />
           <div style={{

@@ -10,7 +10,7 @@ const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY;
 const { resolveGoogleNewsUrl, mapWithConcurrency } = require('./resolve-google-news-url');
 
-const BATCH_SIZE = 20; // 해제 1건당 fetch 2회(인터스티셜+RPC) — 안전한 배치 크기
+const BATCH_SIZE = 30; // 2026-07-11: 첫 실행(20건, 100% 성공) 확인 후 1차 단계적 상향
 const CONCURRENCY = 3; // Google에 순간적으로 과도한 요청을 보내지 않기 위한 동시성 제한
 
 async function supabaseGet(table, params) {

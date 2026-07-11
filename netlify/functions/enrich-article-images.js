@@ -19,7 +19,9 @@
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY;
-const BATCH_SIZE = 15; // 원문 페이지 fetch는 느릴 수 있어 한 번에 적게 처리
+const { mapWithConcurrency } = require('./resolve-google-news-url');
+const BATCH_SIZE = 25; // 2026-07-11: 순차 처리→동시성 3으로 바꾸면서 15→25로 소폭 상향(1차 단계적 조정)
+const CONCURRENCY = 3;
 
 async function supabaseGet(table, params) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}${params || ''}`, {
@@ -112,7 +114,7 @@ exports.handler = async function (event) {
     ]);
 
     const stats = { success: 0, no_og_image: 0, resolve_failed: 0, timeout: 0, blocked: 0, other_error: 0 };
-    for (const article of candidates) {
+    await mapWithConcurrency(candidates, CONCURRENCY, async (article) => {
       const result = await fetchOgImage(article.url);
       stats[result.reason] = (stats[result.reason] || 0) + 1;
       if (result.reason === 'success') {
@@ -122,7 +124,7 @@ exports.handler = async function (event) {
         await supabasePatch('articles', `?id=eq.${article.id}`, { og_image_url: '' });
       }
       // timeout / blocked / other_error: NULL 유지 → 다음 실행에서 자동 재시도 대상에 그대로 남는다
-    }
+    });
 
     return {
       statusCode: 200, headers,
