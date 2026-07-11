@@ -12,7 +12,7 @@ import { getTopicDrawerData, type TopicDrawerData } from '@/lib/drawer-data'
 import { domainColors } from '@/lib/design-tokens'
 
 export type GridCardDescriptor =
-  | { kind: 'feature'; slug: string; domain: string; heatLabel: string; label: string; body: string }
+  | { kind: 'feature'; slug: string; domain: string; heatLabel: string; label: string; body: string; imageUrl?: string }
   | { kind: 'weight'; slug: string; label: string; body: string }
   | { kind: 'connection'; slug: string; label: string; body: string }
   | { kind: 'node'; slug: string; domain: string; label: string; colSpan: number; rowSpan: number }
@@ -66,6 +66,7 @@ export default function HomeExplorer({ cards, timelineEvents }: HomeExplorerProp
                 heatLabel={c.heatLabel}
                 label={c.label}
                 body={c.body}
+                imageUrl={c.imageUrl}
                 onClick={() => openTopic(c.slug)}
               />
             )

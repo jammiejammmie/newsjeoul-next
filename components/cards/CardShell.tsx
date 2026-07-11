@@ -20,6 +20,9 @@ export type CardShellProps = {
   hoverBg?: string
   hoverBorder?: string
   hoverTransform?: string
+  // 실사 이미지 — CTR 우선 원칙(2026-07-10 결정)에 따라 있으면 카드 배경으로 꽉 채우고,
+  // 하단부터 어두워지는 스크림을 얹어 그 위 텍스트가 항상 읽히게 한다. 없으면 기존 색상 카드 그대로.
+  imageUrl?: string
   editorPersona?: EditorPersona
   // 성과 추적 훅 자리 — 지금은 아무도 호출하지 않음 (디지털 편집국 단계에서 실제 전송 로직 연결)
   onImpression?: () => void
@@ -31,13 +34,12 @@ type CardStyle = CSSProperties & Record<string, string | number | undefined>
 
 export default function CardShell({
   href, colSpan, rowSpan, bg, border, padding = '22px', justify = 'flex-start',
-  hoverBg, hoverBorder, hoverTransform, onClick, children,
+  hoverBg, hoverBorder, hoverTransform, imageUrl, onClick, children,
 }: CardShellProps) {
   const style: CardStyle = {
     gridColumn: `span ${colSpan}`,
     gridRow: `span ${rowSpan}`,
     padding,
-    justifyContent: justify,
     '--card-bg': bg,
     '--card-border': border,
     '--card-hover-bg': hoverBg,
@@ -47,7 +49,23 @@ export default function CardShell({
 
   const content = (
     <div className="nj-card-shell" style={style}>
-      {children}
+      {imageUrl && (
+        <>
+          <img
+            src={imageUrl}
+            alt=""
+            loading="lazy"
+            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', zIndex: 0 }}
+          />
+          <div style={{
+            position: 'absolute', inset: 0, zIndex: 1,
+            background: 'linear-gradient(180deg, rgba(11,11,13,.12) 0%, rgba(11,11,13,.52) 55%, rgba(11,11,13,.92) 100%)',
+          }} />
+        </>
+      )}
+      <div style={{ position: 'relative', zIndex: 2, display: 'flex', flexDirection: 'column', gap: 10, height: '100%', justifyContent: justify }}>
+        {children}
+      </div>
     </div>
   )
 

@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import {
-  getActiveTopics, getMostUnexpectedTopicPair, getRecentTimelineEvents, getRecentTopicUpdates,
+  getActiveTopics, getMostUnexpectedTopicPair, getRecentTimelineEvents, getRecentTopicUpdates, pickHeroTopic, getTopicImage,
 } from '@/lib/topics'
 import WeightHero from '@/components/home/WeightHero'
 import HomeExplorer, { type GridCardDescriptor } from '@/components/home/HomeExplorer'
@@ -33,14 +33,14 @@ export async function generateMetadata(): Promise<Metadata> {
 const SPAN_CYCLE: [number, number][] = [[2, 1], [1, 1], [2, 1], [1, 1], [2, 1], [1, 1], [2, 1]]
 
 export default async function Home() {
-  const [activeTopics, connectionPair, timelineEventsRaw, recentUpdates] = await Promise.all([
-    getActiveTopics(11),
+  const [activeTopicsPool, connectionPair, timelineEventsRaw, recentUpdates] = await Promise.all([
+    getActiveTopics(30), // 지금 규모(active 약 30개 안팎)에서는 사실상 전체 풀 — Hero 후보 판단에 필요
     getMostUnexpectedTopicPair(),
     getRecentTimelineEvents(8),
     getRecentTopicUpdates(1),
   ])
 
-  if (activeTopics.length === 0) {
+  if (activeTopicsPool.length === 0) {
     return (
       <div style={{ padding: '120px 32px', textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>
         오늘의 이슈를 정리하는 중입니다.
@@ -48,7 +48,9 @@ export default async function Home() {
     )
   }
 
-  const heaviestTopic = activeTopics[0]
+  // Hero는 "메가 토픽" 화이트리스트 우선 — 나머지 그리드는 기존 정렬 그대로, Hero로 뽑힌 것만 맨 앞으로
+  const heaviestTopic = pickHeroTopic(activeTopicsPool)!
+  const activeTopics = [heaviestTopic, ...activeTopicsPool.filter((t) => t.slug !== heaviestTopic.slug)]
   const secondTopic = activeTopics[1] ?? activeTopics[0]
 
   const leftWeight = Math.round(secondTopic.importance_score ?? 0)
@@ -63,10 +65,14 @@ export default async function Home() {
   const usedSlugs = new Set([heaviestTopic.slug])
   const cards: GridCardDescriptor[] = []
 
+  // 실사 이미지는 Hero/피처카드부터 우선 적용(CTR 우선 결정 §1) — 없으면 기존 색상 카드로 자연 폴백
+  const heroImage = await getTopicImage(heaviestTopic.id)
+
   cards.push({
     kind: 'feature', slug: heaviestTopic.slug, domain: heaviestTopic.category || '이슈',
     heatLabel: '오늘 가장 무거움', label: heaviestTopic.name,
     body: heaviestTopic.summary || '',
+    imageUrl: heroImage || undefined,
   })
 
   const latestUpdate = recentUpdates[0] as any

@@ -19,6 +19,55 @@ export async function getActiveTopics(limit = 10) {
   return data || []
 }
 
+// Hero(메인 헤드라인) 후보 필터 — "메가 토픽"만 최상단에 올린다 (2026-07-10 결정).
+// 현재 파이프라인이 importance_score/popularity_score를 전부 50 고정값으로 남겨두고 있어(실제
+// 스코어링 로직 없음 확인됨) getActiveTopics의 정렬이 사실상 임의 순서라 "쿠팡 개인정보 유출" 같은
+// 단발성 사건이 우연히 1등이 될 수 있다. 화이트리스트 매칭은 임시 방편 — topic_entities가 더
+// 쌓이면 entity 재등장 빈도 기반 자동 판별로 교체 예정(설계는 별도 문서 참고).
+const MEGA_TOPIC_KEYWORDS = [
+  'GPT', 'AI', '인공지능', '트럼프', '이재명', '윤석열', '삼성전자', '엔비디아', 'NVIDIA',
+  '테슬라', '비트코인', '애플', '아이폰', '포르쉐', '현대차', '기아', '금리', '미국', '중국',
+]
+
+export function pickHeroTopic<T extends { name: string }>(topics: T[]): T | null {
+  if (topics.length === 0) return null
+  const mega = topics.find((t) => MEGA_TOPIC_KEYWORDS.some((kw) => t.name.includes(kw)))
+  return mega || topics[0]
+}
+
+// Topic의 대표 실사 이미지 — 연결된 Story 중 relevance 상위 5개의 기사들에서
+// og_image_url이 있는 가장 최근 것을 고른다(2026-07-10, CTR 우선 결정 §1).
+// articles.og_image_url 컬럼이 아직 없거나(마이그레이션 전) 비어있으면 null → 카드가 기존 색상 스타일로 폴백.
+export async function getTopicImage(topicId: string): Promise<string | null> {
+  const supabase = client()
+  try {
+    const { data: links, error: linksErr } = await supabase
+      .from('topic_stories')
+      .select('story_id')
+      .eq('topic_id', topicId)
+      .order('relevance_score', { ascending: false })
+      .limit(5)
+    if (linksErr) throw linksErr
+    const storyIds = (links || []).map((l: any) => l.story_id)
+    if (storyIds.length === 0) return null
+
+    const { data: articleLinks, error: artErr } = await supabase
+      .from('story_articles')
+      .select('articles(og_image_url, published_at)')
+      .in('story_id', storyIds)
+    if (artErr) throw artErr
+
+    const images = (articleLinks || [])
+      .map((r: any) => r.articles)
+      .filter((a: any) => a?.og_image_url)
+      .sort((a: any, b: any) => new Date(b.published_at || 0).getTime() - new Date(a.published_at || 0).getTime())
+
+    return images[0]?.og_image_url || null
+  } catch {
+    return null
+  }
+}
+
 export async function getTopicBySlug(slug: string) {
   const supabase = client()
   const { data } = await supabase

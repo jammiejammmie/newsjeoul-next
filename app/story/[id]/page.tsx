@@ -90,6 +90,14 @@ export default async function QuestionDetailPage({ params }: { params: Promise<{
 
       {/* 1. 질문 + 2. 오늘의 무게 */}
       <div style={{ padding: '16px 0 20px', borderBottom: '1px solid var(--border)', marginBottom: 20 }}>
+        {topic.imageUrl && (
+          <img
+            src={topic.imageUrl}
+            alt=""
+            loading="lazy"
+            style={{ width: '100%', aspectRatio: '16/9', objectFit: 'cover', borderRadius: 16, marginBottom: 20 }}
+          />
+        )}
         <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
           {topic.category && (
             <div style={{ fontSize: 10, fontWeight: 700, padding: '4px 10px', borderRadius: 20, background: 'var(--card)', border: '1px solid var(--border)', color: 'var(--muted)' }}>

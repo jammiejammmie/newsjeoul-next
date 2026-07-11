@@ -7,6 +7,7 @@ type FeatureCardProps = {
   heatLabel: string
   label: string
   body: string
+  imageUrl?: string
   colSpan?: number
   rowSpan?: number
   editorPersona?: EditorPersona
@@ -15,7 +16,7 @@ type FeatureCardProps = {
 
 // 오늘 가장 무거운 토픽 — v5 매거진 그리드의 큐레이션 슬롯 (홈페이지가 직접 조립)
 export default function FeatureCard({
-  href, domain, domainColor, heatLabel, label, body, colSpan = 3, rowSpan = 2, editorPersona, onClick,
+  href, domain, domainColor, heatLabel, label, body, imageUrl, colSpan = 3, rowSpan = 2, editorPersona, onClick,
 }: FeatureCardProps) {
   return (
     <CardShell
@@ -28,6 +29,7 @@ export default function FeatureCard({
       justify="space-between"
       hoverBorder="#D9A441"
       hoverTransform="translateY(-4px)"
+      imageUrl={imageUrl}
       editorPersona={editorPersona}
       onClick={onClick}
     >

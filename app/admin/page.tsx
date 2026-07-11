@@ -72,6 +72,9 @@ export default function AdminPage() {
     setLoading(null)
   }
 
+  // 수집→처리→토픽매칭→관계생성까지 버튼 1번으로 (2026-07-10, 파이프라인 정상화 지시에 따라 확장).
+  // 각 함수는 자체 BATCH_SIZE 제한이 있어 밀린 물량이 많으면 한 번에 다 못 비울 수 있음 —
+  // 그 경우 이 버튼을 몇 번 더 누르면 이어서 처리된다. "점수 계산" 단계는 코드가 아직 없어(§6 진단 참고) 제외.
   async function runPipeline() {
     setLoading('pipeline')
     addLog('info', '⚡ 전체 파이프라인 시작...')
@@ -92,7 +95,25 @@ export default function AdminPage() {
       if (r2.ok) addLog('success', `✅ 스토리 생성: ${d2.stories || 0}개`)
       else addLog('error', `❌ 스토리 실패: ${d2.error}`)
 
-      addLog('info', '🎉 파이프라인 완료!')
+      addLog('info', '3초 후 토픽 매칭...')
+      await new Promise(r => setTimeout(r, 3000))
+
+      // 3. 토픽 매칭/생성
+      const r3 = await callFn('resolve-topics')
+      const d3 = await r3.json()
+      if (r3.ok) addLog('success', `✅ 토픽 매칭: 스토리 ${d3.storiesProcessed ?? 0}개 처리, 신규 토픽 ${d3.topicsCreated ?? 0}개`)
+      else addLog('error', `❌ 토픽 매칭 실패: ${d3.error}`)
+
+      addLog('info', '3초 후 관계 생성...')
+      await new Promise(r => setTimeout(r, 3000))
+
+      // 4. Topic/Entity 관계 생성 (topic_relations/entity_relations)
+      const r4 = await callFn('refresh-relationships')
+      const d4 = await r4.json()
+      if (r4.ok) addLog('success', `✅ 관계 생성: topic ${d4.topicRelationsCreated ?? 0}건, entity ${d4.entityRelationsCreated ?? 0}건`)
+      else addLog('error', `❌ 관계 생성 실패: ${d4.error}`)
+
+      addLog('info', '🎉 파이프라인 완료! (점수 계산 단계는 아직 미구현 — 별도 작업 필요)')
       loadStats()
     } catch(e: any) { addLog('error', `❌ 실패: ${e.message}`) }
     setLoading(null)
@@ -171,7 +192,7 @@ export default function AdminPage() {
       {/* 2.0 파이프라인 */}
       <div style={{ ...s.card, background: 'linear-gradient(135deg,var(--accent-soft),rgba(124,140,255,.08))' }}>
         <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>⚡ 2.0 전체 파이프라인</div>
-        <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 14 }}>기사 수집 → 클러스터링 → 스토리 생성</div>
+        <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 14 }}>기사 수집 → 스토리 생성 → 토픽 매칭 → 관계 생성</div>
         <button style={s.btn('rgba(94,62,161,.8)')} onClick={runPipeline} disabled={!!loading}>
           {loading === 'pipeline' ? '실행 중...' : '⚡ 전체 실행'}
         </button>
@@ -202,6 +223,20 @@ export default function AdminPage() {
         </div>
         <button style={s.btn('var(--card)', 'var(--text)')} onClick={() => runFn('process-stories', '스토리 처리')} disabled={!!loading}>
           {loading === 'process-stories' ? '실행 중...' : '▶ 지금 실행'}
+        </button>
+      </div>
+
+      {/* 기사 이미지 보강 — og:image 백필, 스케줄 없음(수동 실행 전용) */}
+      <div style={s.card}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 700 }}>🖼️ 기사 이미지 보강</div>
+            <div style={{ fontSize: 11, color: 'var(--muted)' }}>og_image_url 백필(최근 14일, 15건씩) — articles.og_image_url 컬럼 필요</div>
+          </div>
+          <div style={{ fontSize: 10, padding: '3px 9px', background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 999, color: 'var(--muted)' }}>수동 실행</div>
+        </div>
+        <button style={s.btn('var(--card)', 'var(--text)')} onClick={() => runFn('enrich-article-images', '이미지 보강')} disabled={!!loading}>
+          {loading === 'enrich-article-images' ? '실행 중...' : '▶ 지금 실행'}
         </button>
       </div>
 

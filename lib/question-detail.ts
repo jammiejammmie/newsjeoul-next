@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { getTopicImage } from '@/lib/topics'
 
 function client() {
   return createClient(
@@ -16,6 +17,7 @@ export type QuestionDetailData = {
     importanceScore: number
     aiOutlook: string | null; aiCounterView: string | null; aiContext: any | null
     updatedAt: string | null
+    imageUrl: string | null
   }
   connectedTopics: { id: string; slug: string; name: string; category: string | null }[]
   nextQuestions: { storyId: string; topicName: string; topicSlug: string; explanation: string | null }[]
@@ -139,6 +141,8 @@ export async function getQuestionDetail(storyId: string): Promise<QuestionDetail
   }
   nextQuestions = nextQuestions.slice(0, MAX_NEXT_QUESTIONS)
 
+  const imageUrl = await getTopicImage(repTopic.id)
+
   return {
     story: { id: story.id, title: story.title, createdAt: story.created_at },
     articles,
@@ -148,6 +152,7 @@ export async function getQuestionDetail(storyId: string): Promise<QuestionDetail
       importanceScore: Math.round(repTopic.importance_score ?? 0),
       aiOutlook: repTopic.ai_outlook, aiCounterView: repTopic.ai_counter_view, aiContext: repTopic.ai_context,
       updatedAt: repTopic.updated_at,
+      imageUrl,
     },
     connectedTopics,
     nextQuestions,
