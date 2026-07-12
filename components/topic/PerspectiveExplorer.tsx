@@ -1,11 +1,12 @@
 'use client'
 
 import { useState } from 'react'
+import HeroImage from '@/components/story/HeroImage'
 
 // Editorial Engine이 생성한 draft.blocks(축별 문단)를 "이 주제를 어디서부터 탐험할까요" 형태로
 // 보여준다 — 포르쉐 Topic 탐험 목업의 관점 탭 UI를, 실제 데이터 형태(관점 라벨이 아니라 축 단위
 // 블록)에 맞게 적용한 것. 목업처럼 서로 다른 엔티티로 전환되는 게 아니라 같은 글 안의 축을 오간다.
-export type Block = { axis: string; content: string }
+export type Block = { axis: string; content: string; image?: string; imageCaption?: string }
 
 // 첫 문장을 분리해 볼드 처리 — 핵심 문장을 먼저 눈에 띄게 한다(2026-07-12, 가독성 개선)
 function renderWithLeadEmphasis(text: string) {
@@ -51,6 +52,14 @@ export default function PerspectiveExplorer({ blocks }: { blocks: Block[] }) {
         <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 14 }}>
           {active.axis}
         </div>
+        {active.image && (
+          <div style={{ maxWidth: 480, margin: '0 auto' }}>
+            <HeroImage src={active.image} />
+          </div>
+        )}
+        {active.image && active.imageCaption && (
+          <p style={{ fontSize: 11.5, color: 'var(--muted)', lineHeight: 1.5, marginTop: -12, marginBottom: 20 }}>{active.imageCaption}</p>
+        )}
         <p style={{ fontSize: 18, fontWeight: 500, color: 'var(--text)', lineHeight: 1.95 }}>{renderWithLeadEmphasis(active.content)}</p>
       </div>
     </section>
