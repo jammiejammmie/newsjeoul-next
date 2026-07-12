@@ -15,6 +15,20 @@ const TYPE_LABEL: Record<string, string> = {
   product: '제품', technology: '기술', market: '시장', policy: '정책',
 }
 
+// 첫 문장을 분리해 볼드 처리 — 핵심 문장을 먼저 눈에 띄게 한다(2026-07-12, 가독성 개선)
+function renderWithLeadEmphasis(text: string) {
+  const match = text.match(/^.+?[.!?](?=\s|$)/)
+  if (!match) return text
+  const first = match[0]
+  const rest = text.slice(first.length)
+  return (
+    <>
+      <strong style={{ fontWeight: 700 }}>{first}</strong>
+      {rest}
+    </>
+  )
+}
+
 export const dynamic = 'force-dynamic'
 const BASE = 'https://newsjeoul.co.kr'
 
@@ -98,16 +112,16 @@ export default async function TopicPage({ params }: { params: Promise<{ slug: st
       </div>
 
       {/* BRIEF */}
-      <div style={{ padding: '20px 0 24px' }}>
+      <div style={{ padding: '20px 0 36px' }}>
         {image && <HeroImage src={image} />}
         <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 14 }}>
           TOPIC · 무게 {weight}g
         </div>
-        <h1 style={{ fontSize: 'clamp(24px,3.6vw,38px)', fontWeight: 800, lineHeight: 1.32, letterSpacing: '-0.01em', color: 'var(--text)', marginBottom: 18 }}>
+        <h1 style={{ fontSize: 'clamp(26px,4vw,42px)', fontWeight: 800, lineHeight: 1.28, letterSpacing: '-0.015em', color: 'var(--text)', marginBottom: 22 }}>
           {topic.name}
         </h1>
-        <p style={{ fontSize: 15.5, fontWeight: 500, color: 'var(--text2)', lineHeight: 1.85 }}>
-          {draft?.lead || topic.summary || topic.description}
+        <p style={{ fontSize: 18, fontWeight: 500, color: 'var(--text)', lineHeight: 1.9 }}>
+          {renderWithLeadEmphasis(draft?.lead || topic.summary || topic.description || '')}
         </p>
         {!draft && (
           <p style={{ fontSize: 10, color: 'var(--muted)', marginTop: 10 }}>
@@ -118,8 +132,8 @@ export default async function TopicPage({ params }: { params: Promise<{ slug: st
 
       {/* ENTITY BAND */}
       {entities.length > 0 && (
-        <div style={{ marginBottom: 28 }}>
-          <div style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 14 }}>
+        <div style={{ marginBottom: 40 }}>
+          <div style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 16 }}>
             관련 엔티티
           </div>
           <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 6, WebkitOverflowScrolling: 'touch' }}>
@@ -148,15 +162,18 @@ export default async function TopicPage({ params }: { params: Promise<{ slug: st
 
           {/* 대립 관점 병치 */}
           {Array.isArray(draft.perspective_markers) && draft.perspective_markers.length > 0 && (
-            <div style={{ marginBottom: 28 }}>
-              <div style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 14 }}>
+            <div style={{ marginBottom: 40 }}>
+              <div style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 16 }}>
                 엇갈리는 시각
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: draft.perspective_markers.length > 1 ? '1fr 1fr' : '1fr', gap: 12 }}>
                 {draft.perspective_markers.map((m: any, i: number) => (
-                  <div key={i} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 14, padding: 16 }}>
-                    <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent)', marginBottom: 8 }}>{m.perspective}</p>
-                    <p style={{ fontSize: 13, color: 'var(--text2)', lineHeight: 1.7 }}>{m.claim}</p>
+                  <div key={i} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 14, padding: 20 }}>
+                    <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent)', marginBottom: 10 }}>{m.perspective}</p>
+                    <p style={{ fontSize: 15, color: 'var(--text)', lineHeight: 1.8 }}>{m.claim}</p>
+                    {m.basis && (
+                      <p style={{ fontSize: 12.5, color: 'var(--muted)', lineHeight: 1.65, marginTop: 10 }}>근거 — {m.basis}</p>
+                    )}
                   </div>
                 ))}
               </div>
@@ -164,7 +181,7 @@ export default async function TopicPage({ params }: { params: Promise<{ slug: st
           )}
 
           {/* FORK — 더 넓게 / 더 깊게 */}
-          <div style={{ marginBottom: 32 }}>
+          <div style={{ marginBottom: 44 }}>
             <div style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 6 }}>
               여기서 갈림길입니다
             </div>
@@ -173,7 +190,7 @@ export default async function TopicPage({ params }: { params: Promise<{ slug: st
               <div style={{ border: '1px solid rgba(124,140,255,.2)', background: 'rgba(124,140,255,.04)', borderRadius: 16, padding: 18 }}>
                 <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--blue)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 12 }}>↔ 더 넓게</div>
                 {draft.closing_door?.wider && (
-                  <p style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.6, marginBottom: 12 }}>{draft.closing_door.wider}</p>
+                  <p style={{ fontSize: 14.5, color: 'var(--text)', lineHeight: 1.75, marginBottom: 14 }}>{draft.closing_door.wider}</p>
                 )}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {relatedTopics.slice(0, 3).map((t: any) => (
@@ -186,7 +203,7 @@ export default async function TopicPage({ params }: { params: Promise<{ slug: st
               <div style={{ border: '1px solid rgba(217,164,65,.25)', background: 'rgba(217,164,65,.05)', borderRadius: 16, padding: 18 }}>
                 <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 12 }}>↓ 더 깊게</div>
                 {draft.closing_door?.deeper && (
-                  <p style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.6, marginBottom: 12 }}>{draft.closing_door.deeper}</p>
+                  <p style={{ fontSize: 14.5, color: 'var(--text)', lineHeight: 1.75, marginBottom: 14 }}>{draft.closing_door.deeper}</p>
                 )}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {stories.slice(0, 3).map((s: any) => (
