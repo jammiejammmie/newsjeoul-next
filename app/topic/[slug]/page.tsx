@@ -2,7 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { getTopicBySlug, getTopicStories, getTopicEntities, getTopicUpdates, getTopicImage } from '@/lib/topics'
+import { getTopicBySlug, getTopicStories, getTopicEntities, getTopicUpdates, getTopicImage, getTopicTimeline } from '@/lib/topics'
 import { entityIcon, categoryIcon } from '@/lib/icons'
 import PerspectiveExplorer from '@/components/topic/PerspectiveExplorer'
 import HeroImage from '@/components/story/HeroImage'
@@ -71,12 +71,13 @@ export default async function TopicPage({ params }: { params: Promise<{ slug: st
   const topic = await getTopicBySlug(slug)
   if (!topic) notFound()
 
-  const [stories, entities, updates, relatedTopics, image] = await Promise.all([
+  const [stories, entities, updates, relatedTopics, image, timeline] = await Promise.all([
     getTopicStories(topic.id, 20),
     getTopicEntities(topic.id),
     getTopicUpdates(topic.id, 5),
     getRelatedTopics(topic.id),
     getTopicImage(topic.id),
+    getTopicTimeline(topic.id, 8),
   ])
 
   // Editorial Engine이 이미 장문을 발행했으면(editorial_status='published') 그 결과물을 그대로
@@ -140,6 +141,7 @@ export default async function TopicPage({ params }: { params: Promise<{ slug: st
             {entities.map((e: any) => (
               <Link
                 key={e.id} href={`/entity/${e.slug}`}
+                title={e.explanation || undefined}
                 style={{
                   flexShrink: 0, display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none',
                   border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--text)',
@@ -150,6 +152,28 @@ export default async function TopicPage({ params }: { params: Promise<{ slug: st
                 <span style={{ fontSize: 13.5, fontWeight: 700 }}>{e.name}</span>
                 <span style={{ fontSize: 10.5, color: 'var(--muted)', fontWeight: 600 }}>{TYPE_LABEL[e.type] || e.type}</span>
               </Link>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* TIMELINE — 이 주제의 지금까지 흐름(topic_timeline_events, 실데이터만) */}
+      {timeline.length > 0 && (
+        <div style={{ marginBottom: 40 }}>
+          <div style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 16 }}>
+            지금까지의 흐름
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {timeline.map((ev: any) => (
+              <div key={ev.id} style={{ display: 'flex', gap: 14, background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 14, padding: '14px 16px' }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent)', flexShrink: 0, whiteSpace: 'nowrap' }}>
+                  {new Date(ev.event_date).toLocaleDateString('ko-KR', { month: '2-digit', day: '2-digit' })}
+                </span>
+                <div>
+                  <p style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text)', lineHeight: 1.5 }}>{ev.title}</p>
+                  {ev.summary && <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4, lineHeight: 1.6 }}>{ev.summary}</p>}
+                </div>
+              </div>
             ))}
           </div>
         </div>
@@ -192,10 +216,11 @@ export default async function TopicPage({ params }: { params: Promise<{ slug: st
                 {draft.closing_door?.wider && (
                   <p style={{ fontSize: 14.5, color: 'var(--text)', lineHeight: 1.75, marginBottom: 14 }}>{draft.closing_door.wider}</p>
                 )}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {relatedTopics.slice(0, 3).map((t: any) => (
-                    <Link key={t.id} href={`/topic/${t.slug}`} style={{ fontSize: 12.5, color: 'var(--text2)', textDecoration: 'none', padding: '8px 10px', borderRadius: 10, background: 'var(--card)' }}>
-                      {t.name}
+                    <Link key={t.id} href={`/topic/${t.slug}`} style={{ textDecoration: 'none', display: 'block', padding: '10px 12px', borderRadius: 10, background: 'var(--card)' }}>
+                      <p style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text)' }}>{t.name}</p>
+                      {t.explanation && <p style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 4, lineHeight: 1.5 }}>{t.explanation}</p>}
                     </Link>
                   ))}
                 </div>
