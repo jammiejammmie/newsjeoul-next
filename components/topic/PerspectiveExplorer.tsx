@@ -22,6 +22,24 @@ function renderWithLeadEmphasis(text: string) {
   )
 }
 
+// 본문을 빈 줄 기준으로 문단 분리해 각각 <p>로 렌더링 — 긴 문단 하나로 몰리는 걸 막는다
+// (2026-07-12, PM 지시 — 문단 길이 개선). 첫 문단에만 첫 문장 강조를 적용한다.
+function renderParagraphs(text: string) {
+  const paragraphs = text.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean)
+  if (paragraphs.length <= 1) {
+    return <p style={{ fontSize: 18, fontWeight: 500, color: 'var(--text)', lineHeight: 1.95 }}>{renderWithLeadEmphasis(text)}</p>
+  }
+  return (
+    <>
+      {paragraphs.map((p, i) => (
+        <p key={i} style={{ fontSize: 18, fontWeight: 500, color: 'var(--text)', lineHeight: 1.95, marginBottom: i < paragraphs.length - 1 ? 16 : 0 }}>
+          {i === 0 ? renderWithLeadEmphasis(p) : p}
+        </p>
+      ))}
+    </>
+  )
+}
+
 export default function PerspectiveExplorer({ blocks }: { blocks: Block[] }) {
   const [activeIdx, setActiveIdx] = useState(0)
   if (!blocks.length) return null
@@ -60,7 +78,7 @@ export default function PerspectiveExplorer({ blocks }: { blocks: Block[] }) {
         {active.image && active.imageCaption && (
           <p style={{ fontSize: 11.5, color: 'var(--muted)', lineHeight: 1.5, marginTop: -12, marginBottom: 20 }}>{active.imageCaption}</p>
         )}
-        <p style={{ fontSize: 18, fontWeight: 500, color: 'var(--text)', lineHeight: 1.95 }}>{renderWithLeadEmphasis(active.content)}</p>
+        {renderParagraphs(active.content)}
       </div>
     </section>
   )
