@@ -73,7 +73,10 @@ function buildPrompt(topic, relationItems, entityItems) {
   prompt += '규칙:\n';
   prompt += '- 주어진 맥락(Topic 요약/리드) 안에서만 판단해라. 맥락에 없는 사실을 추측하거나 지어내지 마라.\n';
   prompt += '- 관련성이 약하거나 왜 연결되는지 확신이 서지 않으면, 억지로 문장을 만들지 말고 explanation을 null로 반환해라.\n';
-  prompt += '- 과장된 표현(예: "엄청난", "충격적인") 금지, 담백하게 사실 관계만 설명해라.\n\n';
+  prompt += '- 과장된 표현(예: "엄청난", "충격적인") 금지, 담백하게 사실 관계만 설명해라.\n';
+  prompt += '- 인과관계("A 때문에 B", "A가 B로 이어졌다" 등)는 주어진 맥락에 명시적으로 나온 경우에만 서술해라.\n';
+  prompt += '- 두 사건이 비슷한 시기에 일어났다는 이유만으로 인과관계로 확대 해석하지 마라 — 시간적\n';
+  prompt += '  선후관계와 인과관계를 분명히 구분해라. 확실하지 않으면 인과 서술 없이 사실관계만 담백하게 써라.\n\n';
   prompt += '관계(Relation) 항목:\n' + (relationLines || '(없음)') + '\n\n';
   prompt += '엔티티(Entity) 항목:\n' + (entityLines || '(없음)') + '\n\n';
   prompt += '설명 없이 아래 JSON만 반환해라(코드블록 없이):\n';

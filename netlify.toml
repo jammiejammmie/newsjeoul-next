@@ -40,6 +40,7 @@
   timeout = 90
 
 [functions."enrich-article-images"]
+  schedule = "47 */3 * * *" # generate-updates(45) 이후·editorial-plan(50) 이전 — 이번 주기 우선순위 반영해 이미지 보강(2026-07-12 자동화)
   timeout = 90
 
 [functions."process-stories"]
@@ -73,6 +74,10 @@
 
 [functions."generate-editorial-draft-background"]
   schedule = "55 */3 * * *" # editorial-plan(50) 다음 — 계획 수립분을 받아 생성
+
+[functions."generate-relation-context-background"]
+  schedule = "58 */3 * * *" # editorial-draft(55) 직후 — 이번 주기에 새로 published된 Topic의
+                            # 관계·엔티티 설명을 바로 채운다(2026-07-12, 운영 검증 통과 후 자동화)
 
 # 3.0 Insight/연결 배치 — 비용 최소화 위해 1일 1회만
 [functions."refresh-relationships"]
