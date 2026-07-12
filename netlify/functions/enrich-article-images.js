@@ -20,7 +20,7 @@
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY;
 const { mapWithConcurrency } = require('./resolve-google-news-url');
-const { getTopicLinkedArticleIds } = require('./topic-priority');
+const { getTopicLinkedArticleIds, getEditorialPriorityArticleIds } = require('./topic-priority');
 const BATCH_SIZE = 25; // 2026-07-11: 순차 처리→동시성 3으로 바꾸면서 15→25로 소폭 상향(1차 단계적 조정)
 const CONCURRENCY = 3;
 
@@ -108,20 +108,33 @@ exports.handler = async function (event) {
     const since = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
     const windowFilter = `created_at=gte.${since}`;
 
-    // 우선순위: topic/story에 이미 걸려 실제 화면에 쓰이는 기사부터 이미지를 채운다 — 그래야 Hero/카드가
-    // "가장 최근 수집된 잡기사"가 아니라 실제 노출 기사부터 이미지를 갖게 된다(2026-07-11 확인된 문제 대응).
-    const topicLinkedIds = await getTopicLinkedArticleIds().catch(() => []);
+    // 우선순위 3단계(2026-07-12 확장): ①published/planned Topic 근거 기사 → ②그 외 topic/story에
+    // 걸린 기사 → ③일반 최신 기사. Hero/카드보다 "지금 발행되거나 곧 발행될 Topic"이 이미지 없는
+    // 채로 나가는 문제를 먼저 막기 위함(2026-07-11 문제의 연장, PM 지시로 티어 추가).
+    const [editorialPriorityIds, topicLinkedIds] = await Promise.all([
+      getEditorialPriorityArticleIds().catch(() => []),
+      getTopicLinkedArticleIds().catch(() => []),
+    ]);
     const baseFilter = `og_image_url=is.null&url_resolution_status=eq.resolved&${windowFilter}`;
 
-    const [totalInWindow, alreadyHasImage, priorityCandidates] = await Promise.all([
+    const [totalInWindow, alreadyHasImage, editorialCandidates] = await Promise.all([
       supabaseCount('articles', `?${windowFilter}`),
       supabaseCount('articles', `?${windowFilter}&og_image_url=neq.`), // null/빈문자열 둘 다 제외됨(둘 다 neq 비교에서 걸러짐)
-      topicLinkedIds.length
-        ? supabaseGet('articles', `?${baseFilter}&id=in.(${topicLinkedIds.join(',')})&select=id,url&order=created_at.desc&limit=${BATCH_SIZE}`)
+      editorialPriorityIds.length
+        ? supabaseGet('articles', `?${baseFilter}&id=in.(${editorialPriorityIds.join(',')})&select=id,url&order=created_at.desc&limit=${BATCH_SIZE}`)
         : [],
     ]);
 
-    let candidates = priorityCandidates;
+    let candidates = editorialCandidates;
+    if (candidates.length < BATCH_SIZE && topicLinkedIds.length) {
+      const excludeIds = candidates.map((c) => c.id);
+      const excludeFilter = excludeIds.length ? `&id=not.in.(${excludeIds.join(',')})` : '';
+      const topicLinkedCandidates = await supabaseGet(
+        'articles',
+        `?${baseFilter}${excludeFilter}&id=in.(${topicLinkedIds.join(',')})&select=id,url&order=created_at.desc&limit=${BATCH_SIZE - candidates.length}`
+      );
+      candidates = [...candidates, ...topicLinkedCandidates];
+    }
     if (candidates.length < BATCH_SIZE) {
       const excludeIds = candidates.map((c) => c.id);
       const excludeFilter = excludeIds.length ? `&id=not.in.(${excludeIds.join(',')})` : '';
@@ -152,7 +165,7 @@ exports.handler = async function (event) {
         totalInWindow,
         alreadyHasImage,
         targetedThisRun: candidates.length,
-        topicLinkedTargeted: priorityCandidates.length,
+        editorialPriorityTargeted: editorialCandidates.length,
         success: stats.success,
         noOgImage: stats.no_og_image,
         resolveFailed: stats.resolve_failed,

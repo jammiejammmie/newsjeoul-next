@@ -28,4 +28,23 @@ async function getTopicLinkedArticleIds() {
   return [...new Set(storyArticles.map((r) => r.article_id))];
 }
 
-module.exports = { getTopicLinkedArticleIds };
+// 발행(published)·계획(planned) 상태 Topic의 근거 기사 id만 반환한다 — 이미지 보강 배치가
+// "아무 Topic에나 걸린 기사"보다 "실제로 Editorial Draft가 붙는 Topic"을 최우선으로 처리하도록
+// 한 단계 더 좁힌 우선순위 티어(2026-07-12, PM 지시 — 이미지 커버리지 개선).
+async function getEditorialPriorityArticleIds() {
+  const topics = await supabaseGet('topics', "?editorial_status=in.(published,planned)&status=eq.active&select=id");
+  const topicIds = topics.map((t) => t.id);
+  if (topicIds.length === 0) return [];
+
+  const links = await supabaseGet('topic_stories', `?topic_id=in.(${topicIds.join(',')})&select=story_id`);
+  const storyIds = [...new Set(links.map((l) => l.story_id))];
+  if (storyIds.length === 0) return [];
+
+  const storyArticles = await supabaseGet(
+    'story_articles',
+    `?select=article_id&story_id=in.(${storyIds.join(',')})`
+  );
+  return [...new Set(storyArticles.map((r) => r.article_id))];
+}
+
+module.exports = { getTopicLinkedArticleIds, getEditorialPriorityArticleIds };
