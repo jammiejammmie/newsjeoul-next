@@ -41,6 +41,8 @@ async function supabasePatch(table, params, data) {
 }
 
 // Layer 2b — 이미 존재하는 데이터만 조회(신규 조달 없음, §9)
+// 2026-07-12: 출처에 언론사명을 포함(인용 신뢰도용), 이미지는 1개가 아니라 최대 3개까지 후보로
+// 남겨 블록에 결정론적으로 분배할 수 있게 한다(attachImages 참고).
 async function gatherEvidence(topicId) {
   const [storyLinks, timeline] = await Promise.all([
     supabaseGet('topic_stories', `?topic_id=eq.${topicId}&select=story_id&order=relevance_score.desc&limit=8`),
@@ -48,19 +50,20 @@ async function gatherEvidence(topicId) {
   ]);
   const storyIds = storyLinks.map((l) => l.story_id);
   let sources = [];
-  let imageUrl = null;
+  let images = [];
   if (storyIds.length) {
     const articleLinks = await supabaseGet(
       'story_articles',
-      `?story_id=in.(${storyIds.join(',')})&select=articles(title,url,og_image_url,published_at)`
+      `?story_id=in.(${storyIds.join(',')})&select=articles(title,url,og_image_url,published_at,outlets(name))`
     );
     const articles = articleLinks.map((r) => r.articles).filter(Boolean);
-    sources = articles.slice(0, 5).map((a) => ({ title: a.title, url: a.url }));
-    const withImage = articles.filter((a) => a.og_image_url)
-      .sort((a, b) => new Date(b.published_at || 0) - new Date(a.published_at || 0));
-    imageUrl = withImage[0]?.og_image_url || null;
+    sources = articles.slice(0, 6).map((a) => ({ title: a.title, url: a.url, outlet: a.outlets?.name || null }));
+    images = articles.filter((a) => a.og_image_url)
+      .sort((a, b) => new Date(b.published_at || 0) - new Date(a.published_at || 0))
+      .slice(0, 3)
+      .map((a) => ({ url: a.og_image_url, caption: a.title }));
   }
-  return { sources, timeline, imageUrl };
+  return { sources, timeline, images };
 }
 
 // Persona 스니펫(§7) — Editorial Plan의 editors_assigned를 실제 문체 지시문으로 변환.
@@ -98,18 +101,24 @@ ${personaSnippet}
 오늘의 화두 반영 사유: ${plan.axis_overrides_reason || '(해당 없음)'}
 전체 분량: ${minLen}~${maxLen}자
 
-참고 가능한 원문 출처(${evidence.sources.length}건): ${evidence.sources.map((s) => s.title).join(' / ') || '(없음)'}
+참고 가능한 원문 출처(${evidence.sources.length}건, [언론사] 제목): ${evidence.sources.map((s) => (s.outlet ? `[${s.outlet}] ${s.title}` : s.title)).join(' / ') || '(없음)'}
 타임라인(${evidence.timeline.length}건): ${evidence.timeline.map((t) => t.title).join(' / ') || '(없음)'}
+
+리드 문단 작성 규칙(읽는 재미): "최근", "요즘", "논란이 되고 있다", "화제를 모으고 있다" 같은 상투적 도입구로 시작하지
+마라. 구체적 장면·수치·긴장 관계 중 하나로 바로 들어가라 — 독자가 첫 문장에서 멈춰서 읽게 만드는 게 목표다.
+
+대립 관점 작성 규칙(관점의 설득력): perspective_markers의 각 항목은 claim(주장)뿐 아니라 basis(그 관점이 왜
+그렇게 주장하는지 근거나 이유 1문장)를 반드시 함께 써라 — 근거 없이 주장만 나열하지 마라.
 
 작성 전에 스스로 점검해라(Self-Review): 위에 나열된 축을 전부 다뤘는가? 대립 관점이 필요한데 빠뜨리지 않았는가?
 분량 범위를 지켰는가? 확인이 안 된 내용을 단정적으로 쓰지 않았는가? 배정된 에디터의 문체·리듬·강조 방식이 실제로 드러나는가?
-문제가 있으면 출력하기 전에 스스로 고쳐라.
+리드가 상투적 도입구로 시작하지 않는가? 대립 관점 각각에 basis가 있는가? 문제가 있으면 출력하기 전에 스스로 고쳐라.
 
 설명 없이 아래 JSON 형식만 반환해라(코드블록 없이):
 {
   "lead": "콜드오픈/리드 문단(2~3문장)",
   "blocks": [{"axis": "축 이름", "content": "본문 문단"}],
-  "perspective_markers": [{"perspective": "관점 이름", "claim": "그 관점의 핵심 주장 1~2문장"}],
+  "perspective_markers": [{"perspective": "관점 이름", "claim": "그 관점의 핵심 주장 1~2문장", "basis": "그렇게 주장하는 근거나 이유 1문장"}],
   "closing_door": {"wider": "더 넓게 갈 다음 질문 1문장", "deeper": "더 깊게 갈 다음 질문 1문장"}
 }`;
 }
@@ -163,6 +172,16 @@ async function claudeGenerate(prompt) {
   }
 }
 
+// 이미지 부착(2026-07-12) — 모델에게 이미지를 고르게 하지 않고 코드가 결정론적으로 붙인다
+// (할루시네이션 리스크 없음). evidence.images는 이미 enrich-article-images.js가 채워둔 실사
+// 이미지만 후보로 들어온다(최대 3개). 블록 순서대로 인덱스 매칭 1:1로만 붙여 같은 이미지가
+// 여러 블록에 중복되지 않게 하고, 이미지가 블록 수보다 적으면 남는 블록은 이미지 없이 둔다.
+function attachImages(draft, images) {
+  if (!draft || !Array.isArray(draft.blocks) || !Array.isArray(images) || !images.length) return draft;
+  draft.blocks = draft.blocks.map((b, i) => (images[i] ? { ...b, image: images[i].url, imageCaption: images[i].caption } : b));
+  return draft;
+}
+
 // 3a — 결정론적 QA(코드, 무료, §10)
 function deterministicQA(draft, plan, diagnostic) {
   const reasons = [];
@@ -187,9 +206,15 @@ function deterministicQA(draft, plan, diagnostic) {
   if (totalLength < minLen * 0.7) reasons.push(`분량 부족: ${totalLength}자 (목표 ${minLen}~${maxLen}자)`);
   if (totalLength > maxLen * 1.5) reasons.push(`분량 초과: ${totalLength}자 (목표 ${minLen}~${maxLen}자)`);
 
+  const bannedLeadOpeners = ['최근', '요즘', '한편', '화제를 모으고 있다', '논란이 되고 있다', '이슈가 되고 있다'];
+  if (bannedLeadOpeners.some((w) => (draft.lead || '').trimStart().startsWith(w))) {
+    reasons.push('리드 문단이 상투적 도입구로 시작함');
+  }
+
   if (plan.requires_dual_perspective) {
-    const markerCount = Array.isArray(draft.perspective_markers) ? draft.perspective_markers.length : 0;
-    if (markerCount < 2) reasons.push(`대립 관점 필요한데 perspective_markers ${markerCount}개뿐`);
+    const markers = Array.isArray(draft.perspective_markers) ? draft.perspective_markers : [];
+    if (markers.length < 2) reasons.push(`대립 관점 필요한데 perspective_markers ${markers.length}개뿐`);
+    else if (markers.some((m) => !m.basis || !String(m.basis).trim())) reasons.push('대립 관점 중 근거(basis)가 빠진 항목이 있음');
   }
 
   return { pass: reasons.length === 0, reasons, totalLength };
@@ -278,7 +303,8 @@ exports.handler = async function (event) {
         const personaSnippet = buildPersonaSnippet(editorsDetail, plan.requires_dual_perspective, isSafetyLocked);
 
         const evidence = await gatherEvidence(topic.id);
-        const { draft, diagnostic } = await claudeGenerate(buildPrompt(topic, plan, evidence, personaSnippet));
+        let { draft, diagnostic } = await claudeGenerate(buildPrompt(topic, plan, evidence, personaSnippet));
+        draft = attachImages(draft, evidence.images);
         const qa = deterministicQA(draft, plan, diagnostic);
 
         // 3b — 3a 통과분만 실행(비용 절감, §10)
