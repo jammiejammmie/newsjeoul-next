@@ -79,7 +79,7 @@ export default function AdminPage() {
 
   // Background Function은 202를 즉시 반환하고 본문이 없다 — Cron이 운영을 담당하고 이 버튼은
   // 개발·검증용 트리거일 뿐이므로 결과를 기다리지 않고 "접수됨"만 표시한 뒤 상태 패널 새로고침을 유도한다.
-  const BACKGROUND_FUNCTIONS = new Set(['generate-zeitgeist-background', 'generate-editorial-plan-background', 'generate-editorial-draft-background'])
+  const BACKGROUND_FUNCTIONS = new Set(['generate-zeitgeist-background', 'generate-editorial-plan-background', 'generate-editorial-draft-background', 'generate-relation-context-background'])
 
   async function runFn(fnName: string, label: string) {
     setLoading(fnName)
@@ -340,8 +340,11 @@ export default function AdminPage() {
         <button style={{ ...s.btn('var(--card)', 'var(--text)'), marginBottom: 8 }} onClick={() => runFn('generate-editorial-plan-background', '② 편집 계획(개발용)')} disabled={!!loading}>
           {loading === 'generate-editorial-plan-background' ? '실행 중...' : '② 편집 계획 수립(개발용, 10건씩)'}
         </button>
-        <button style={s.btn('var(--card)', 'var(--text)')} onClick={() => runFn('generate-editorial-draft-background', '③ 장문 생성(개발용)')} disabled={!!loading}>
+        <button style={{ ...s.btn('var(--card)', 'var(--text)'), marginBottom: 8 }} onClick={() => runFn('generate-editorial-draft-background', '③ 장문 생성(개발용)')} disabled={!!loading}>
           {loading === 'generate-editorial-draft-background' ? '실행 중...' : '③ 장문 생성+QA(개발용, 5건씩)'}
+        </button>
+        <button style={s.btn('var(--card)', 'var(--text)')} onClick={() => runFn('generate-relation-context-background', '④ 관계 설명 생성(개발용)')} disabled={!!loading}>
+          {loading === 'generate-relation-context-background' ? '실행 중...' : '④ 관계 설명 생성(개발용, Cron 미연결, published 5건씩)'}
         </button>
       </div>
 
