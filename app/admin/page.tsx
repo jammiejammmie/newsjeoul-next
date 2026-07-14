@@ -79,7 +79,7 @@ export default function AdminPage() {
 
   // Background Function은 202를 즉시 반환하고 본문이 없다 — Cron이 운영을 담당하고 이 버튼은
   // 개발·검증용 트리거일 뿐이므로 결과를 기다리지 않고 "접수됨"만 표시한 뒤 상태 패널 새로고침을 유도한다.
-  const BACKGROUND_FUNCTIONS = new Set(['generate-zeitgeist-background', 'generate-editorial-plan-background', 'generate-editorial-draft-background', 'generate-relation-context-background'])
+  const BACKGROUND_FUNCTIONS = new Set(['generate-zeitgeist-background', 'generate-editorial-plan-background', 'generate-editorial-draft-background', 'generate-relation-context-background', 'process-stories-background', 'resolve-topics-background'])
 
   async function runFn(fnName: string, label: string) {
     setLoading(fnName)
@@ -133,23 +133,21 @@ export default function AdminPage() {
       addLog('info', '3초 후 스토리 처리...')
       await new Promise(r => setTimeout(r, 3000))
 
-      // 2. 스토리 처리
-      const r2 = await callFn('process-stories')
-      const d2 = await r2.json()
-      if (r2.ok) addLog('success', `✅ 스토리 생성: ${d2.stories || 0}개`)
-      else addLog('error', `❌ 스토리 실패: ${d2.error}`)
+      // 2. 스토리 처리(Background Function — 202 즉시 반환, 실제 처리는 비동기로 계속됨)
+      const r2 = await callFn('process-stories-background')
+      if (r2.status === 202 || r2.ok) addLog('success', '🚀 스토리 처리: 접수됨 — Background에서 처리 중')
+      else addLog('error', `❌ 스토리 처리 접수 실패: HTTP ${r2.status}`)
 
-      addLog('info', '3초 후 토픽 매칭...')
-      await new Promise(r => setTimeout(r, 3000))
+      addLog('info', '25초 후 토픽 매칭...')
+      await new Promise(r => setTimeout(r, 25000))
 
-      // 3. 토픽 매칭/생성
-      const r3 = await callFn('resolve-topics')
-      const d3 = await r3.json()
-      if (r3.ok) addLog('success', `✅ 토픽 매칭: 스토리 ${d3.storiesProcessed ?? 0}개 처리, 신규 토픽 ${d3.topicsCreated ?? 0}개`)
-      else addLog('error', `❌ 토픽 매칭 실패: ${d3.error}`)
+      // 3. 토픽 매칭/생성(Background Function — 202 즉시 반환, 실제 처리는 비동기로 계속됨)
+      const r3 = await callFn('resolve-topics-background')
+      if (r3.status === 202 || r3.ok) addLog('success', '🚀 토픽 매칭: 접수됨 — Background에서 처리 중')
+      else addLog('error', `❌ 토픽 매칭 접수 실패: HTTP ${r3.status}`)
 
-      addLog('info', '3초 후 관계 생성...')
-      await new Promise(r => setTimeout(r, 3000))
+      addLog('info', '25초 후 관계 생성...')
+      await new Promise(r => setTimeout(r, 25000))
 
       // 4. Topic/Entity 관계 생성 (topic_relations/entity_relations)
       const r4 = await callFn('refresh-relationships')
@@ -265,8 +263,8 @@ export default function AdminPage() {
           </div>
           <div style={{ fontSize: 10, padding: '3px 9px', background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 999, color: 'var(--muted)' }}>매 3시간+30분</div>
         </div>
-        <button style={s.btn('var(--card)', 'var(--text)')} onClick={() => runFn('process-stories', '스토리 처리')} disabled={!!loading}>
-          {loading === 'process-stories' ? '실행 중...' : '▶ 지금 실행'}
+        <button style={s.btn('var(--card)', 'var(--text)')} onClick={() => runFn('process-stories-background', '스토리 처리')} disabled={!!loading}>
+          {loading === 'process-stories-background' ? '실행 중...' : '▶ 지금 실행'}
         </button>
       </div>
 

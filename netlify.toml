@@ -43,16 +43,18 @@
   schedule = "47 */3 * * *" # generate-updates(45) 이후·editorial-plan(50) 이전 — 이번 주기 우선순위 반영해 이미지 보강(2026-07-12 자동화)
   timeout = 90
 
-[functions."process-stories"]
-  schedule = "30 */3 * * *"
+[functions."process-stories-background"]
+  schedule = "30 */3 * * *" # 2026-07-14: 동기 함수 26초 하드캡에 걸려 502로 실패하는 것을
+                            # 실제 재현·확인 후 Background Function으로 전환(Editorial Engine과 동일 패턴)
   timeout = 60
 
 [functions."extract-entities"]
   schedule = "35 */3 * * *"
   timeout = 60
 
-[functions."resolve-topics"]
-  schedule = "40 */3 * * *"
+[functions."resolve-topics-background"]
+  schedule = "40 */3 * * *" # 2026-07-14: BATCH_SIZE=5로도 27~40초가 걸려 동기 26초 캡을 자주
+                            # 넘기는 것을 실제 재현·확인 후 Background Function으로 전환
   timeout = 90
 
 [functions."generate-updates"]
