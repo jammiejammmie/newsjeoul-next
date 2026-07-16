@@ -31,6 +31,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - `docs/newsjeoul-editorial-engine-architecture.md` — Editorial Engine 아키텍처(파이프라인 레이어, Event Type 판단, Persona Registry, 구조화 출력 스키마, DB 제안, Phase 계획, 2026-07-11 신설)
 - `docs/newsjeoul-editorial-engine-approval-items.md` — 위 아키텍처에서 파생되는 DB/외부API/비용 승인 목록(구현 착수 신호 아님)
 - `docs/newsjeoul-decision-log.md` — 프로젝트 의사결정 이력("무엇을"이 아니라 "왜") — 프로젝트에 영향을 주는 결정이 날 때마다 여기에 추가(2026-07-11 신설)
+- `docs/newsjeoul-implementation-log.md` — Decision Log 항목의 실제 구현 진행 상태(Designed→In Progress→Implemented→Deployed→Verified) 추적. Decision Log 항목은 수정하지 않고, 구현이 진행될 때마다 여기에 새 업데이트를 추가한다(2026-07-16 신설)
 
 ## 의사결정 기록 규칙 (2026-07-11 확정, 같은 날 출처 구분 원칙 추가)
 
@@ -38,8 +39,8 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 **핵심 원칙: 결정의 내용보다 결정의 출처가 더 중요하다.** 모든 항목은 **디자인팀 제안 / 개발팀 제안 / PM 최종 결정**을 반드시 구분해서 기록한다(해당 없으면 "해당 없음"으로 명시, 생략 금지). 그 위에 **결정 이유(왜 그렇게 정했는지, 가능하면 PM 원문 인용)**, 영향받는 문서·섹션, 결정일자를 남긴다. 과거 항목은 수정하지 않고, 결정이 번복되면 새 ID로 추가하고 이전 항목에 대체 표기만 남긴다.
 
-## 승인 경계 (2026-07-10 확정)
+## 승인 경계 (2026-07-16 갱신)
 
-**승인 없이 계속 진행**: 문서화/조사 기록, 파이프라인 원인 조사(읽기 전용), 기존 기능을 깨뜨리지 않는 admin 편의 기능 추가, 코드 정리(리팩토링/주석/미사용 코드 조사/Deprecated 정리), UX·CTR·SEO·콘텐츠 사례 조사(구현 없이).
+**승인 없이 끝까지 진행**: docs 문서 생성/수정, README 수정, ADR 작성, Decision Log 추가, Implementation Log 추가, 조사, 분석, 설계, 테스트, 로컬 빌드, `node --check`, `git diff`, 읽기 전용 명령, 기존 기능을 깨뜨리지 않는 admin 편의 기능 추가, 코드 정리(리팩토링/주석/미사용 코드 조사/Deprecated 정리). **하나의 기능 구현·설계 과정에서 `docs/` 폴더 안 여러 문서를 같이 수정해야 하면 전부 하나의 작업으로 간주하고 끝까지 진행한다** — 문서마다 따로 승인받지 않는다. 조사→설계→문서 작성→검증→최종 보고까지 한 번에 끝낸 뒤 결과만 보고("이 문서 만들까요?" 같은 중간 질문 금지).
 
-**반드시 승인 필요**: Hero 변경, 메인 UI 변경, 콘텐츠 생성 방식/질문 생성 로직 변경, importance_score 알고리즘, topic_relations 생성 방식, Hero 화이트리스트, 이미지 컬럼 추가, DB 스키마 변경/마이그레이션, 자동 스케줄 변경, 파이프라인 구조 변경, AI 프롬프트 변경. **승인을 구하는 질문 자체도 반복해서 올리지 말 것** — 위 목록에 없으면 그냥 진행하고 결과만 보고한다.
+**반드시 계속 승인받아야 하는 것**: DB Schema 변경, SQL 실행, Supabase 데이터 변경, 운영 데이터 수정, `git push`, 운영 배포, Netlify 환경변수 변경, Cron 변경, API Key 사용, 사용자에게 영향 있는 기능 변경. **승인을 구하는 질문 자체도 반복해서 올리지 말 것** — 위 목록에 없으면 그냥 진행하고 결과만 보고한다.

@@ -16,6 +16,7 @@
 | DEC-003 | 100명 에디터 = Editorial Persona Registry | 개발팀 제안 → PM 확장·확정 | 2026-07-11 |
 | DEC-004 | 영상·차트 블록 Phase 5 보류 | 개발팀 제안 → PM 조건부 승인 | 2026-07-11 |
 | DEC-005 | 사람 검토 큐를 기본 흐름에서 제외 | 개발팀 제안 기각 → PM 대안 지시 | 2026-07-11 |
+| DEC-006 | Publish Gate를 CTR Engine보다 먼저 설계 | 개발팀 제안 → PM 순서 변경 지시 | 2026-07-16 |
 
 ---
 
@@ -84,4 +85,18 @@
 
 ---
 
-관련: `docs/newsjeoul-editorial-engine-architecture.md`(설계 본문), `docs/newsjeoul-editorial-engine-crosscheck.md`(디자인팀 원안 대조), `docs/newsjeoul-editorial-engine-approval-items.md`(승인 목록)
+### DEC-006 — Publish Gate를 CTR Engine보다 먼저 설계
+
+| 출처 | 내용 |
+|---|---|
+| **디자인팀 제안** | 해당 없음 |
+| **개발팀 제안** | 운영 데이터 전수조사(2026-07-14) 결과 보고 — 발행 19건 중 저CTR 행정성 Topic("취약계층 반려동물 의료비 지원" 등)이 필터 없이 전부 장문 생성까지 도달하는 것을 확인, CTR Engine 설계 착수를 제안 |
+| **PM 최종 결정** | CTR Engine 착수를 보류하고 **Publish Gate를 먼저 설계**하도록 순서 변경 지시. "클릭률을 높이는 것이 아니라 뉴스저울답지 않은 Topic이 장문 생성까지 들어가지 않도록 막는 것"이 목표임을 명시. 이번 라운드는 설계만(코드 구현 금지), CTR 계산/Home 정렬/Balance Engine/클릭 데이터 활용은 명시적으로 제외 범위로 지정 |
+
+- **결정 이유(가장 중요)**: "CTR Engine이 좋은 콘텐츠를 고르는 것이 아니라 좋지 않은 콘텐츠까지 정렬해야 하는 상황"이 되는 것을 막기 위해, 정렬(CTR Engine)보다 선별(Publish Gate)이 선행돼야 한다는 PM 판단(PM 원문 취지).
+- **영향 문서·섹션**: `docs/newsjeoul-publish-gate-design.md`(신설, 설계 전문), §6(DB 변경사항 — 승인 대기), §10(승인 필요 목록). DEC-005(사람 검토 큐 미채택)와의 관계는 설계서 §8에서 명시적으로 구분함(Publish Gate의 HOLD는 QA 실패가 아니라 편집가치 판단이며, 무인 강등 경로를 유지해 DEC-005 원칙을 지킴).
+- **현재 상태**: `Status: Designed` / `Implementation: Pending` / `DB Migration: Not Applied` / `Production: Not Deployed` — **이 상태 필드는 여기서 갱신하지 않는다.** 구현이 진행되면 이 항목을 수정하지 말고 `docs/newsjeoul-implementation-log.md`에 새 업데이트를 추가한다(Decision Log는 "왜 그렇게 정했는가"의 스냅샷으로 고정, 진행 상태 추적은 별도 문서 — 2026-07-16 PM 지시).
+
+---
+
+관련: `docs/newsjeoul-editorial-engine-architecture.md`(설계 본문), `docs/newsjeoul-editorial-engine-crosscheck.md`(디자인팀 원안 대조), `docs/newsjeoul-editorial-engine-approval-items.md`(승인 목록), `docs/newsjeoul-publish-gate-design.md`(Publish Gate 설계), `docs/newsjeoul-implementation-log.md`(구현 진행 상태 추적)
