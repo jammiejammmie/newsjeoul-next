@@ -12,10 +12,12 @@ export default function AdminPage() {
   const [loading, setLoading] = useState<string|null>(null)
   const [stats, setStats] = useState<any>({})
   const [editorialStatus, setEditorialStatus] = useState<any>(null)
+  const [gateTopics, setGateTopics] = useState<any[]>([])
+  const [gateFilter, setGateFilter] = useState<string>('all')
 
   useEffect(() => {
     const k = localStorage.getItem('nj_admin_key') || ''
-    if (k) { setSavedKey(k); loadStats(); loadEditorialStatus() }
+    if (k) { setSavedKey(k); loadStats(); loadEditorialStatus(); loadGateTopics() }
   }, [])
 
   function addLog(type: string, msg: string) {
@@ -61,6 +63,29 @@ export default function AdminPage() {
     } catch (e) {}
   }
 
+  // Publish Gate 목록 — 관리자 키 없이도(anon key) 조회 가능한 읽기 전용 패널(설계서 §5).
+  async function loadGateTopics() {
+    try {
+      const headers = { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/topics?select=id,name,gate_status,editorial_status,ai_context,updated_at&editorial_status=eq.planned&order=updated_at.desc&limit=50`, { headers })
+      const rows = await res.json()
+      setGateTopics(Array.isArray(rows) ? rows : [])
+    } catch (e) {}
+  }
+
+  async function overrideGate(topicId: string, newStatus: string) {
+    try {
+      const res = await fetch(`${SITE_URL}/.netlify/functions/override-gate-status`, {
+        method: 'POST',
+        headers: { 'x-admin-key': savedKey, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ topic_id: topicId, new_status: newStatus }),
+      })
+      const data = await res.json()
+      if (res.ok) { addLog('success', `✅ Gate 수동 변경: ${newStatus}`); loadGateTopics() }
+      else addLog('error', `❌ Gate 변경 실패: ${data.error}`)
+    } catch (e: any) { addLog('error', `❌ 실패: ${e.message}`) }
+  }
+
   function login() {
     if (!adminKey.trim()) return
     localStorage.setItem('nj_admin_key', adminKey)
@@ -79,7 +104,7 @@ export default function AdminPage() {
 
   // Background Function은 202를 즉시 반환하고 본문이 없다 — Cron이 운영을 담당하고 이 버튼은
   // 개발·검증용 트리거일 뿐이므로 결과를 기다리지 않고 "접수됨"만 표시한 뒤 상태 패널 새로고침을 유도한다.
-  const BACKGROUND_FUNCTIONS = new Set(['generate-zeitgeist-background', 'generate-editorial-plan-background', 'generate-editorial-draft-background', 'generate-relation-context-background', 'process-stories-background', 'resolve-topics-background'])
+  const BACKGROUND_FUNCTIONS = new Set(['generate-zeitgeist-background', 'generate-editorial-plan-background', 'generate-editorial-draft-background', 'generate-relation-context-background', 'process-stories-background', 'resolve-topics-background', 'generate-publish-gate-background'])
 
   async function runFn(fnName: string, label: string) {
     setLoading(fnName)
@@ -341,9 +366,77 @@ export default function AdminPage() {
         <button style={{ ...s.btn('var(--card)', 'var(--text)'), marginBottom: 8 }} onClick={() => runFn('generate-editorial-draft-background', '③ 장문 생성(개발용)')} disabled={!!loading}>
           {loading === 'generate-editorial-draft-background' ? '실행 중...' : '③ 장문 생성+QA(개발용, 5건씩)'}
         </button>
-        <button style={s.btn('var(--card)', 'var(--text)')} onClick={() => runFn('generate-relation-context-background', '④ 관계 설명 생성(개발용)')} disabled={!!loading}>
+        <button style={{ ...s.btn('var(--card)', 'var(--text)'), marginBottom: 8 }} onClick={() => runFn('generate-relation-context-background', '④ 관계 설명 생성(개발용)')} disabled={!!loading}>
           {loading === 'generate-relation-context-background' ? '실행 중...' : '④ 관계 설명 생성(개발용, Cron 미연결, published 5건씩)'}
         </button>
+        <button style={s.btn('var(--card)', 'var(--text)')} onClick={() => runFn('generate-publish-gate-background', '⑤ Publish Gate(개발용)')} disabled={!!loading}>
+          {loading === 'generate-publish-gate-background' ? '실행 중...' : '⑤ Publish Gate 실행(개발용, Cron 미연결, planned 10건씩)'}
+        </button>
+      </div>
+
+      {/* Publish Gate — 설계서 docs/newsjeoul-publish-gate-design.md §5 */}
+      <div style={s.card}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+          <div style={{ fontSize: 13, fontWeight: 700 }}>🚪 Publish Gate</div>
+          <button onClick={loadGateTopics} style={{ fontSize: 10, padding: '3px 9px', background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 999, color: 'var(--muted)', cursor: 'pointer' }}>
+            ↻ 새로고침
+          </button>
+        </div>
+        <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 12 }}>
+          장문 생성 전 단계 — planned Topic이 publish_long으로 판정돼야 ③번 장문 생성 대상이 됩니다
+        </div>
+
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
+          {['all', 'pending_gate', 'publish_long', 'publish_short', 'hold', 'reject'].map((f) => (
+            <button key={f} onClick={() => setGateFilter(f)} style={{
+              fontSize: 10, padding: '4px 10px', borderRadius: 999, cursor: 'pointer', fontFamily: 'inherit',
+              border: `1px solid ${gateFilter === f ? 'var(--accent)' : 'var(--border)'}`,
+              background: gateFilter === f ? 'var(--accent-soft)' : 'var(--bg2)',
+              color: gateFilter === f ? 'var(--accent)' : 'var(--muted)',
+            }}>
+              {f === 'all' ? '전체' : f}
+            </button>
+          ))}
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 480, overflowY: 'auto' }}>
+          {gateTopics
+            .filter((t) => gateFilter === 'all' || t.gate_status === gateFilter)
+            .map((t) => {
+              const gate = t.ai_context?.gate
+              const badgeColor: Record<string, string> = {
+                publish_long: 'var(--green,#7CC2B8)', publish_short: 'var(--blue,#7C8CFF)',
+                hold: 'var(--gold,#D9A441)', reject: 'var(--muted)', pending_gate: 'var(--muted)',
+              }
+              return (
+                <div key={t.id} style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 12px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                    <span style={{ fontSize: 12.5, fontWeight: 700 }}>{t.name}</span>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: badgeColor[t.gate_status] || 'var(--muted)' }}>{t.gate_status}</span>
+                  </div>
+                  {gate?.reasons && (
+                    <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>{gate.reasons.join(' / ')}</div>
+                  )}
+                  {gate?.score?.ctr_test_pass_count !== undefined && (
+                    <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 8 }}>CTR 통과 {gate.score.ctr_test_pass_count}/4</div>
+                  )}
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <select onChange={(e) => e.target.value && overrideGate(t.id, e.target.value)} defaultValue="" style={{ fontSize: 10, padding: '4px 6px', borderRadius: 6, background: 'var(--bg)', color: 'var(--text)', border: '1px solid var(--border)' }}>
+                      <option value="">수정...</option>
+                      <option value="publish_long">publish_long</option>
+                      <option value="publish_short">publish_short</option>
+                      <option value="hold">hold</option>
+                      <option value="reject">reject</option>
+                    </select>
+                    <button onClick={() => overrideGate(t.id, 'publish_long')} style={{ fontSize: 10, padding: '4px 8px', borderRadius: 6, background: 'var(--accent-soft)', color: 'var(--accent)', border: '1px solid var(--accent)', cursor: 'pointer', fontFamily: 'inherit' }}>
+                      강제 발행
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
+          {gateTopics.length === 0 && <div style={{ fontSize: 11, color: 'var(--muted)' }}>표시할 Topic 없음</div>}
+        </div>
       </div>
 
       {/* 기존 기능 */}

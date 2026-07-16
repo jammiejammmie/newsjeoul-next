@@ -285,7 +285,7 @@ exports.handler = async function (event) {
   try {
     const pending = await supabaseGet(
       'topics',
-      `?status=eq.active&editorial_status=eq.planned&select=id,name,summary,ai_context,editorial_retry_count&order=updated_at.desc&limit=${BATCH_SIZE}`
+      `?status=eq.active&editorial_status=eq.planned&gate_status=eq.publish_long&select=id,name,summary,ai_context,editorial_retry_count&order=updated_at.desc&limit=${BATCH_SIZE}`
     );
     if (!pending.length) {
       return { statusCode: 200, headers, body: JSON.stringify({ ok: true, targetedThisRun: 0 }) };
