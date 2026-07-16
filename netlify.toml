@@ -74,6 +74,10 @@
 [functions."generate-editorial-plan-background"]
   schedule = "50 */3 * * *" # generate-updates(45) 다음 — 3시간 주기
 
+[functions."generate-publish-gate-background"]
+  schedule = "52 */3 * * *" # editorial-plan(50) 다음, editorial-draft(55) 이전 — Gate 판정 없이
+                            # 장문 생성이 진행되지 않도록 사이에 배치(DEC-006, 2026-07-17)
+
 [functions."generate-editorial-draft-background"]
   schedule = "55 */3 * * *" # editorial-plan(50) 다음 — 계획 수립분을 받아 생성
 
