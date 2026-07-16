@@ -71,13 +71,15 @@ async function gatherEvidence(topicId) {
 // 페르소나 문체는 유지하되 "안전 규칙을 절대 어기지 말라"는 문구를 덧붙인다.
 function buildPersonaSnippet(editorsDetail, requiresDual, isSafetyLocked) {
   if (!editorsDetail.length) return '(배정된 에디터 없음 — 중립적인 뉴스저울 기본 문체로 작성)';
-  const lines = editorsDetail.map((e) =>
-    `- ${e.name}(${e.perspective_tag}): ${e.style_signature || ''} / 리듬: ${e.rhythm_profile || ''} / 강조: ${e.emphasis_pattern || ''}`
-  ).join('\n');
+  const lines = editorsDetail.map((e) => {
+    const specialty = e.specialty ? ` / 전문분야: ${e.specialty}` : '';
+    const banned = (e.banned_expressions || []).length ? ` / 절대 쓰지 않는 표현: ${e.banned_expressions.join(', ')}` : '';
+    return `- ${e.name}(${e.perspective_tag}): ${e.style_signature || ''} / 리듬: ${e.rhythm_profile || ''} / 강조: ${e.emphasis_pattern || ''}${specialty}${banned}`;
+  }).join('\n');
   const clamp = isSafetyLocked
     ? '\n(주의: 이 사건 유형은 구조 규칙이 우선이다 — 에디터 개성보다 대립관점 병치·톤 절제가 항상 우선한다.)'
     : '';
-  return `이 글은 아래 에디터(들)의 목소리로 쓴다:\n${lines}${clamp}`;
+  return `이 글은 아래 에디터(들)의 목소리로 쓴다. 나열된 문체·리듬·강조점·금지 표현을 실제로 반영해 에디터마다 결과물이 확연히 달라지게 써라:\n${lines}${clamp}`;
 }
 
 function buildPrompt(topic, plan, evidence, personaSnippet) {
@@ -285,7 +287,7 @@ exports.handler = async function (event) {
   try {
     const pending = await supabaseGet(
       'topics',
-      `?status=eq.active&editorial_status=eq.planned&gate_status=eq.publish_long&select=id,name,summary,ai_context,editorial_retry_count&order=updated_at.desc&limit=${BATCH_SIZE}`
+      `?status=eq.active&editorial_status=eq.planned&gate_status=eq.DEEP_DIVE&select=id,name,summary,ai_context,editorial_retry_count&order=updated_at.desc&limit=${BATCH_SIZE}`
     );
     if (!pending.length) {
       return { statusCode: 200, headers, body: JSON.stringify({ ok: true, targetedThisRun: 0 }) };
@@ -303,7 +305,7 @@ exports.handler = async function (event) {
         // Persona Registry(§7) — 배정된 에디터 상세를 가져와 문체 스니펫으로 조립
         const editorIds = (plan.editors_assigned || []).map((e) => e.id).filter(Boolean);
         const editorsDetail = editorIds.length
-          ? await supabaseGet('editors', `?id=in.(${editorIds.join(',')})&select=name,perspective_tag,style_signature,rhythm_profile,emphasis_pattern`)
+          ? await supabaseGet('editors', `?id=in.(${editorIds.join(',')})&select=name,perspective_tag,style_signature,rhythm_profile,emphasis_pattern,specialty,banned_expressions`)
           : [];
         const isSafetyLocked = plan.event_type === '분쟁·외교·전쟁' || plan.event_type === '재난·긴급상황';
         const personaSnippet = buildPersonaSnippet(editorsDetail, plan.requires_dual_perspective, isSafetyLocked);

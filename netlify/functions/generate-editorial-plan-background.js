@@ -48,15 +48,25 @@ async function supabaseGet(table, params) {
   return res.json();
 }
 
-// Persona Registry(§7, DEC-003) — perspective_tag별로 도메인 매칭 우선 + 로테이션(가장 오래전에
-// 배정된 에디터 우선)으로 실제 인격을 배정한다. recentlyAssigned는 같은 배치 실행 안에서 방금
-// 배정한 것도 반영해, 한 배치 안에서 같은 에디터가 몰리지 않게 한다.
-function pickEditor(pool, perspectiveTag, domain, recentlyAssigned) {
-  const candidates = pool.filter((e) => e.perspective_tag === perspectiveTag);
-  if (!candidates.length) return null;
-  const domainMatched = domain ? candidates.filter((e) => (e.domains || []).includes(domain)) : [];
-  const scoped = domainMatched.length ? domainMatched : candidates;
-  const sorted = [...scoped].sort((a, b) => {
+// Persona Registry(§7, DEC-003; 100명 확장은 PM 지시 2026-07-17) — perspective_tag별로
+// 도메인 매칭 → 사건유형(preferred_event_types) 매칭 → 로테이션(가장 오래전에 배정된 에디터 우선)
+// 순으로 좁혀가며 실제 인격을 배정한다. recentlyAssigned는 같은 배치 실행 안에서 방금 배정한 것도
+// 반영해, 한 배치 안에서 같은 에디터가 몰리지 않게 한다.
+//
+// 미배정률 0% 요구사항(PM 지시) — perspective_tag가 풀에 아예 없거나(등록 오류·데이터 지연 등)
+// 도메인/사건유형이 하나도 안 맞아도 절대 null을 반환하지 않는다. 정확한 매칭이 없으면 단계적으로
+// 조건을 완화해 최종적으로는 "전체 풀에서 가장 오래 안 쓰인 에디터"까지 내려가 반드시 누군가를 배정한다.
+function pickEditor(pool, perspectiveTag, domain, eventType, recentlyAssigned, excludeIds) {
+  const excluded = excludeIds && excludeIds.size ? pool.filter((e) => !excludeIds.has(e.id)) : pool;
+  const available = excluded.length ? excluded : pool; // 풀이 exclude로 전부 소진되면 중복 배정을 감수하고서라도 미배정은 피한다
+  if (!available.length) return null;
+  const tagMatched = available.filter((e) => e.perspective_tag === perspectiveTag);
+  const base = tagMatched.length ? tagMatched : available; // tag 자체가 안 맞아도 전체 풀로 폴백 — 미배정 방지
+  const domainMatched = domain ? base.filter((e) => (e.domains || []).includes(domain)) : [];
+  const scoped = domainMatched.length ? domainMatched : base;
+  const eventMatched = eventType ? scoped.filter((e) => (e.preferred_event_types || []).includes(eventType)) : [];
+  const final = eventMatched.length ? eventMatched : scoped;
+  const sorted = [...final].sort((a, b) => {
     const aTime = recentlyAssigned.get(a.id) || a.last_assigned_at || '';
     const bTime = recentlyAssigned.get(b.id) || b.last_assigned_at || '';
     return aTime < bTime ? -1 : aTime > bTime ? 1 : 0; // 오래 안 쓰인 에디터 우선
@@ -158,8 +168,9 @@ exports.handler = async function (event) {
       return { statusCode: 200, headers, body: JSON.stringify({ ok: true, processed: 0 }) };
     }
 
-    const editorsPool = await supabaseGet('editors', '?active=eq.true&select=id,name,perspective_tag,domains,last_assigned_at');
+    const editorsPool = await supabaseGet('editors', '?active=eq.true&select=id,name,perspective_tag,domains,last_assigned_at,preferred_event_types,content_missions,assignment_count');
     const recentlyAssigned = new Map(); // 이 배치 안에서 방금 배정한 것도 반영(같은 에디터 몰림 방지)
+    const assignCountDelta = new Map(); // 같은 배치 안에서 여러 번 배정된 에디터의 assignment_count를 누적
 
     const results = [];
     let planned = 0, lowConfidence = 0, failed = 0;
@@ -191,11 +202,19 @@ exports.handler = async function (event) {
 
         const perspectives = Array.isArray(plan.perspectives) && plan.perspectives.length ? plan.perspectives : rule.perspective_candidates.slice(0, 2);
 
-        // Persona Registry resolve(§7, DEC-003) — 관점마다 실제 에디터를 배정
-        const assignedEditors = perspectives
-          .map((p) => pickEditor(editorsPool, p, topic.category, recentlyAssigned))
-          .filter(Boolean);
-        assignedEditors.forEach((e) => recentlyAssigned.set(e.id, new Date().toISOString()));
+        // Persona Registry resolve(§7, DEC-003; 100명 확장은 PM 지시 2026-07-17) — 관점마다 실제 에디터를 배정.
+        // 대립관점(dual-perspective) Topic에서 서로 다른 관점에 같은 사람이 배정되는 것을 막기 위해
+        // 순차 처리 + 같은 Topic 내 이미 배정된 에디터는 다음 관점에서 제외한다.
+        const assignedInThisTopic = new Set();
+        const assignedEditors = [];
+        for (const p of perspectives) {
+          const picked = pickEditor(editorsPool, p, topic.category, finalType, recentlyAssigned, assignedInThisTopic);
+          if (!picked) continue;
+          assignedEditors.push(picked);
+          assignedInThisTopic.add(picked.id);
+          recentlyAssigned.set(picked.id, new Date().toISOString());
+          assignCountDelta.set(picked.id, (assignCountDelta.get(picked.id) || 0) + 1);
+        }
 
         const editorialPlan = {
           event_type: finalType,
@@ -205,7 +224,7 @@ exports.handler = async function (event) {
           axis_weights: rule.axis_weights,
           axis_overrides_reason: plan.axis_overrides_reason || '',
           perspectives,
-          editors_assigned: assignedEditors.map((e) => ({ id: e.id, name: e.name, perspective: e.perspective_tag })),
+          editors_assigned: assignedEditors.map((e) => ({ id: e.id, name: e.name, perspective: e.perspective_tag, exact_match: perspectives.includes(e.perspective_tag) })),
           requires_dual_perspective: requiresDual,
           evidence_required: rule.evidence_required,
           target_length_range: [rule.target_length_min, rule.target_length_max],
@@ -227,7 +246,11 @@ exports.handler = async function (event) {
           if (newStatus === 'planned') planned++;
 
           for (const e of assignedEditors) {
-            await supabasePatch('editors', `?id=eq.${e.id}`, { last_assigned_at: new Date().toISOString() }).catch(() => {});
+            const delta = assignCountDelta.get(e.id) || 0;
+            await supabasePatch('editors', `?id=eq.${e.id}`, {
+              last_assigned_at: new Date().toISOString(),
+              assignment_count: (e.assignment_count || 0) + delta,
+            }).catch(() => {});
           }
         }
 

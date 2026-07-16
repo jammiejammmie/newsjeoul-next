@@ -1,15 +1,19 @@
-// generate-publish-gate-background.js — Publish Gate
-// 근거: docs/newsjeoul-publish-gate-design.md (전체), DEC-006
+// generate-publish-gate-background.js — Content Routing Gate
+// 근거: PM 지시(2026-07-17, "Publish Gate → Content Routing Gate 방향 전환"), DEC-006의 확장
 //
-// editorial_status='planned'이면서 gate_status='pending_gate'인 Topic을 대상으로,
-// "장문 생성까지 갈 가치가 있는가"를 판단한다. 결과는 4가지: publish_long(장문 진행) /
-// publish_short(요약형 폴백으로 종결, draft 생성 스킵) / hold(판단 애매, 대기) /
-// reject(뉴스저울답지 않음, draft 영구 스킵).
+// 방향 전환: 저가치 Topic을 "걸러내는" 게이트가 아니라, 모든 수집 정보를 8가지 콘텐츠 유형 중
+// 하나로 "분류·배분"하는 라우터다. REJECT는 광고/완전중복/의미없는 홍보성 문구로만 한정하고,
+// 행정·정책 정보라는 이유만으로는 절대 REJECT하지 않는다(코드 레벨에서 강제).
 //
-// 2단계 판단(설계서 §2):
-//  1) Rule 예비필터(무료, 결정론적) — 명백한 행정 공지 패턴이면 LLM 호출 없이 즉시 reject
-//  2) LLM 정성 판단(1회 호출) — 8개 기준 + CTR 4문항을 구조화 출력으로 받고,
-//     코드가 최종 상태를 결정론적으로 매핑한다(LLM의 자체 추천 라벨은 참고만, 최종 결정 아님).
+// 8가지 결과: DEEP_DIVE(장문, 기존 Editorial Draft 파이프라인行) / SEARCH_GUIDE(신청조건·방법·
+// 서류·기간 등 검색형 가이드) / PRODUCT_BRIEF(가격·사양·출시일·경쟁제품·구매대상) / COMPARE(비교) /
+// BACKGROUND(역사·배경) / UPDATE(기존 Topic 갱신) / SHORT_BRIEF(장문 가치는 낮으나 검색·기록가치
+// 있는 짧은 정보) / REJECT(광고·완전중복·무가치 홍보문구만).
+//
+// 현재 실제 콘텐츠 생성 파이프라인은 DEEP_DIVE만 존재(generate-editorial-draft-background.js).
+// 나머지 6개 카테고리(SEARCH_GUIDE/PRODUCT_BRIEF/COMPARE/BACKGROUND/UPDATE/SHORT_BRIEF)는 이번
+// 라운드에서 "분류·저장"까지만 하고, 각각의 전용 생성 파이프라인은 후속 작업으로 남긴다(PM 지시
+// §9 순서 — Content Routing Gate 수립 다음이 100명 에디터, 그 다음이 Expansion Engine).
 //
 // Background Function(15분 예산) — Editorial Engine 다른 함수들과 동일 패턴.
 
@@ -17,6 +21,8 @@ const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY;
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
 const BATCH_SIZE = 10;
+
+const ROUTES = ['DEEP_DIVE', 'SEARCH_GUIDE', 'PRODUCT_BRIEF', 'COMPARE', 'BACKGROUND', 'UPDATE', 'SHORT_BRIEF', 'REJECT'];
 
 async function supabaseGet(table, params) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}${params || ''}`, {
@@ -40,12 +46,10 @@ async function supabasePatch(table, params, data) {
   if (!res.ok) throw new Error(`Supabase PATCH ${table} 실패: ` + await res.text());
 }
 
-// Rule 예비필터(설계서 §2-1) — Content Bible §1/CTR 바이블 §5의 "절대 제외" 예시를
-// 코드 패턴으로 이식. 확실한 것만 잡고 애매하면 LLM 단계로 넘긴다.
+// Rule 예비필터 — 이번엔 "확실한 REJECT"만 남긴다(광고/스팸 패턴). 행정·정책 패턴은 절대 넣지 않는다
+// (PM 지시: "행정·정책 정보라는 이유만으로 버리지 마세요").
 const REJECT_PATTERNS = [
-  { label: '지자체 행정 공지 패턴', re: /(\S+(시|군|구))\s*[,·]?\s*(청)?\s*(공식)?\s*(개통|개최|시행|공고|모집|접수|안내)/ },
-  { label: '보도자료성 표현', re: /보도자료/ },
-  { label: '단순 지원사업 개시 공지', re: /(지원(금|사업)?)\s*(을|를)?\s*(최대|최소)?\s*[0-9]*\s*(만원|원)?\s*(지원|지급)(하기로|하기로 했다|한다|키로)/ },
+  { label: '광고성 표현', re: /(무료체험|지금 바로 구매|한정 특가|프로모션 코드)/ },
 ];
 
 function ruleReject(name, summary) {
@@ -57,45 +61,32 @@ function ruleReject(name, summary) {
 }
 
 function buildPrompt(topic, plan) {
-  return `너는 뉴스저울의 Publish Gate 심사관이다. 아래 이슈가 "장문 에디토리얼로 발행할 가치가 있는가"를
-판단해라. 뉴스저울은 단순 공지/행정 뉴스가 아니라 "사람들이 궁금해하고, 다른 사건·인물로 계속 탐험하고
-싶어지는" 콘텐츠를 지향한다.
+  return `너는 뉴스저울의 Content Routing Gate 분류 담당자다. 아래 이슈를 8가지 콘텐츠 유형 중
+정확히 하나로 분류해라. 뉴스저울은 소수의 엄선된 글만 내는 매체가 아니라, 검색 가치가 있는 정보를
+최대한 폭넓게 다루는 대형 편집국이다. **행정·정책·지원사업 정보라는 이유만으로 낮게 평가하지 마라**
+— 대상·조건·신청방법이 명확하면 오히려 SEARCH_GUIDE로 적극 분류해라.
 
 이슈 이름: ${topic.name}
 요약: ${topic.summary || '(요약 없음)'}
 카테고리: ${topic.category || '(미분류)'}
 사건 유형: ${plan?.event_type || '(미분류)'}
 
-아래 8개 기준과 CTR 4문항에 각각 답해라. 설명 없이 JSON만 반환해라(코드블록 없이).
+8가지 유형:
+- DEEP_DIVE: 여러 관점·배경이 얽힌 심층 해설이 필요한 사건(정치적 논쟁, 대형 사고, 국제 분쟁 등)
+- SEARCH_GUIDE: 지원 대상/신청 조건/신청 방법/필요 서류/기간/주의사항이 있는 실용 정보(정책, 지원금, 제도 변경)
+- PRODUCT_BRIEF: 신차·신제품의 가격/사양/출시일/경쟁제품/장단점/구매대상 정리
+- COMPARE: 제품·정책·기업·인물·사건을 비교하는 것이 핵심 가치인 경우
+- BACKGROUND: 인물·기업·제도·사건의 역사와 배경 설명이 핵심인 경우
+- UPDATE: 기존에 이미 다뤘을 법한 사건의 후속·갱신 소식
+- SHORT_BRIEF: 위 어디에도 깊이 안 맞지만 검색·기록 가치는 있는 짧은 정보
+- REJECT: 광고, 완전 중복, 의미 없는 홍보성 문구 — 이것만 REJECT. 행정/정책이라서 REJECT 금지.
 
-8개 기준:
-1. exploration: 이 Topic에서 다른 인물/기관/사건으로 이어질 실마리가 있는가(true/false) + reason
-2. connection_potential: 기존에 존재할 법한 다른 Topic과 연결될 개연성이 있는가(true/false) + reason
-3. is_announcement: 단순 발표/공지로 끝나고 후속 전개 여지가 없는가(true/false)
-4. is_local_admin: 특정 지자체 행정 사무에 국한되는가(true/false)
-5. why_curiosity: 독자가 배경/이유를 궁금해할 만한 사건인가(true/false) + reason
-6. social_impact: 특정 소수를 넘어 더 넓은 사회적 영향이 있는가(0=없음, 1=일부, 2=넓음)
-7. time_sensitivity: "breaking"(속보성) 또는 "evergreen"(며칠 늦어도 무방) 중 하나
-8. background_depth_needed: 장문으로 풀어야 할 만큼 맥락이 복잡한가(0=아니오, 1=다소, 2=매우)
-
-CTR 4문항(각 true/false, CTR 바이블 §1 그대로):
-- q1_would_i_click: 내가 이걸 클릭할까?
-- q2_family_curious: 가족이나 친구가 궁금해할까?
-- q3_threads_stop: Threads에서 멈춰서 읽을까?
-- q4_youtube_thumbnail: 유튜브 썸네일이었다면 눌렀을까?
-
-반환 형식:
+설명 없이 JSON만 반환해라(코드블록 없이):
 {
-  "exploration": {"value": true, "reason": "..."},
-  "connection_potential": {"value": true, "reason": "..."},
-  "is_announcement": true,
-  "is_local_admin": true,
-  "why_curiosity": {"value": true, "reason": "..."},
-  "social_impact": 0,
-  "time_sensitivity": "evergreen",
-  "background_depth_needed": 0,
-  "ctr": {"q1_would_i_click": false, "q2_family_curious": false, "q3_threads_stop": false, "q4_youtube_thumbnail": false},
-  "recommendation": "REJECT"
+  "route": "SEARCH_GUIDE",
+  "reasons": ["대상·금액·신청기간이 명시된 지원사업", "검색 수요가 있는 실용 정보"],
+  "is_ad_or_duplicate_or_empty": false,
+  "target_length_hint": "800~1500자"
 }`;
 }
 
@@ -109,7 +100,7 @@ async function claudeJudge(prompt) {
     },
     body: JSON.stringify({
       model: 'claude-sonnet-5',
-      max_tokens: 800,
+      max_tokens: 500,
       messages: [{ role: 'user', content: prompt }],
     }),
     signal: AbortSignal.timeout(60000),
@@ -122,42 +113,18 @@ async function claudeJudge(prompt) {
   return JSON.parse(match[0]);
 }
 
-// 결정론적 매핑(설계서 §2-2) — LLM의 recommendation은 참고만, 최종 상태는 코드가 결정한다.
-function decideGateStatus(judged) {
-  const ctr = judged.ctr || {};
-  const ctrPassCount = ['q1_would_i_click', 'q2_family_curious', 'q3_threads_stop', 'q4_youtube_thumbnail']
-    .filter((k) => ctr[k] === true).length;
+// 결정론적 후처리 — LLM이 REJECT를 골랐어도 "광고/중복/무가치"가 아니면 코드가 강제로
+// SHORT_BRIEF로 강등한다(행정·정책 정보를 이유 없이 버리지 않는다는 원칙을 코드로 보증).
+function decideRoute(judged) {
+  let route = ROUTES.includes(judged.route) ? judged.route : 'SHORT_BRIEF';
+  const reasons = Array.isArray(judged.reasons) ? [...judged.reasons] : [];
 
-  const exploration = !!(judged.exploration && judged.exploration.value);
-  const connectionPotential = !!(judged.connection_potential && judged.connection_potential.value);
-  const isAnnouncement = !!judged.is_announcement;
-  const isLocalAdmin = !!judged.is_local_admin;
-  const backgroundDepth = typeof judged.background_depth_needed === 'number' ? judged.background_depth_needed : 0;
-
-  const reasons = [];
-  let status;
-
-  if ((isAnnouncement || isLocalAdmin) && ctrPassCount <= 1) {
-    status = 'reject';
-    if (isAnnouncement) reasons.push('공지성');
-    if (isLocalAdmin) reasons.push('지역 행정성');
-    reasons.push('CTR 4문항 통과 ' + ctrPassCount + '개뿐');
-  } else if (ctrPassCount >= 3 && (exploration || connectionPotential) && backgroundDepth >= 1) {
-    status = 'publish_long';
-    reasons.push('CTR 4문항 통과 ' + ctrPassCount + '개');
-    if (exploration) reasons.push('탐험성 있음');
-    if (connectionPotential) reasons.push('다른 Topic 연결 가능성 있음');
-  } else if (ctrPassCount >= 2) {
-    status = 'publish_short';
-    reasons.push('CTR 4문항 통과 ' + ctrPassCount + '개(장문 요건 미충족)');
-    if (!exploration && !connectionPotential) reasons.push('탐험성/연결 가능성 부족');
-    if (backgroundDepth < 1) reasons.push('배경설명 필요도 낮음');
-  } else {
-    status = 'hold';
-    reasons.push('판단 애매(CTR 통과 ' + ctrPassCount + '개, 탐험성/연결가능성/배경설명 조합이 경계선)');
+  if (route === 'REJECT' && !judged.is_ad_or_duplicate_or_empty) {
+    route = 'SHORT_BRIEF';
+    reasons.push('(자동 보정) 행정/정책 등 이유만으로는 REJECT하지 않음 — SHORT_BRIEF로 강등');
   }
 
-  return { status, reasons, ctrPassCount };
+  return { route, reasons };
 }
 
 exports.handler = async function (event) {
@@ -177,7 +144,8 @@ exports.handler = async function (event) {
       `?status=eq.active&editorial_status=eq.planned&gate_status=eq.pending_gate&select=id,name,summary,category,ai_context&order=updated_at.desc&limit=${BATCH_SIZE}`
     );
 
-    const stats = { targeted: topics.length, publish_long: 0, publish_short: 0, hold: 0, reject: 0, ruleRejected: 0, failed: 0 };
+    const stats = { targeted: topics.length, ruleRejected: 0, failed: 0 };
+    ROUTES.forEach((r) => { stats[r] = 0; });
 
     for (const topic of topics) {
       try {
@@ -186,7 +154,7 @@ exports.handler = async function (event) {
 
         if (ruleLabel) {
           gateResult = {
-            status: 'reject',
+            status: 'REJECT',
             score: null,
             reasons: [ruleLabel],
             rule_matched: ruleLabel,
@@ -198,10 +166,10 @@ exports.handler = async function (event) {
         } else {
           const plan = topic.ai_context && topic.ai_context.plan;
           const judged = await claudeJudge(buildPrompt(topic, plan));
-          const { status, reasons, ctrPassCount } = decideGateStatus(judged);
+          const { route, reasons } = decideRoute(judged);
           gateResult = {
-            status,
-            score: { ...judged, ctr_test_pass_count: ctrPassCount },
+            status: route,
+            score: judged,
             reasons,
             rule_matched: null,
             evaluated_at: new Date().toISOString(),

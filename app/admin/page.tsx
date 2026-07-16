@@ -405,8 +405,10 @@ export default function AdminPage() {
             .map((t) => {
               const gate = t.ai_context?.gate
               const badgeColor: Record<string, string> = {
-                publish_long: 'var(--green,#7CC2B8)', publish_short: 'var(--blue,#7C8CFF)',
-                hold: 'var(--gold,#D9A441)', reject: 'var(--muted)', pending_gate: 'var(--muted)',
+                DEEP_DIVE: 'var(--green,#7CC2B8)', SEARCH_GUIDE: 'var(--blue,#7C8CFF)',
+                PRODUCT_BRIEF: 'var(--blue,#7C8CFF)', COMPARE: 'var(--violet,#B98CFF)',
+                BACKGROUND: 'var(--violet,#B98CFF)', UPDATE: 'var(--gold,#D9A441)',
+                SHORT_BRIEF: 'var(--gold,#D9A441)', REJECT: 'var(--muted)', pending_gate: 'var(--muted)',
               }
               return (
                 <div key={t.id} style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 12px' }}>
@@ -417,19 +419,23 @@ export default function AdminPage() {
                   {gate?.reasons && (
                     <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>{gate.reasons.join(' / ')}</div>
                   )}
-                  {gate?.score?.ctr_test_pass_count !== undefined && (
-                    <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 8 }}>CTR 통과 {gate.score.ctr_test_pass_count}/4</div>
+                  {gate?.score?.target_length_hint && (
+                    <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 8 }}>목표 분량: {gate.score.target_length_hint}</div>
                   )}
                   <div style={{ display: 'flex', gap: 6 }}>
                     <select onChange={(e) => e.target.value && overrideGate(t.id, e.target.value)} defaultValue="" style={{ fontSize: 10, padding: '4px 6px', borderRadius: 6, background: 'var(--bg)', color: 'var(--text)', border: '1px solid var(--border)' }}>
                       <option value="">수정...</option>
-                      <option value="publish_long">publish_long</option>
-                      <option value="publish_short">publish_short</option>
-                      <option value="hold">hold</option>
-                      <option value="reject">reject</option>
+                      <option value="DEEP_DIVE">DEEP_DIVE</option>
+                      <option value="SEARCH_GUIDE">SEARCH_GUIDE</option>
+                      <option value="PRODUCT_BRIEF">PRODUCT_BRIEF</option>
+                      <option value="COMPARE">COMPARE</option>
+                      <option value="BACKGROUND">BACKGROUND</option>
+                      <option value="UPDATE">UPDATE</option>
+                      <option value="SHORT_BRIEF">SHORT_BRIEF</option>
+                      <option value="REJECT">REJECT</option>
                     </select>
-                    <button onClick={() => overrideGate(t.id, 'publish_long')} style={{ fontSize: 10, padding: '4px 8px', borderRadius: 6, background: 'var(--accent-soft)', color: 'var(--accent)', border: '1px solid var(--accent)', cursor: 'pointer', fontFamily: 'inherit' }}>
-                      강제 발행
+                    <button onClick={() => overrideGate(t.id, 'DEEP_DIVE')} style={{ fontSize: 10, padding: '4px 8px', borderRadius: 6, background: 'var(--accent-soft)', color: 'var(--accent)', border: '1px solid var(--accent)', cursor: 'pointer', fontFamily: 'inherit' }}>
+                      DEEP_DIVE로 강제 지정
                     </button>
                   </div>
                 </div>
