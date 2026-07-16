@@ -85,6 +85,11 @@
   schedule = "58 */3 * * *" # editorial-draft(55) 직후 — 이번 주기에 새로 published된 Topic의
                             # 관계·엔티티 설명을 바로 채운다(2026-07-12, 운영 검증 통과 후 자동화)
 
+[functions."update-topic-weight-background"]
+  schedule = "59 */3 * * *" # relation-context(58) 직후, 다음 3시간 주기 시작 전 — "몇 g" 실제
+                            # 산정 근거(출처 수·엔티티·논쟁도·대립관점·최신성)를 매 주기 갱신
+                            # (DEC-006 확장, PM 지시 2026-07-17 "무게 산정 근거 기록")
+
 # 3.0 Insight/연결 배치 — 비용 최소화 위해 1일 1회만
 [functions."refresh-relationships"]
   schedule = "0 2 * * *"

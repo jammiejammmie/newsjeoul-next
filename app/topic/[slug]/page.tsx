@@ -86,6 +86,11 @@ export default async function TopicPage({ params }: { params: Promise<{ slug: st
   const draft = topic.editorial_status === 'published' ? topic.ai_context?.draft : null
   const plan = topic.ai_context?.plan
   const weight = Math.round(topic.importance_score ?? 0)
+  // "몇 g" 실제 산정 근거(PM 지시 2026-07-17) — update-topic-weight-background.js가 채운 값.
+  // 아직 한 번도 계산 전이면(weight 필드 없음) 근거 없이 숫자만 있던 기존 상태이므로 이유를 숨긴다.
+  const weightInfo = topic.ai_context?.weight
+  const editorsAssigned = plan?.editors_assigned || []
+  const displayKeywords = draft?.display_keywords || []
 
   const jsonLd = generateArticleSchema({
     headline: topic.name,
@@ -115,12 +120,42 @@ export default async function TopicPage({ params }: { params: Promise<{ slug: st
       {/* BRIEF */}
       <div style={{ padding: '20px 0 36px' }}>
         {image && <HeroImage src={image} />}
+
+        {/* 핵심 키워드(PM 지시 2026-07-17) — 탐험의 입구: 매칭되는 엔티티가 있으면 그 페이지로 연결 */}
+        {displayKeywords.length > 0 && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 14px', marginBottom: 16 }}>
+            {displayKeywords.slice(0, 5).map((kw: string, i: number) => {
+              const matched = entities.find((e: any) => kw.includes(e.name) || e.name.includes(kw))
+              const content = (
+                <span style={{ fontSize: i === 0 ? 'clamp(20px,3.2vw,28px)' : 'clamp(16px,2.4vw,20px)', fontWeight: 800, color: i === 0 ? 'var(--accent)' : 'var(--text)', letterSpacing: '-0.01em', lineHeight: 1.3 }}>
+                  {kw}
+                </span>
+              )
+              return matched ? (
+                <Link key={kw} href={`/entity/${matched.slug}`} style={{ textDecoration: 'none' }}>{content}</Link>
+              ) : (
+                <span key={kw}>{content}</span>
+              )
+            })}
+          </div>
+        )}
+
         <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 14 }}>
           TOPIC · 무게 {weight}g
         </div>
+        {weightInfo?.reasons?.length > 0 && (
+          <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 14, lineHeight: 1.7 }}>
+            {weightInfo.reasons.map((r: string) => <div key={r}>· {r}</div>)}
+          </div>
+        )}
         <h1 style={{ fontSize: 'clamp(26px,4vw,42px)', fontWeight: 800, lineHeight: 1.28, letterSpacing: '-0.015em', color: 'var(--text)', marginBottom: 22 }}>
           {topic.name}
         </h1>
+        {editorsAssigned.length > 0 && (
+          <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 14 }}>
+            {editorsAssigned.map((e: any) => `${e.name} 에디터(${e.perspective})`).join(' · ')}가 정리했습니다
+          </div>
+        )}
         <p style={{ fontSize: 18, fontWeight: 500, color: 'var(--text)', lineHeight: 1.9 }}>
           {renderWithLeadEmphasis(draft?.lead || topic.summary || topic.description || '')}
         </p>

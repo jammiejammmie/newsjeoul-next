@@ -44,3 +44,9 @@ This version has breaking changes — APIs, conventions, and file structure may 
 **승인 없이 끝까지 진행**: docs 문서 생성/수정, README 수정, ADR 작성, Decision Log 추가, Implementation Log 추가, 조사, 분석, 설계, 테스트, 로컬 빌드, `node --check`, `git diff`, 읽기 전용 명령, 기존 기능을 깨뜨리지 않는 admin 편의 기능 추가, 코드 정리(리팩토링/주석/미사용 코드 조사/Deprecated 정리). **하나의 기능 구현·설계 과정에서 `docs/` 폴더 안 여러 문서를 같이 수정해야 하면 전부 하나의 작업으로 간주하고 끝까지 진행한다** — 문서마다 따로 승인받지 않는다. 조사→설계→문서 작성→검증→최종 보고까지 한 번에 끝낸 뒤 결과만 보고("이 문서 만들까요?" 같은 중간 질문 금지).
 
 **반드시 계속 승인받아야 하는 것**: DB Schema 변경, SQL 실행, Supabase 데이터 변경, 운영 데이터 수정, `git push`, 운영 배포, Netlify 환경변수 변경, Cron 변경, API Key 사용, 사용자에게 영향 있는 기능 변경. **승인을 구하는 질문 자체도 반복해서 올리지 말 것** — 위 목록에 없으면 그냥 진행하고 결과만 보고한다.
+
+### 재확인 + 우선순위 원칙 (2026-07-17, 100명 Persona Editor 프로젝트 착수 시 재확정)
+
+100명 Editorial Persona Registry 구축은 "기능 하나"가 아니라 "프로젝트 하나"로 취급한다. Persona 설계/Registry/DB 구조/데이터 생성/Assignment Engine/Prompt 설계/글쓰기 차별화/품질 검증/Topic·Home·Admin UI 반영/테스트/Mock/Build/리팩토링/관련 docs 갱신은 모두 위 "승인 없이 끝까지 진행" 범주에 명시적으로 포함된다. 승인 필요 목록에 **API Key 추가, 비용 발생 외부 API 사용**이 명시적으로 추가됨.
+
+**우선순위 원칙**: 100명 Persona Editor는 뉴스저울의 핵심 가치이며 다른 모든 기능(Content Routing Gate, CTR Engine, Weight Engine 등)보다 우선순위가 가장 높다. 이런 기능들은 독립적인 "기능 단위"로 설계하지 말고 **Persona Editor를 중심으로 연결되도록** 설계한다 — 예: Draft 생성 프롬프트는 배정된 에디터의 문체·전문분야·금지표현을 실제로 반영해야 하고, Content Routing Gate의 콘텐츠 유형은 에디터의 `content_missions`와 연결되며, Weight Engine은 게이트 판정과 독립적인 축(사회적 무게)으로 유지하되 결과 화면에서는 항상 담당 에디터와 함께 노출된다.

@@ -14,10 +14,12 @@ export default function AdminPage() {
   const [editorialStatus, setEditorialStatus] = useState<any>(null)
   const [gateTopics, setGateTopics] = useState<any[]>([])
   const [gateFilter, setGateFilter] = useState<string>('all')
+  const [editors, setEditors] = useState<any[]>([])
+  const [editorTagFilter, setEditorTagFilter] = useState<string>('all')
 
   useEffect(() => {
     const k = localStorage.getItem('nj_admin_key') || ''
-    if (k) { setSavedKey(k); loadStats(); loadEditorialStatus(); loadGateTopics() }
+    if (k) { setSavedKey(k); loadStats(); loadEditorialStatus(); loadGateTopics(); loadEditors() }
   }, [])
 
   function addLog(type: string, msg: string) {
@@ -73,6 +75,29 @@ export default function AdminPage() {
     } catch (e) {}
   }
 
+  // Persona/에디터 관리(§관리자 UI, PM 지시 2026-07-17) — 관리자 키 없이도(anon key) 조회 가능한 읽기 전용 목록.
+  async function loadEditors() {
+    try {
+      const headers = { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/editors?select=id,name,perspective_tag,specialty,domains,active,assignment_count,last_assigned_at,content_missions,avatar_emoji&order=assignment_count.desc`, { headers })
+      const rows = await res.json()
+      setEditors(Array.isArray(rows) ? rows : [])
+    } catch (e) {}
+  }
+
+  async function toggleEditorActive(editorId: string, nextActive: boolean) {
+    try {
+      const res = await fetch(`${SITE_URL}/.netlify/functions/update-editor`, {
+        method: 'POST',
+        headers: { 'x-admin-key': savedKey, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ editor_id: editorId, active: nextActive }),
+      })
+      const data = await res.json()
+      if (res.ok) { addLog('success', `✅ 에디터 ${nextActive ? '활성화' : '비활성화'}`); loadEditors() }
+      else addLog('error', `❌ 에디터 상태 변경 실패: ${data.error}`)
+    } catch (e: any) { addLog('error', `❌ 실패: ${e.message}`) }
+  }
+
   async function overrideGate(topicId: string, newStatus: string) {
     try {
       const res = await fetch(`${SITE_URL}/.netlify/functions/override-gate-status`, {
@@ -104,7 +129,7 @@ export default function AdminPage() {
 
   // Background Function은 202를 즉시 반환하고 본문이 없다 — Cron이 운영을 담당하고 이 버튼은
   // 개발·검증용 트리거일 뿐이므로 결과를 기다리지 않고 "접수됨"만 표시한 뒤 상태 패널 새로고침을 유도한다.
-  const BACKGROUND_FUNCTIONS = new Set(['generate-zeitgeist-background', 'generate-editorial-plan-background', 'generate-editorial-draft-background', 'generate-relation-context-background', 'process-stories-background', 'resolve-topics-background', 'generate-publish-gate-background'])
+  const BACKGROUND_FUNCTIONS = new Set(['generate-zeitgeist-background', 'generate-editorial-plan-background', 'generate-editorial-draft-background', 'generate-relation-context-background', 'process-stories-background', 'resolve-topics-background', 'generate-publish-gate-background', 'update-topic-weight-background'])
 
   async function runFn(fnName: string, label: string) {
     setLoading(fnName)
@@ -369,25 +394,28 @@ export default function AdminPage() {
         <button style={{ ...s.btn('var(--card)', 'var(--text)'), marginBottom: 8 }} onClick={() => runFn('generate-relation-context-background', '④ 관계 설명 생성(개발용)')} disabled={!!loading}>
           {loading === 'generate-relation-context-background' ? '실행 중...' : '④ 관계 설명 생성(개발용, Cron 미연결, published 5건씩)'}
         </button>
-        <button style={s.btn('var(--card)', 'var(--text)')} onClick={() => runFn('generate-publish-gate-background', '⑤ Publish Gate(개발용)')} disabled={!!loading}>
-          {loading === 'generate-publish-gate-background' ? '실행 중...' : '⑤ Publish Gate 실행(개발용, Cron 미연결, planned 10건씩)'}
+        <button style={s.btn('var(--card)', 'var(--text)')} onClick={() => runFn('generate-publish-gate-background', '⑤ Content Routing Gate(개발용)')} disabled={!!loading}>
+          {loading === 'generate-publish-gate-background' ? '실행 중...' : '⑤ Content Routing Gate 실행(개발용, planned 10건씩)'}
+        </button>
+        <button style={{ ...s.btn('var(--card)', 'var(--text)'), marginTop: 8 }} onClick={() => runFn('update-topic-weight-background', '⑥ 무게(g) 재산정(개발용)')} disabled={!!loading}>
+          {loading === 'update-topic-weight-background' ? '실행 중...' : '⑥ 무게(g) 재산정 실행(개발용, active 25건씩)'}
         </button>
       </div>
 
       {/* Publish Gate — 설계서 docs/newsjeoul-publish-gate-design.md §5 */}
       <div style={s.card}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-          <div style={{ fontSize: 13, fontWeight: 700 }}>🚪 Publish Gate</div>
+          <div style={{ fontSize: 13, fontWeight: 700 }}>🚪 Content Routing Gate</div>
           <button onClick={loadGateTopics} style={{ fontSize: 10, padding: '3px 9px', background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 999, color: 'var(--muted)', cursor: 'pointer' }}>
             ↻ 새로고침
           </button>
         </div>
         <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 12 }}>
-          장문 생성 전 단계 — planned Topic이 publish_long으로 판정돼야 ③번 장문 생성 대상이 됩니다
+          planned Topic을 8종으로 분류(DEEP_DIVE만 현재 ③번 장문 생성行, 나머지는 분류·저장까지만)
         </div>
 
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
-          {['all', 'pending_gate', 'publish_long', 'publish_short', 'hold', 'reject'].map((f) => (
+          {['all', 'pending_gate', 'DEEP_DIVE', 'SEARCH_GUIDE', 'PRODUCT_BRIEF', 'COMPARE', 'BACKGROUND', 'UPDATE', 'SHORT_BRIEF', 'REJECT'].map((f) => (
             <button key={f} onClick={() => setGateFilter(f)} style={{
               fontSize: 10, padding: '4px 10px', borderRadius: 999, cursor: 'pointer', fontFamily: 'inherit',
               border: `1px solid ${gateFilter === f ? 'var(--accent)' : 'var(--border)'}`,
@@ -443,6 +471,74 @@ export default function AdminPage() {
             })}
           {gateTopics.length === 0 && <div style={{ fontSize: 11, color: 'var(--muted)' }}>표시할 Topic 없음</div>}
         </div>
+      </div>
+
+      {/* Persona/에디터 관리(PM 지시 2026-07-17) — 100명 Editorial Persona Registry */}
+      <div style={s.card}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+          <div style={{ fontSize: 13, fontWeight: 700 }}>🖊️ Persona/에디터 관리</div>
+          <button onClick={loadEditors} style={{ fontSize: 10, padding: '3px 9px', background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 999, color: 'var(--muted)', cursor: 'pointer' }}>
+            ↻ 새로고침
+          </button>
+        </div>
+        {editors.length > 0 && (() => {
+          const activeCount = editors.filter((e) => e.active).length
+          const unassignedCount = editors.filter((e) => (e.assignment_count || 0) === 0).length
+          const counts = editors.map((e) => e.assignment_count || 0)
+          const avg = counts.reduce((a, b) => a + b, 0) / (counts.length || 1)
+          const overAssigned = editors.filter((e) => (e.assignment_count || 0) > avg * 3 && avg > 0)
+          const tags = ['all', ...Array.from(new Set(editors.map((e) => e.perspective_tag)))]
+          return (
+            <>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: 12 }}>
+                <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 8px', textAlign: 'center' }}>
+                  <div style={{ fontSize: 18, fontWeight: 800 }}>{editors.length}</div>
+                  <div style={{ fontSize: 10, color: 'var(--muted)' }}>전체 ({activeCount} 활성)</div>
+                </div>
+                <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 8px', textAlign: 'center' }}>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: unassignedCount > 0 ? 'var(--gold,#D9A441)' : 'var(--green,#7CC2B8)' }}>{unassignedCount}</div>
+                  <div style={{ fontSize: 10, color: 'var(--muted)' }}>미배정(0회)</div>
+                </div>
+                <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 8px', textAlign: 'center' }}>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: overAssigned.length > 0 ? 'var(--gold,#D9A441)' : 'var(--text)' }}>{overAssigned.length}</div>
+                  <div style={{ fontSize: 10, color: 'var(--muted)' }}>과다배정(평균 3배↑)</div>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12, maxHeight: 70, overflowY: 'auto' }}>
+                {tags.map((tag) => (
+                  <button key={tag} onClick={() => setEditorTagFilter(tag)} style={{
+                    fontSize: 10, padding: '4px 10px', borderRadius: 999, cursor: 'pointer', fontFamily: 'inherit',
+                    border: `1px solid ${editorTagFilter === tag ? 'var(--accent)' : 'var(--border)'}`,
+                    background: editorTagFilter === tag ? 'var(--accent-soft)' : 'var(--bg2)',
+                    color: editorTagFilter === tag ? 'var(--accent)' : 'var(--muted)',
+                  }}>
+                    {tag === 'all' ? '전체' : tag}
+                  </button>
+                ))}
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 480, overflowY: 'auto' }}>
+                {editors
+                  .filter((e) => editorTagFilter === 'all' || e.perspective_tag === editorTagFilter)
+                  .map((e) => (
+                    <div key={e.id} style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 12px', opacity: e.active ? 1 : 0.5 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                        <span style={{ fontSize: 12.5, fontWeight: 700 }}>{e.avatar_emoji || '👤'} {e.name} · {e.perspective_tag}</span>
+                        <span style={{ fontSize: 10, color: 'var(--muted)' }}>배정 {e.assignment_count || 0}회</span>
+                      </div>
+                      {e.specialty && <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 6 }}>{e.specialty}</div>}
+                      <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 8 }}>담당: {(e.domains || []).join(', ') || '(없음)'}</div>
+                      <button onClick={() => toggleEditorActive(e.id, !e.active)} style={{ fontSize: 10, padding: '4px 8px', borderRadius: 6, background: e.active ? 'var(--bg)' : 'var(--accent-soft)', color: e.active ? 'var(--muted)' : 'var(--accent)', border: '1px solid var(--border)', cursor: 'pointer', fontFamily: 'inherit' }}>
+                        {e.active ? '비활성화' : '활성화'}
+                      </button>
+                    </div>
+                  ))}
+              </div>
+            </>
+          )
+        })()}
+        {editors.length === 0 && <div style={{ fontSize: 11, color: 'var(--muted)' }}>표시할 에디터 없음 — 새로고침을 눌러보세요</div>}
       </div>
 
       {/* 기존 기능 */}

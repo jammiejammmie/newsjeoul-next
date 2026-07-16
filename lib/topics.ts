@@ -11,7 +11,7 @@ export async function getActiveTopics(limit = 10) {
   const supabase = client()
   const { data } = await supabase
     .from('topics')
-    .select('id, slug, name, summary, status, lifecycle_stage, importance_score, popularity_score, updated_at, category')
+    .select('id, slug, name, summary, status, lifecycle_stage, importance_score, popularity_score, updated_at, category, ai_context')
     .eq('status', 'active')
     .order('importance_score', { ascending: false })
     .order('popularity_score', { ascending: false })

@@ -63,6 +63,9 @@ export default async function Home() {
   const rankedAll = [heroTopic, ...rest]
 
   const weightOf = (t: (typeof activeTopics)[number]) => Math.round(t.importance_score ?? 0)
+  // PM 지시(2026-07-17) — 제목을 다 읽기 전에 3초 안에 파악하게 하는 강조 키워드.
+  // 아직 display_keywords를 만든 적 없는(장문 미발행) Topic은 빈 배열 — 카드 레이아웃은 그대로 유지.
+  const keywordsOf = (t: (typeof activeTopics)[number]) => (t.ai_context?.draft?.display_keywords || []) as string[]
 
   return (
     <div style={{ fontFamily: "'Pretendard',-apple-system,sans-serif" }}>
@@ -86,9 +89,22 @@ export default async function Home() {
               border: `1px solid ${topicGradient(heroTopic.category).border}`,
             }}
           >
+            {/* 몇 g은 좌상단 고정 위치 유지 — 키워드와 경쟁하지 않도록 분리(PM 지시 2026-07-17) */}
+            <div style={{ position: 'absolute', top: 20, left: 32, fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: 'var(--accent)' }}>
+              무게 {weightOf(heroTopic)}g
+            </div>
             <div style={{ position: 'absolute', inset: 0, padding: 32, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+              {keywordsOf(heroTopic).length > 0 && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2px 12px', marginBottom: 10, maxHeight: '2.6em', overflow: 'hidden' }}>
+                  {keywordsOf(heroTopic).slice(0, 3).map((kw, i) => (
+                    <span key={kw} style={{ fontSize: i === 0 ? 'clamp(22px,3vw,30px)' : 'clamp(16px,2.2vw,20px)', fontWeight: 800, color: i === 0 ? 'var(--accent)' : '#fff', lineHeight: 1.3 }}>
+                      {kw}
+                    </span>
+                  ))}
+                </div>
+              )}
               <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: 'var(--accent)', marginBottom: 14 }}>
-                오늘의 표지 · 무게 {weightOf(heroTopic)}g
+                오늘의 표지
               </div>
               <div style={{ fontSize: 'clamp(24px,3.2vw,38px)', fontWeight: 800, lineHeight: 1.28, maxWidth: 600 }}>
                 {heroTopic.name}
@@ -107,10 +123,19 @@ export default async function Home() {
                   border: `1px solid ${topicGradient(t.category).border}`,
                 }}
               >
+                <div style={{ position: 'absolute', top: 14, left: 18, fontFamily: "'JetBrains Mono',monospace", fontSize: 10, color: 'var(--muted)' }}>
+                  {weightOf(t)}g
+                </div>
                 <div style={{ position: 'absolute', inset: 0, padding: 18, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
-                  <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 10, color: 'var(--muted)', marginBottom: 8 }}>
-                    {weightOf(t)}g
-                  </div>
+                  {keywordsOf(t).length > 0 && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2px 8px', marginBottom: 6, maxHeight: '2.4em', overflow: 'hidden' }}>
+                      {keywordsOf(t).slice(0, 2).map((kw, i) => (
+                        <span key={kw} style={{ fontSize: i === 0 ? 'clamp(15px,2vw,18px)' : 13, fontWeight: 800, color: i === 0 ? 'var(--accent)' : '#fff', lineHeight: 1.3 }}>
+                          {kw}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                   <div style={{ fontSize: 14.5, fontWeight: 800, lineHeight: 1.4 }}>{t.name}</div>
                 </div>
               </Link>

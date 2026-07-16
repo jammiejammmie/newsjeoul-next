@@ -17,6 +17,7 @@
 | DEC-004 | 영상·차트 블록 Phase 5 보류 | 개발팀 제안 → PM 조건부 승인 | 2026-07-11 |
 | DEC-005 | 사람 검토 큐를 기본 흐름에서 제외 | 개발팀 제안 기각 → PM 대안 지시 | 2026-07-11 |
 | DEC-006 | Publish Gate를 CTR Engine보다 먼저 설계 | 개발팀 제안 → PM 순서 변경 지시 | 2026-07-16 |
+| DEC-007 | 뉴스저울 = 대량 AI 편집국(선별 큐레이션 → 검색형 정보망), Publish Gate → Content Routing Gate, Persona Editor 중심 아키텍처 | 해당 없음 → PM 전략 전환 지시 | 2026-07-17 |
 
 ---
 
@@ -96,6 +97,20 @@
 - **결정 이유(가장 중요)**: "CTR Engine이 좋은 콘텐츠를 고르는 것이 아니라 좋지 않은 콘텐츠까지 정렬해야 하는 상황"이 되는 것을 막기 위해, 정렬(CTR Engine)보다 선별(Publish Gate)이 선행돼야 한다는 PM 판단(PM 원문 취지).
 - **영향 문서·섹션**: `docs/newsjeoul-publish-gate-design.md`(신설, 설계 전문), §6(DB 변경사항 — 승인 대기), §10(승인 필요 목록). DEC-005(사람 검토 큐 미채택)와의 관계는 설계서 §8에서 명시적으로 구분함(Publish Gate의 HOLD는 QA 실패가 아니라 편집가치 판단이며, 무인 강등 경로를 유지해 DEC-005 원칙을 지킴).
 - **현재 상태**: `Status: Designed` / `Implementation: Pending` / `DB Migration: Not Applied` / `Production: Not Deployed` — **이 상태 필드는 여기서 갱신하지 않는다.** 구현이 진행되면 이 항목을 수정하지 말고 `docs/newsjeoul-implementation-log.md`에 새 업데이트를 추가한다(Decision Log는 "왜 그렇게 정했는가"의 스냅샷으로 고정, 진행 상태 추적은 별도 문서 — 2026-07-16 PM 지시).
+
+---
+
+### DEC-007 — 뉴스저울 = 대량 AI 편집국, Publish Gate → Content Routing Gate, Persona Editor 중심 아키텍처
+
+| 출처 | 내용 |
+|---|---|
+| **디자인팀 제안** | 해당 없음 |
+| **개발팀 제안** | 해당 없음 |
+| **PM 최종 결정** | 뉴스저울의 방향을 "적은 수의 선별된 좋은 Topic"에서 "대량·다분야 AI 편집국·검색형 정보망"으로 전면 재정의. 최우선 KPI를 발행 유효 게시물 수/게시물당 정보량·검색가치/내부링크·Topic Cluster 규모로 변경(디자인·Home 재배치·CTR 정렬보다 선행). 분야 제한 폐지(정치/소상공인/세금/복지/부동산/자동차/가전/AI/기업/노동/의료/교육/국제/환경/생활정보 등 15개 분야 동시 운영 지시). Publish Gate(저가치 Topic을 버리는 게이트)를 **Content Routing Gate**(8종 라우터: DEEP_DIVE/SEARCH_GUIDE/PRODUCT_BRIEF/COMPARE/BACKGROUND/UPDATE/SHORT_BRIEF/REJECT)로 재정의 — REJECT는 광고·완전중복·무가치 홍보문구로만 한정하고 행정·정책 정보라는 이유만으로는 절대 거부 금지를 코드 레벨로 강제 지시. 100명 에디터를 "이름 목록"이 아니라 분야별 구체적 콘텐츠 미션(신청가이드/비교분석/구매판단/배경해설/데이터검증 등)을 가진 존재로 재정의. 추가로 "몇 g"(무게) 브랜드 장치는 유지·강화하되 발행 여부(Gate)와는 독립된 축으로 — 실제 근거(weight_reasons) 기록 의무화(당시 importance_score가 전부 50 고정값이라는 사실이 세션 중 확인됨). display_keywords(게시물별 강조 키워드) 신규 도입 지시. **우선순위 원칙**: 100명 Persona Editor가 핵심 가치이며 다른 기능(Gate/CTR/Weight Engine)은 Persona 중심으로 연결되도록 설계할 것을 명시. 승인 경계는 기존과 동일하되 API Key 추가·비용 발생 외부 API 사용이 승인 필요 목록에 명시적으로 추가됨 |
+
+- **결정 이유(가장 중요)**: "지금부터 뉴스저울의 핵심은 선별의 정교함보다 생산 규모, 정보 깊이, 연결 밀도, 검색 유입입니다"(PM 원문). 행정·정책 정보를 "버리는" 게 아니라 검색 사용자 관점의 실용 정보로 "전환"해야 한다는 것이 핵심 — 예시로 든 "○○시 소상공인 지원사업 시행" → "2026년 ○○시 소상공인 지원금: 대상·금액·신청방법·마감일 총정리" 전환이 이 결정 전체의 축소판.
+- **영향 문서·섹션**: `netlify/functions/generate-publish-gate-background.js`(8종 라우터로 전면 재작성), `netlify/functions/generate-editorial-plan-background.js`(Persona 배정 엔진 개선), `netlify/functions/generate-editorial-draft-background.js`(persona 문체 반영 강화 + display_keywords 생성 추가), `netlify/functions/update-topic-weight-background.js`(신설, 무게 산정 엔진), `netlify/functions/update-editor.js`(신설, Admin 에디터 관리), `app/admin/page.tsx`(Content Routing Gate + Persona 관리 UI), `app/topic/[slug]/page.tsx` / `app/page.tsx`(에디터 노출·무게 근거·키워드 UI), `supabase/persona_registry_100_migration.sql` / `persona_registry_100_seed.sql`(신규, 91명 추가). DEC-003(Persona Registry)의 확장이자 DEC-006(Publish Gate)의 방향 수정. 진행 상태는 이 항목을 수정하지 않고 `docs/newsjeoul-implementation-log.md`에 추적한다(DEC-007 섹션).
+- **완료 기준(PM 명시)**: 문서·Persona 이름 목록이 아니라 — 100명 에디터가 분야별로 실존, 콘텐츠 형식 자동 결정, 적합 에디터 자동 배정, 실제 몇 g와 근거 노출, 강한 키워드 노출, Home/Topic 화면이 눈에 띄게 달라진 **운영 상태**. 수집범위 확대/Expansion Engine/대량생성/자동 내부링크/Sitemap·색인/Search Console 검증은 이번 라운드 범위 밖(§9 작업순서상 후속 단계로 명시적으로 분리됨).
 
 ---
 
