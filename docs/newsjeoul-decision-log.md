@@ -18,6 +18,7 @@
 | DEC-005 | 사람 검토 큐를 기본 흐름에서 제외 | 개발팀 제안 기각 → PM 대안 지시 | 2026-07-11 |
 | DEC-006 | Publish Gate를 CTR Engine보다 먼저 설계 | 개발팀 제안 → PM 순서 변경 지시 | 2026-07-16 |
 | DEC-007 | 뉴스저울 = 대량 AI 편집국(선별 큐레이션 → 검색형 정보망), Publish Gate → Content Routing Gate, Persona Editor 중심 아키텍처 | 해당 없음 → PM 전략 전환 지시 | 2026-07-17 |
+| DEC-008 | Cron 자동실행 401 근본원인 임시수정 승인 + Scheduler/Worker 분리를 "후속 과제"가 아니라 Cron 복구 Phase 2로 격상, Threads 자동게시 정정(하루 4회·Hook 기반 카피·Topic 후보 전환) | 개발팀 제안 → PM 조건부 승인·범위 확정 | 2026-07-17 |
 
 ---
 
@@ -111,6 +112,20 @@
 - **결정 이유(가장 중요)**: "지금부터 뉴스저울의 핵심은 선별의 정교함보다 생산 규모, 정보 깊이, 연결 밀도, 검색 유입입니다"(PM 원문). 행정·정책 정보를 "버리는" 게 아니라 검색 사용자 관점의 실용 정보로 "전환"해야 한다는 것이 핵심 — 예시로 든 "○○시 소상공인 지원사업 시행" → "2026년 ○○시 소상공인 지원금: 대상·금액·신청방법·마감일 총정리" 전환이 이 결정 전체의 축소판.
 - **영향 문서·섹션**: `netlify/functions/generate-publish-gate-background.js`(8종 라우터로 전면 재작성), `netlify/functions/generate-editorial-plan-background.js`(Persona 배정 엔진 개선), `netlify/functions/generate-editorial-draft-background.js`(persona 문체 반영 강화 + display_keywords 생성 추가), `netlify/functions/update-topic-weight-background.js`(신설, 무게 산정 엔진), `netlify/functions/update-editor.js`(신설, Admin 에디터 관리), `app/admin/page.tsx`(Content Routing Gate + Persona 관리 UI), `app/topic/[slug]/page.tsx` / `app/page.tsx`(에디터 노출·무게 근거·키워드 UI), `supabase/persona_registry_100_migration.sql` / `persona_registry_100_seed.sql`(신규, 91명 추가). DEC-003(Persona Registry)의 확장이자 DEC-006(Publish Gate)의 방향 수정. 진행 상태는 이 항목을 수정하지 않고 `docs/newsjeoul-implementation-log.md`에 추적한다(DEC-007 섹션).
 - **완료 기준(PM 명시)**: 문서·Persona 이름 목록이 아니라 — 100명 에디터가 분야별로 실존, 콘텐츠 형식 자동 결정, 적합 에디터 자동 배정, 실제 몇 g와 근거 노출, 강한 키워드 노출, Home/Topic 화면이 눈에 띄게 달라진 **운영 상태**. 수집범위 확대/Expansion Engine/대량생성/자동 내부링크/Sitemap·색인/Search Console 검증은 이번 라운드 범위 밖(§9 작업순서상 후속 단계로 명시적으로 분리됨).
+
+---
+
+### DEC-008 — Cron 401 근본원인 임시수정 승인 + Scheduler/Worker 분리를 Cron 복구 Phase 2로 격상 + Threads 자동게시 정정
+
+| 출처 | 내용 |
+|---|---|
+| **디자인팀 제안** | 해당 없음 |
+| **개발팀 제안** | Netlify Scheduled Function이 실제로 `httpMethod:'POST'`로 호출되는데도(공식 문서 확인) 기존 코드가 `if (event.httpMethod) checkAdminKey`로 스케줄 호출까지 401 처리해 자동화가 한 번도 제대로 돈 적이 없었던 근본원인 발견. 임시수정으로 `event.headers['x-nf-event']==='schedule'`이면 인증을 건너뛰는 방안 제안(19개 함수 적용) |
+| **PM 최종 결정** | 임시수정 배포는 승인하되, "Scheduler/Worker 분리"를 막연한 후속 과제가 아니라 **Cron 복구 작업의 2단계(Phase 2)**로 명시적으로 격상 — 관찰(2회 연속 자동 성공) 대기 시간 동안 병렬로 설계·구현 착수 지시. 최종 구조 원칙: 외부 노출 Scheduler는 실행 요청만 전달(실제 DB·Claude API 로직 금지), Worker는 서버측 ADMIN_KEY로만 호출, Scheduler가 위조 호출당해도 중복실행 방지·동시실행 방지·최소 실행간격·비정상 호출 기록으로 피해 최소화. 동시에 Threads 자동 게시("사실상 유일한 외부 유입 경로") 장애를 "게시물 1건 성공"이 아니라 실제 완전 복구 기준으로 재조사 지시 — 하루 1회 계획이 애초에 코드 주석에 명시적으로 스코프 축소돼 있었던 사실, `news-pipeline.yml`이 개명된 함수 경로(`process-stories`→`process-stories-background`, `resolve-topics`→`resolve-topics-background`)를 그대로 불러 매일 실패하고 있던 사실, `post-threads.js`가 "오늘 생성된 story 없음"을 정상 Skip이 아니라 500 하드 실패로 처리해 스푸리어스 실패 메일을 유발하던 사실을 각각 확인 |
+
+- **결정 이유(가장 중요)**: "관리자 화면에서 수동 실행이 됨"을 "예약 자동화가 정상임"으로 간주한 것이 이번 사태의 가장 근본적인 설계 오류라는 PM 지적(PM 원문 취지) — 수동 실행과 예약 실행은 인증 경로부터 다르므로, 앞으로 자동화 완료 기준은 "실제 예약 시각에 자동 발동 → 후속 단계 진행 → DB 반영 → 다음 주기 재성공"이어야 하며, 코드 존재·수동 실행 성공과 결코 동일시하지 않는다.
+- **영향 문서·섹션**: `netlify/functions/*.js`(19개 함수 인증 로직), `netlify/functions/lib/cron-guard.js`(신설, Scheduler/Worker 분리 공용 모듈), `netlify/functions/*-scheduler.js`(신설 19개, 아직 netlify.toml 미연결 — 운영 배포 전), `netlify/functions/post-threads.js`(후보 선정을 Topic 기반으로 전환, Hook 기반 LLM 카피 생성, 정상 Skip/실패 구분, UTM `utm_content` 추가), `.github/workflows/news-pipeline.yml`(개명된 함수 경로 수정), `supabase/cron_scheduler_worker_migration.sql` / `threads_posts_extend_migration.sql`(신규, 미적용). 진행 상태는 이 항목을 수정하지 않고 `docs/newsjeoul-implementation-log.md`에 추적한다(DEC-008 섹션).
+- **미결 사항(PM 승인 대기)**: netlify.toml의 schedule을 `*-scheduler.js`로 전환하는 운영 배포, `.github/workflows/post-threads.yml`의 스케줄을 하루 4회(KST 08:30/12:30/18:30/22:30)로 변경하는 것, Threads Token 재발급 여부.
 
 ---
 

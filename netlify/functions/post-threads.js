@@ -1,71 +1,45 @@
-// Threads 자동 포스팅 — 오늘의 침묵지수 TOP1
-// Copy template rotates A→O(15종) daily so the Threads profile never looks repetitive.
-// 발행 빈도는 하루 1회 그대로 유지한다 — 매시간 발행은 비용/리스크 항목으로 별도 승인 전까지 보류.
-// 템플릿 배열을 늘리기만 하면 30~50개까지 확장 가능한 구조.
-
+// Threads 자동 포스팅 — 발행된 Topic 중 가장 무게가 무거운(importance_score) 미게시 건.
+// 근거: PM 지시(2026-07-17, "Threads 자동 게시 장애 정정 및 복구") — 기존엔 "오늘 생성된 stories"
+// 중에서만 골라 하루 중 신규 story가 없으면 예외를 던져 GitHub Actions가 "실패"로 오인했다(정상
+// Skip이어야 할 상황이 장애 메일로 잘못 보고됨). 이제는 published Topic 풀(오늘 국한 아님, 최근
+// 24시간 내 이미 게시된 것만 제외)에서 고른다 — 후보가 없으면 예외 대신 null을 반환해 핸들러가
+// 정상 Skip(200)으로 처리한다.
+//
+// 하루 여러 차례 게시 지원: 매번 "최근 24시간 내 미게시" 후보 중 최상위를 고르므로, 이미 게시한
+// Topic은 자동으로 후순위가 되어 같은 회차에 반복 게시되지 않는다(예전엔 story_id 단위로 결정론적
+// 단일 후보만 있어 하루 여러 번 호출해도 항상 같은 것만 나왔다).
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
 const THREADS_USER_ID = process.env.THREADS_USER_ID;
 const THREADS_ACCESS_TOKEN = process.env.THREADS_ACCESS_TOKEN;
-const TOTAL_OUTLETS = 20;
 const BASE_URL = 'https://newsjeoul.co.kr';
 
 // ── Data ─────────────────────────────────────────────────────────
-async function fetchTopSilenceStory() {
-  // KST 오늘 00:00 → UTC 변환 (KST = UTC+9)
-  const kstOffset = 9 * 60 * 60 * 1000;
-  const kstNow = new Date(Date.now() + kstOffset);
-  const todayKST = new Date(Date.UTC(kstNow.getUTCFullYear(), kstNow.getUTCMonth(), kstNow.getUTCDate()));
-  const todayStart = new Date(todayKST.getTime() - kstOffset).toISOString();
-
-  const res = await fetch(
-    `${SUPABASE_URL}/rest/v1/stories?select=id,title,silence_score,story_articles(article_id)&created_at=gte.${encodeURIComponent(todayStart)}&order=silence_score.desc,created_at.desc&limit=1`,
-    {
-      headers: {
-        'apikey': SUPABASE_KEY,
-        'Authorization': 'Bearer ' + SUPABASE_KEY,
-      },
-    }
-  );
-  if (!res.ok) throw new Error('Supabase 조회 실패: ' + await res.text());
-  const rows = await res.json();
-  if (!rows.length) throw new Error('오늘 스토리 없음');
-  const story = rows[0];
-  story.reportCount = (story.story_articles || []).length;
-  return story;
-}
-
-// Node 중심 전환: 이 story가 속한 Topic이 있으면 Topic 링크를 우선 사용한다.
-// 침묵지수 카피는 그대로 유지한다 — 대기업이 못 오는 유일한 틈새이자 핵심 신뢰 트리거.
-async function findConnectedTopic(storyId) {
-  const res = await fetch(
-    `${SUPABASE_URL}/rest/v1/topic_stories?story_id=eq.${storyId}&select=topics(slug,name)&order=relevance_score.desc&limit=1`,
-    { headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY } }
-  );
-  if (!res.ok) return null;
-  const rows = await res.json();
-  return rows[0]?.topics || null;
-}
-
-// ── Duplicate check ───────────────────────────────────────────────
-async function getRecentPost(storyId) {
+// 후보 Topic 선정 — 반환값 null이면 "지금 게시할 만한 게 없다"는 정상 상태(오류 아님).
+async function fetchCandidateTopic() {
   const since = new Date(Date.now() - 86400000).toISOString();
-  const res = await fetch(
-    `${SUPABASE_URL}/rest/v1/threads_posts?story_id=eq.${storyId}&posted_at=gte.${encodeURIComponent(since)}&limit=1`,
-    {
-      headers: {
-        'apikey': SUPABASE_KEY,
-        'Authorization': 'Bearer ' + SUPABASE_KEY,
-      },
-    }
+  const headers = { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY };
+
+  const recentRes = await fetch(
+    `${SUPABASE_URL}/rest/v1/threads_posts?select=topic_id&posted_at=gte.${encodeURIComponent(since)}&topic_id=not.is.null`,
+    { headers }
   );
-  if (!res.ok) return null;
+  if (!recentRes.ok) throw new Error('threads_posts 조회 실패: ' + await recentRes.text());
+  const recentIds = (await recentRes.json()).map((r) => r.topic_id).filter(Boolean);
+  const excludeFilter = recentIds.length ? `&id=not.in.(${recentIds.join(',')})` : '';
+
+  const res = await fetch(
+    `${SUPABASE_URL}/rest/v1/topics?select=id,slug,name,summary,importance_score,ai_context&status=eq.active&editorial_status=eq.published${excludeFilter}&order=importance_score.desc&limit=5`,
+    { headers }
+  );
+  if (!res.ok) throw new Error('topics 조회 실패: ' + await res.text());
   const rows = await res.json();
   return rows[0] || null;
 }
 
 // ── Post log ──────────────────────────────────────────────────────
-async function savePostLog(storyId, postId, template) {
+async function savePostLog(fields) {
   const res = await fetch(
     `${SUPABASE_URL}/rest/v1/threads_posts`,
     {
@@ -76,156 +50,67 @@ async function savePostLog(storyId, postId, template) {
         'Content-Type': 'application/json',
         'Prefer': 'return=minimal',
       },
-      body: JSON.stringify({ story_id: storyId, post_id: postId, template }),
+      body: JSON.stringify(fields),
     }
   );
   if (!res.ok) console.error('게시 로그 저장 실패:', await res.text());
 }
 
-// ── Copy templates A–O (15종) ─────────────────────────────────────
-// 원칙: 호기심 우선 / 사용자 중심 / 3~4문장 이내 / 첫 문장에서 시선 확보
-// 전부 뉴스저울 내부 Topic/Story 링크로 유입시킨다.
-function buildPost(story, url) {
-  const n = story.reportCount;
-  const silent = TOTAL_OUTLETS - n;
-  const templates = TEMPLATES(story, url, n, silent);
-  const idx = Math.floor(Date.now() / 86400000) % templates.length;
-  return templates[idx];
-}
+// ── Hook 기반 Threads 문구 생성(PM 지시 2026-07-17) ─────────────────
+// 목표: 내용을 전부 알려주는 게 아니라 "못 본 절반"을 확인하고 싶게 만드는 것.
+// 구조: 강한 첫 문장 → 사람들이 놓친 지점 → 답을 다 말하지 않는 정보 격차 → 뉴스저울 유도.
+// 금지: 사실과 다른 과장, 본문에 없는 결론, 공포 조장, 무조건적 낚시, "충격"/"소름"/"난리 났다" 같은
+// 상투어, 링크를 눌러도 답이 없는 문구.
+async function generateHookCopy(topic, url) {
+  const draft = topic.ai_context?.draft;
+  const keywords = draft?.display_keywords || [];
+  const perspectives = draft?.perspective_markers || [];
 
-function TEMPLATES(story, url, n, silent) {
-  return [
-    // A — 질문 먼저, 숫자로 증명
-    `당신은 이 뉴스를 보셨나요?
+  const prompt = `너는 뉴스저울의 Threads 카피라이터다. 아래 글을 바탕으로 Threads에 올릴 짧은 문구를 만들어라.
+목표: 제목만 봐서는 알 수 없는 "못 본 절반"을 확인하고 싶게 만드는 것 — 본문 내용을 전부 요약하지 마라.
 
-${TOTAL_OUTLETS}개 언론사 중 단 ${n}곳만 보도했습니다.
+문구 구조(반드시 이 순서, 줄바꿈으로 구분):
+1. 강한 첫 문장(대비·의외성·질문 중 하나)
+2. 사람들이 놓친 지점
+3. 답을 다 말하지 않는 정보 격차(궁금증은 남기되 거짓·과장 없이)
+4. 뉴스저울 유도 문장 1줄(URL은 쓰지 마라 — 별도로 붙인다)
 
-뉴스저울 →
-${url}`,
+허용: 강한 대비, 의외성, 질문, 구체적인 숫자·인물·기업·정책명, "제목만 보면 놓치는 부분", "정작 중요한 건 따로 있다"는 정보 격차.
+금지: 사실과 다른 과장, 본문에 없는 결론, 공포 조장, 무조건적 낚시, "충격"·"소름"·"난리 났다" 같은 저품질 상투어 반복, 링크를 눌러도 답이 없는 문구.
 
-    // B — 1인칭 발화 + 의문
-    `저는 오늘 처음 봤습니다.
+제목: ${topic.name}
+요약: ${topic.summary || ''}
+핵심 키워드: ${keywords.join(', ') || '(없음)'}
+리드: ${draft?.lead || ''}
+엇갈리는 시각: ${perspectives.map((p) => `[${p.perspective}] ${p.claim}`).join(' / ') || '(없음)'}
 
-${TOTAL_OUTLETS}개 언론사 중 ${n}곳만 다룬 뉴스입니다.
+설명 없이 아래 JSON만 반환해라(코드블록 없이):
+{
+  "hook_type": "대비 또는 의외성 또는 질문 또는 정보격차 중 하나",
+  "text": "Threads에 올릴 실제 문구(1~4번 구조, 줄바꿈 포함, URL 제외)"
+}`;
 
-왜 이 뉴스는 묻혔을까요?
-
-뉴스저울 →
-${url}`,
-
-    // C — 사용자 중심, 놓친 정보 강조
-    `대부분의 사람은 이 뉴스를 모릅니다.
-
-${TOTAL_OUTLETS}개 언론사 중 단 ${n}곳만 보도했기 때문입니다.
-
-당신은 보셨나요?
-
-뉴스저울 →
-${url}`,
-
-    // D — 짧고 강렬, 침묵 대신 의문
-    `오늘 가장 많이 침묵당한 뉴스.
-
-${TOTAL_OUTLETS}개 언론사 중 ${n}곳만 보도.
-
-나머지 ${silent}곳은 왜 다루지 않았을까요?
-
-뉴스저울 →
-${url}`,
-
-    // E — 사용자 관점 + 언론 침묵 의문
-    `대부분의 사람은 이 뉴스를 보지 못했습니다.
-
-${TOTAL_OUTLETS}개 언론사 중 단 ${n}곳만 보도했습니다.
-
-왜 ${silent}개 언론사는 이 뉴스를 다루지 않았을까요?
-
-뉴스저울 →
-${url}`,
-
-    // F — "오늘 사람들이 놓친 뉴스" 브랜드 콘텐츠
-    `오늘 사람들이 놓친 뉴스.
-
-"${story.title}"
-
-${TOTAL_OUTLETS}개 언론사 중 ${n}곳만 다뤘습니다.
-
-뉴스저울 →
-${url}`,
-
-    // G — 오늘의 시그널
-    `오늘의 시그널.
-
-${silent}개 언론사가 조용히 지나간 뉴스가 있습니다.
-
-뉴스저울 →
-${url}`,
-
-    // H — 숫자로 보는 오늘
-    `숫자로 보는 오늘.
-
-${n} / ${TOTAL_OUTLETS}.
-
-이 비율이 무엇을 의미하는지, 뉴스저울에서 확인하세요.
-
-${url}`,
-
-    // I — 5초 브리핑
-    `5초 브리핑.
-
-"${story.title}"
-
-이 뉴스, 오늘 ${n}곳만 다뤘습니다.
-
-뉴스저울 →
-${url}`,
-
-    // J — 오해하기 쉬운 뉴스
-    `오늘 오해하기 쉬운 뉴스가 있습니다.
-
-${TOTAL_OUTLETS}개 언론사 중 ${n}곳만 보도해서, 대부분 놓쳤을 가능성이 높습니다.
-
-뉴스저울 →
-${url}`,
-
-    // K — 짧은 질문형
-    `오늘, 이 뉴스 보셨나요?
-
-${n}/${TOTAL_OUTLETS}개 언론사만 다뤘습니다.
-
-${url}`,
-
-    // L — 데이터 관찰자 톤
-    `뉴스저울이 오늘 관찰한 것.
-
-"${story.title}" — 보도한 언론사 ${n}곳.
-
-나머지는 왜 조용했을까요?
-
-${url}`,
-
-    // M — 놓친 뉴스 직접 지목
-    `당신이 오늘 놓쳤을 가능성이 높은 뉴스.
-
-${TOTAL_OUTLETS}개 중 ${n}개 언론사만 보도.
-
-뉴스저울 →
-${url}`,
-
-    // N — 궁금증 유발형
-    `왜 이 뉴스는 ${silent}개 언론사가 다루지 않았을까요?
-
-궁금하다면, 뉴스저울에서 맥락을 확인하세요.
-
-${url}`,
-
-    // O — 짧고 임팩트 있는 한 줄
-    `오늘의 침묵: ${n}/${TOTAL_OUTLETS}.
-
-"${story.title}"
-
-${url}`,
-  ]
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': ANTHROPIC_KEY,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-5',
+      max_tokens: 500,
+      messages: [{ role: 'user', content: prompt }],
+    }),
+  });
+  if (!res.ok) throw new Error('Claude API 에러: ' + await res.text());
+  const data = await res.json();
+  const rawText = data.content.filter((b) => b.type === 'text').map((b) => b.text).join('');
+  const match = rawText.match(/\{[\s\S]*\}/);
+  if (!match) throw new Error('Hook 카피 파싱 실패: ' + rawText.slice(0, 200));
+  const parsed = JSON.parse(match[0]);
+  const hookType = ['대비', '의외성', '질문', '정보격차'].includes(parsed.hook_type) ? parsed.hook_type : '정보격차';
+  return { hookType, text: `${parsed.text}\n\n뉴스저울 →\n${url}` };
 }
 
 // ── Threads API ──────────────────────────────────────────────────
@@ -273,65 +158,57 @@ exports.handler = async function (event) {
     }
   }
 
+  const isDry = event.queryStringParameters?.dry === 'true';
+
   try {
-    const story = await fetchTopSilenceStory();
-    const connectedTopic = await findConnectedTopic(story.id).catch(() => null);
-    const baseUrl = connectedTopic ? `${BASE_URL}/topic/${connectedTopic.slug}` : `${BASE_URL}/story/${story.id}`;
+    const topic = await fetchCandidateTopic();
 
-    // 템플릿은 baseUrl 기준으로 고른다 (템플릿 개수는 url 내용과 무관하게 고정이므로 순서 영향 없음)
-    const templateCount = TEMPLATES(story, baseUrl, story.reportCount, TOTAL_OUTLETS - story.reportCount).length;
-    const templateIdx = Math.floor(Date.now() / 86400000) % templateCount;
-    const templateLabel = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'[templateIdx] || `#${templateIdx}`;
+    // 후보 없음 = 정상 Skip(오류 아님) — PM 지시: "정상 Skip은 GitHub Actions 실패로 처리하지 않음"
+    if (!topic) {
+      console.log('게시 가능한 신규 Topic 없음 — 정상 Skip');
+      if (!isDry) await savePostLog({ status: 'skipped', failure_reason: '게시 가능한 신규 Topic 없음' });
+      return { statusCode: 200, headers, body: JSON.stringify({ skipped: true, reason: '게시 가능한 신규 Topic 없음' }) };
+    }
 
-    // UTM 부착 — 내부 로그/분석용. 게시 빈도·로직에는 영향 없음.
-    const url = `${baseUrl}?utm_source=threads&utm_medium=social&utm_campaign=${templateLabel}`;
-    const text = buildPost(story, url);
+    const plan = topic.ai_context?.plan;
+    const editors = (plan?.editors_assigned || []).map((e) => e.name);
+    const { hookType, text: hookBody } = await generateHookCopy(topic, `${BASE_URL}/topic/${topic.slug}`);
+    const url = `${BASE_URL}/topic/${topic.slug}?utm_source=threads&utm_medium=social&utm_campaign=organic_threads&utm_content=${topic.id}_${hookType}`;
+    const text = hookBody.replace(`${BASE_URL}/topic/${topic.slug}`, url); // 유도 문장 안 URL에도 UTM 반영
 
     console.log('포스팅 내용:\n', text);
 
-    // dry=true → 실제 게시 없이 미리보기만 반환
-    const isDry = event.queryStringParameters?.dry === 'true';
     if (isDry) {
       return {
         statusCode: 200, headers,
-        body: JSON.stringify({ dry: true, template: templateLabel, title: story.title, reportCount: story.reportCount, url, text }),
+        body: JSON.stringify({ dry: true, topicId: topic.id, hookType, editors, title: topic.name, url, text }),
       };
     }
 
     if (!THREADS_USER_ID || !THREADS_ACCESS_TOKEN) {
+      await savePostLog({ topic_id: topic.id, hook_type: hookType, editors, status: 'failed', failure_reason: 'THREADS_USER_ID/THREADS_ACCESS_TOKEN 환경변수 없음', source_url: url });
       return {
         statusCode: 500, headers,
         body: JSON.stringify({ error: 'THREADS_USER_ID 또는 THREADS_ACCESS_TOKEN 환경변수 없음' }),
       };
     }
 
-    // 중복 게시 방지 — 24시간 내 동일 Story 재게시 차단
-    const recent = await getRecentPost(story.id);
-    if (recent) {
-      console.log('중복 게시 차단:', story.id, '/ 마지막 게시:', recent.posted_at);
-      return {
-        statusCode: 200, headers,
-        body: JSON.stringify({
-          skipped: true,
-          reason: '24시간 내 동일 기사 이미 게시됨',
-          storyId: story.id,
-          lastPostedAt: recent.posted_at,
-          lastPostId: recent.post_id,
-        }),
-      };
+    let postId;
+    try {
+      const containerId = await createContainer(text);
+      await new Promise((r) => setTimeout(r, 3000));
+      postId = await publishPost(containerId);
+    } catch (postErr) {
+      await savePostLog({ topic_id: topic.id, hook_type: hookType, editors, status: 'failed', failure_reason: postErr.message, source_url: url });
+      throw postErr;
     }
 
-    const containerId = await createContainer(text);
-    await new Promise(r => setTimeout(r, 3000));
-    const postId = await publishPost(containerId);
-
-    // 게시 로그 저장
-    await savePostLog(story.id, postId, templateLabel);
+    await savePostLog({ topic_id: topic.id, post_id: postId, hook_type: hookType, editors, status: 'success', source_url: url });
 
     console.log('Threads 게시 완료:', postId);
     return {
       statusCode: 200, headers,
-      body: JSON.stringify({ ok: true, postId, template: templateLabel, title: story.title, reportCount: story.reportCount, url }),
+      body: JSON.stringify({ ok: true, postId, topicId: topic.id, hookType, editors, title: topic.name, url }),
     };
   } catch (e) {
     console.error(e.message);

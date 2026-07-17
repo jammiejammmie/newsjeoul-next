@@ -24,16 +24,23 @@ jobs:
       - name: 대기 (3분)
         run: sleep 180
 
-      - name: 2. 스토리 생성 (process-stories)
+      - name: 2. 스토리 생성 (process-stories-background)
+        # 2026-07-14 Cron 타임아웃 수정 때 process-stories.js가 process-stories-background.js로
+        # 개명됐으나 이 Workflow는 옛 경로를 그대로 호출해 매번 404로 실패, 이후 3~5단계가 전부
+        # skip 처리되고 있었다(2026-07-17 실운영 검증 중 발견). Background Function은 202를 반환하고
+        # 실제 처리는 비동기로 이어지므로, 여기서는 202도 정상으로 간주하고 완료를 기다린다.
         run: |
           RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
             -H "x-admin-key: ${{ secrets.NEWSJEOUL_ADMIN_KEY }}" \
-            "https://newsjeoul.co.kr/.netlify/functions/process-stories")
+            "https://newsjeoul.co.kr/.netlify/functions/process-stories-background")
           HTTP_CODE=$(echo "$RESPONSE" | tail -1)
           BODY=$(echo "$RESPONSE" | head -n -1)
-          echo "process-stories → HTTP $HTTP_CODE"
+          echo "process-stories-background → HTTP $HTTP_CODE"
           echo "$BODY"
-          [ "$HTTP_CODE" = "200" ] || exit 1
+          [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "202" ] || exit 1
+
+      - name: 대기 (스토리 생성 완료 대기, 2분)
+        run: sleep 120
 
       - name: 3. Entity 추출 (extract-entities)
         run: |
@@ -46,16 +53,20 @@ jobs:
           echo "$BODY"
           [ "$HTTP_CODE" = "200" ] || exit 1
 
-      - name: 4. Topic 매칭/생성 (resolve-topics)
+      - name: 4. Topic 매칭/생성 (resolve-topics-background)
+        # resolve-topics.js도 같은 시점에 resolve-topics-background.js로 개명됨 — 동일 원인.
         run: |
           RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
             -H "x-admin-key: ${{ secrets.NEWSJEOUL_ADMIN_KEY }}" \
-            "https://newsjeoul.co.kr/.netlify/functions/resolve-topics")
+            "https://newsjeoul.co.kr/.netlify/functions/resolve-topics-background")
           HTTP_CODE=$(echo "$RESPONSE" | tail -1)
           BODY=$(echo "$RESPONSE" | head -n -1)
-          echo "resolve-topics → HTTP $HTTP_CODE"
+          echo "resolve-topics-background → HTTP $HTTP_CODE"
           echo "$BODY"
-          [ "$HTTP_CODE" = "200" ] || exit 1
+          [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "202" ] || exit 1
+
+      - name: 대기 (Topic 매칭 완료 대기, 1분)
+        run: sleep 60
 
       - name: 5. Timeline/Update 생성 (generate-updates)
         run: |
