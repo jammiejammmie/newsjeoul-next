@@ -8,6 +8,10 @@
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 
+# 진단 전용(임시, 2026-07-17) — 원인 확인 후 이 섹션과 diag-schedule-echo.js를 반드시 제거할 것
+[functions."diag-schedule-echo"]
+  schedule = "*/5 * * * *"
+
 # 기존 함수들
 [functions."fetch-comparisons-kr"]
   timeout = 30
