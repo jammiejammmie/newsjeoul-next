@@ -75,14 +75,16 @@ function computeWeight(topic, stories, entities, plan) {
   components.entity_count_score = Math.min(entityCount, 8) * 8;
   if (entityCount > 0) reasons.push(`연결된 엔티티 ${entityCount}개 (+${components.entity_count_score}g)`);
 
+  // topic_entities.strength_score도 0~100 스케일(실측 확인, 0~1이 아님 — controversy_score와 동일 패턴)
   const maxEntityStrength = entities.reduce((m, e) => Math.max(m, e.strength_score || 0), 0);
-  components.prominent_entity_bonus = maxEntityStrength >= 0.8 ? 60 : maxEntityStrength >= 0.5 ? 30 : 0;
-  if (components.prominent_entity_bonus > 0) reasons.push(`핵심 엔티티 연관도 높음(최대 ${maxEntityStrength.toFixed(2)}) (+${components.prominent_entity_bonus}g)`);
+  components.prominent_entity_bonus = maxEntityStrength >= 80 ? 60 : maxEntityStrength >= 50 ? 30 : 0;
+  if (components.prominent_entity_bonus > 0) reasons.push(`핵심 엔티티 연관도 높음(최대 ${maxEntityStrength.toFixed(0)}/100) (+${components.prominent_entity_bonus}g)`);
 
+  // stories.controversy_score는 0~100 스케일(실측 확인, 0~1이 아님 — 2026-07-17 실운영 검증 중 발견해 수정)
   const controversyScores = stories.map((s) => s.controversy_score).filter((v) => typeof v === 'number');
   const avgControversy = controversyScores.length ? controversyScores.reduce((a, b) => a + b, 0) / controversyScores.length : 0;
-  components.controversy_score_bonus = Math.round(avgControversy * 100);
-  if (components.controversy_score_bonus > 10) reasons.push(`평균 논쟁도 ${avgControversy.toFixed(2)} (+${components.controversy_score_bonus}g)`);
+  components.controversy_score_bonus = Math.round(avgControversy);
+  if (components.controversy_score_bonus > 10) reasons.push(`평균 논쟁도 ${avgControversy.toFixed(0)}/100 (+${components.controversy_score_bonus}g)`);
 
   components.dual_perspective_bonus = plan?.requires_dual_perspective ? 80 : 0;
   if (components.dual_perspective_bonus > 0) reasons.push(`대립관점 필수 사안 (+${components.dual_perspective_bonus}g)`);
