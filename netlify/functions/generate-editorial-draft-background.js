@@ -323,6 +323,7 @@ exports.handler = async function (event) {
         const evidence = await gatherEvidence(topic.id);
         let { draft, diagnostic } = await claudeGenerate(buildPrompt(topic, plan, evidence, personaSnippet));
         draft = attachImages(draft, evidence.images);
+        if (draft) draft.generated_at = new Date().toISOString(); // Automation Health 대시보드용 신호(2026-07-17)
         const qa = deterministicQA(draft, plan, diagnostic);
 
         // 3b — 3a 통과분만 실행(비용 절감, §10)

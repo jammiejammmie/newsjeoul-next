@@ -16,10 +16,11 @@ export default function AdminPage() {
   const [gateFilter, setGateFilter] = useState<string>('all')
   const [editors, setEditors] = useState<any[]>([])
   const [editorTagFilter, setEditorTagFilter] = useState<string>('all')
+  const [health, setHealth] = useState<any[]>([])
 
   useEffect(() => {
     const k = localStorage.getItem('nj_admin_key') || ''
-    if (k) { setSavedKey(k); loadStats(); loadEditorialStatus(); loadGateTopics(); loadEditors() }
+    if (k) { setSavedKey(k); loadStats(); loadEditorialStatus(); loadGateTopics(); loadEditors(); loadAutomationHealth() }
   }, [])
 
   function addLog(type: string, msg: string) {
@@ -98,6 +99,50 @@ export default function AdminPage() {
     } catch (e: any) { addLog('error', `❌ 실패: ${e.message}`) }
   }
 
+  // Automation Health(PM 지시 2026-07-17 — "자동화가 며칠 멈춰 있어도 뒤늦게 발견하는 일" 방지).
+  // Phase 2(cron_invocations 테이블) 배포 전까지는 각 단계가 실제 데이터에 남긴 타임스탬프로
+  // 근사한다 — articles/stories/topics 생성시각, ai_context에 각 단계가 스스로 남긴
+  // plan.generated_at/gate.evaluated_at/draft.generated_at/weight.computed_at, threads_posts.posted_at.
+  async function loadAutomationHealth() {
+    try {
+      const headers = { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+      const [articlesRes, storiesRes, topicsRes, threadsRes] = await Promise.all([
+        fetch(`${SUPABASE_URL}/rest/v1/articles?select=created_at&order=created_at.desc&limit=1`, { headers }),
+        fetch(`${SUPABASE_URL}/rest/v1/stories?select=created_at&order=created_at.desc&limit=1`, { headers }),
+        fetch(`${SUPABASE_URL}/rest/v1/topics?select=created_at,ai_context&status=eq.active&limit=300`, { headers }),
+        fetch(`${SUPABASE_URL}/rest/v1/threads_posts?select=posted_at&order=posted_at.desc&limit=1`, { headers }),
+      ])
+      const [articles, stories, topics, threads] = await Promise.all([articlesRes.json(), storiesRes.json(), topicsRes.json(), threadsRes.json()])
+
+      const maxOf = (arr: any[]) => arr.length ? arr.reduce((m, v) => (v && v > m ? v : m), arr[0]) : null
+      const planTimes = (topics || []).map((t: any) => t.ai_context?.plan?.generated_at).filter(Boolean)
+      const gateTimes = (topics || []).map((t: any) => t.ai_context?.gate?.evaluated_at).filter(Boolean)
+      const draftTimes = (topics || []).map((t: any) => t.ai_context?.draft?.generated_at).filter(Boolean)
+      const weightTimes = (topics || []).map((t: any) => t.ai_context?.weight?.computed_at).filter(Boolean)
+      const assignedCount = (topics || []).filter((t: any) => (t.ai_context?.plan?.editors_assigned || []).length > 0).length
+      const plannedCount = (topics || []).filter((t: any) => t.ai_context?.plan).length
+
+      const stageOf = (label: string, lastAt: string | null, expectedMin: number, detail?: string) => {
+        if (!lastAt) return { label, status: 'unknown', lastAt: null, detail: detail || '기록 없음' }
+        const minsSince = (Date.now() - new Date(lastAt).getTime()) / 60000
+        const status = minsSince <= expectedMin * 1.5 ? 'ok' : minsSince <= expectedMin * 3 ? 'warn' : 'fail'
+        return { label, status, lastAt, detail }
+      }
+
+      setHealth([
+        stageOf('Collect News', maxOf(articles.map((a: any) => a.created_at)), 180),
+        stageOf('Process Stories', maxOf(stories.map((s: any) => s.created_at)), 180),
+        stageOf('Resolve Topics', maxOf(topics.map((t: any) => t.created_at)), 180),
+        stageOf('Editorial Plan', maxOf(planTimes), 180),
+        stageOf('Persona Assignment', maxOf(planTimes), 180, plannedCount ? `배정률 ${assignedCount}/${plannedCount}` : undefined),
+        stageOf('Content Routing Gate', maxOf(gateTimes), 180),
+        stageOf('Draft Generation', maxOf(draftTimes), 180),
+        stageOf('Weight Engine', maxOf(weightTimes), 180),
+        stageOf('Threads 게시', maxOf(threads.map((t: any) => t.posted_at)), 360),
+      ])
+    } catch (e) {}
+  }
+
   async function overrideGate(topicId: string, newStatus: string) {
     try {
       const res = await fetch(`${SITE_URL}/.netlify/functions/override-gate-status`, {
@@ -116,7 +161,7 @@ export default function AdminPage() {
     localStorage.setItem('nj_admin_key', adminKey)
     setSavedKey(adminKey)
     addLog('info', '로그인 완료')
-    loadStats()
+    loadStats(); loadEditorialStatus(); loadGateTopics(); loadEditors(); loadAutomationHealth()
   }
 
   async function callFn(fnName: string) {
@@ -259,6 +304,34 @@ export default function AdminPage() {
         <span>안녕하세요, 관리자님 👋</span>
         <button onClick={() => { localStorage.removeItem('nj_admin_key'); setSavedKey('') }}
           style={{ background: 'none', border: 'none', color: 'var(--muted)', fontSize: 11, cursor: 'pointer' }}>로그아웃</button>
+      </div>
+
+      {/* Automation Health(PM 지시 2026-07-17) — 자동화가 며칠 멈춰도 뒤늦게 발견하는 일 방지 */}
+      <div style={{ ...s.card, background: 'linear-gradient(135deg,rgba(124,140,255,.1),rgba(185,140,255,.06))' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+          <div style={{ fontSize: 13, fontWeight: 700 }}>🩺 Automation Health</div>
+          <button onClick={loadAutomationHealth} style={{ fontSize: 10, padding: '3px 9px', background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 999, color: 'var(--muted)', cursor: 'pointer' }}>
+            ↻ 새로고침
+          </button>
+        </div>
+        <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 12 }}>
+          각 단계가 실제로 마지막 언제 성공했는지 — Phase 2(cron_invocations) 배포 전에는 데이터 타임스탬프로 근사치 표시
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {health.map((h) => {
+            const dot = h.status === 'ok' ? '🟢' : h.status === 'warn' ? '🟡' : h.status === 'fail' ? '🔴' : '⚪'
+            const minsAgo = h.lastAt ? Math.round((Date.now() - new Date(h.lastAt).getTime()) / 60000) : null
+            return (
+              <div key={h.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 10px', background: 'var(--bg2)', borderRadius: 8, fontSize: 12 }}>
+                <span>{dot} {h.label}</span>
+                <span style={{ color: 'var(--muted)', fontSize: 11 }}>
+                  {h.lastAt ? `${minsAgo}분 전${h.detail ? ' · ' + h.detail : ''}` : h.detail}
+                </span>
+              </div>
+            )
+          })}
+          {health.length === 0 && <div style={{ fontSize: 11, color: 'var(--muted)' }}>불러오는 중...</div>}
+        </div>
       </div>
 
       {/* 통계 */}
