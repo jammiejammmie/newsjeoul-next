@@ -131,7 +131,10 @@ exports.handler = async function (event) {
   const headers = { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' };
   if (event.httpMethod === 'OPTIONS') return { statusCode: 200, headers, body: '' };
 
-  if (event.httpMethod) {
+  // Netlify Scheduled Function은 httpMethod='POST'로 호출되지만 x-admin-key 헤더가 없다
+  // (event.headers['x-nf-event']==='schedule'로 식별) — 2026-07-17 실운영 검증 중 발견,
+  // 이 조건이 없으면 자동 스케줄 호출이 전부 401로 조용히 거부돼 파이프라인이 절대 자동으로 안 돈다.
+  if (event.httpMethod && event.headers?.['x-nf-event'] !== 'schedule') {
     const adminKey = event.headers?.['x-admin-key'] || event.queryStringParameters?.key;
     if (adminKey !== process.env.ADMIN_KEY) {
       return { statusCode: 401, headers, body: JSON.stringify({ error: 'Unauthorized' }) };
