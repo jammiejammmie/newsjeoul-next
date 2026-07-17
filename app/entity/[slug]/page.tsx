@@ -47,7 +47,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     title,
     description: desc,
     alternates: { canonical: `${BASE}/entity/${entity.slug}` },
-    openGraph: { title: entity.name, description: desc, images: [{ url: `${BASE}/og?type=topic&title=${encodeURIComponent(entity.name)}`, width: 1200, height: 630 }] },
+    openGraph: { title: entity.name, description: desc, url: `${BASE}/entity/${entity.slug}`, images: [{ url: `${BASE}/og?type=topic&title=${encodeURIComponent(entity.name)}`, width: 1200, height: 630 }] },
     twitter: { card: 'summary_large_image', title: entity.name, description: desc },
   }
 }
