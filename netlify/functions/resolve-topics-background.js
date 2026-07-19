@@ -5,7 +5,7 @@
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY;
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
-const BATCH_SIZE = 5; // 한 번 호출에 최대 5개 story만 처리 (게이트웨이 타임아웃 방지, 나머지는 다음 스케줄에서 이어서 처리)
+const BATCH_SIZE = 15; // Background Function(15분 예산)이라 여유 있음 — 5→15 상향(2026-07-19 생산량 증대 지시, KPI=색인 페이지 수)
 
 async function supabaseGet(table, params) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}${params || ''}`, {

@@ -15,7 +15,7 @@
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY;
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
-const BATCH_SIZE = 5; // Background라 15분 예산 안에서 여유있게 — 1건당 근거수집+생성+QA 약 40~60초
+const BATCH_SIZE = 10; // 5→10 상향(2026-07-19 생산량 증대 지시) — 1건당 약 40~60초×2회(생성+정성QA)이므로 10건도 15분 예산 내
 const MAX_RETRY = 2;
 
 async function supabaseGet(table, params) {

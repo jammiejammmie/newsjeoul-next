@@ -11,7 +11,7 @@
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY;
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
-const BATCH_SIZE = 10; // Background 전환으로 여유 생김 — 5→10 상향(이벤트 유형 판별은 상대적으로 가벼움)
+const BATCH_SIZE = 20; // 10→20 추가 상향(2026-07-19 생산량 증대 지시, KPI=색인 페이지 수)
 
 // Editorial OS v1 "판별 신호" 기반 Rule 예비필터 — LLM 호출 전 후보를 좁힌다(§4).
 // 정확한 분류가 목적이 아니라 "명백히 아닌 유형"을 먼저 걸러 LLM이 10지선다 대신

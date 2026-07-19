@@ -20,7 +20,7 @@
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY;
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
-const BATCH_SIZE = 10;
+const BATCH_SIZE = 25; // 10→25 상향(2026-07-19 생산량 증대 지시, KPI=색인 페이지 수)
 
 const ROUTES = ['DEEP_DIVE', 'SEARCH_GUIDE', 'PRODUCT_BRIEF', 'COMPARE', 'BACKGROUND', 'UPDATE', 'SHORT_BRIEF', 'REJECT'];
 

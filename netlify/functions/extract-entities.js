@@ -7,7 +7,7 @@ const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY;
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
 
 const ENTITY_TYPES = ['company', 'person', 'organization', 'country', 'product', 'technology', 'market', 'policy'];
-const BATCH_SIZE = 5; // 한 번 호출에 최대 5개 story만 처리 (게이트웨이 타임아웃 방지, 나머지는 다음 스케줄에서 이어서 처리)
+const BATCH_SIZE = 8; // 동기 함수 26초 캡 고려해 소폭만 상향(5→8, 2026-07-19 생산량 증대 지시). 나머지는 다음 스케줄에서 이어서 처리
 
 async function supabaseGet(table, params) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}${params || ''}`, {
