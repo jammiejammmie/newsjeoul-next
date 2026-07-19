@@ -41,8 +41,9 @@ async function supabasePatch(table, params, data) {
 }
 
 // Layer 2b — 이미 존재하는 데이터만 조회(신규 조달 없음, §9)
-// 2026-07-12: 출처에 언론사명을 포함(인용 신뢰도용), 이미지는 1개가 아니라 최대 3개까지 후보로
-// 남겨 블록에 결정론적으로 분배할 수 있게 한다(attachImages 참고).
+// 2026-07-12: 출처에 언론사명을 포함(인용 신뢰도용).
+// 2026-07-19: 이미지 수집·첨부 제거(PM 지시 — 텍스트 중심 개편). og_image_url 조회 자체를 select에서
+// 빼서 불필요한 컬럼 전송도 줄인다(생산 속도 비교 대상).
 async function gatherEvidence(topicId) {
   const [storyLinks, timeline] = await Promise.all([
     supabaseGet('topic_stories', `?topic_id=eq.${topicId}&select=story_id&order=relevance_score.desc&limit=8`),
@@ -50,20 +51,15 @@ async function gatherEvidence(topicId) {
   ]);
   const storyIds = storyLinks.map((l) => l.story_id);
   let sources = [];
-  let images = [];
   if (storyIds.length) {
     const articleLinks = await supabaseGet(
       'story_articles',
-      `?story_id=in.(${storyIds.join(',')})&select=articles(title,url,og_image_url,published_at,outlets(name))`
+      `?story_id=in.(${storyIds.join(',')})&select=articles(title,url,outlets(name))`
     );
     const articles = articleLinks.map((r) => r.articles).filter(Boolean);
     sources = articles.slice(0, 6).map((a) => ({ title: a.title, url: a.url, outlet: a.outlets?.name || null }));
-    images = articles.filter((a) => a.og_image_url)
-      .sort((a, b) => new Date(b.published_at || 0) - new Date(a.published_at || 0))
-      .slice(0, 3)
-      .map((a) => ({ url: a.og_image_url, caption: a.title }));
   }
-  return { sources, timeline, images };
+  return { sources, timeline };
 }
 
 // Persona 스니펫(§7) — Editorial Plan의 editors_assigned를 실제 문체 지시문으로 변환.
@@ -185,16 +181,6 @@ async function claudeGenerate(prompt) {
   } catch (e) {
     return { draft: null, diagnostic: { stage: 'json_parse_error', ...diagnosticBase, parseError: e.message, tail: text.slice(-200) } };
   }
-}
-
-// 이미지 부착(2026-07-12) — 모델에게 이미지를 고르게 하지 않고 코드가 결정론적으로 붙인다
-// (할루시네이션 리스크 없음). evidence.images는 이미 enrich-article-images.js가 채워둔 실사
-// 이미지만 후보로 들어온다(최대 3개). 블록 순서대로 인덱스 매칭 1:1로만 붙여 같은 이미지가
-// 여러 블록에 중복되지 않게 하고, 이미지가 블록 수보다 적으면 남는 블록은 이미지 없이 둔다.
-function attachImages(draft, images) {
-  if (!draft || !Array.isArray(draft.blocks) || !Array.isArray(images) || !images.length) return draft;
-  draft.blocks = draft.blocks.map((b, i) => (images[i] ? { ...b, image: images[i].url, imageCaption: images[i].caption } : b));
-  return draft;
 }
 
 // 3a — 결정론적 QA(코드, 무료, §10)
@@ -322,7 +308,6 @@ exports.handler = async function (event) {
 
         const evidence = await gatherEvidence(topic.id);
         let { draft, diagnostic } = await claudeGenerate(buildPrompt(topic, plan, evidence, personaSnippet));
-        draft = attachImages(draft, evidence.images);
         if (draft) draft.generated_at = new Date().toISOString(); // Automation Health 대시보드용 신호(2026-07-17)
         const qa = deterministicQA(draft, plan, diagnostic);
 

@@ -67,6 +67,21 @@ export default async function Home() {
   // 아직 display_keywords를 만든 적 없는(장문 미발행) Topic은 빈 배열 — 카드 레이아웃은 그대로 유지.
   const keywordsOf = (t: (typeof activeTopics)[number]) => (t.ai_context?.draft?.display_keywords || []) as string[]
 
+  // 이미지 제거·텍스트 중심 개편(PM 지시 2026-07-19) — 카드를 채울 실제 정보.
+  const storyCountOf = (t: (typeof activeTopics)[number]) => (t as any).topic_stories?.[0]?.count ?? 0
+  const summaryOf = (t: (typeof activeTopics)[number]) => t.ai_context?.draft?.lead || t.summary || ''
+  // "왜 중요한가"는 임의 문구가 아니라 Weight Engine이 실제로 계산한 근거(ai_context.weight.reasons)를
+  // 그대로 쓴다 — 근거 없는 숫자를 만들지 않는다는 원칙과 동일하게 적용.
+  const whyItMattersOf = (t: (typeof activeTopics)[number]) => ((t.ai_context?.weight?.reasons || []) as string[]).slice(0, 2).join(' · ')
+  function timeAgo(iso: string | null) {
+    if (!iso) return ''
+    const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000))
+    if (mins < 60) return `${mins}분 전`
+    const hours = Math.round(mins / 60)
+    if (hours < 24) return `${hours}시간 전`
+    return `${Math.round(hours / 24)}일 전`
+  }
+
   return (
     <div style={{ fontFamily: "'Pretendard',-apple-system,sans-serif" }}>
       {/* 상단 라이브 표시줄 */}
@@ -77,67 +92,86 @@ export default async function Home() {
         </div>
       </div>
 
-      {/* COVER ROTATION HERO */}
+      {/* COVER ROTATION HERO — 이미지 제거·텍스트 중심 개편(PM 지시 2026-07-19).
+          더 이상 이미지 공간을 전제로 한 고정 높이가 없다 — 카드는 내용 길이만큼만 커진다. */}
       <section style={{ maxWidth: 1240, margin: '0 auto', padding: '18px 32px 0' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 14, height: 'min(56vw, 540px)' }}>
+        <div className="nj-hero-grid">
           <Link
             href={`/topic/${heroTopic.slug}`}
             className="nj-cover-card"
             style={{
-              position: 'relative', borderRadius: 20, overflow: 'hidden',
+              position: 'relative', borderRadius: 20, overflow: 'hidden', padding: '28px 32px',
               background: topicGradient(heroTopic.category).bg,
               border: `1px solid ${topicGradient(heroTopic.category).border}`,
             }}
           >
-            {/* 몇 g은 좌상단 고정 위치 유지 — 키워드와 경쟁하지 않도록 분리(PM 지시 2026-07-17) */}
-            <div style={{ position: 'absolute', top: 20, left: 32, fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: 'var(--accent)' }}>
-              무게 {weightOf(heroTopic)}g
+            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10, marginBottom: 18, fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: 'var(--accent)' }}>
+              <span>무게 {weightOf(heroTopic)}g</span>
+              {heroTopic.category && <><span style={{ color: 'var(--muted)' }}>·</span><span style={{ color: 'var(--muted)' }}>{heroTopic.category}</span></>}
+              <span style={{ color: 'var(--muted)' }}>·</span>
+              <span style={{ color: 'var(--muted)' }}>{timeAgo(heroTopic.updated_at)}</span>
+              <span style={{ color: 'var(--muted)' }}>·</span>
+              <span style={{ color: 'var(--muted)' }}>관련 보도 {storyCountOf(heroTopic)}건</span>
             </div>
-            <div style={{ position: 'absolute', inset: 0, padding: 32, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
-              {keywordsOf(heroTopic).length > 0 && (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2px 12px', marginBottom: 10, maxHeight: '2.6em', overflow: 'hidden' }}>
-                  {keywordsOf(heroTopic).slice(0, 3).map((kw, i) => (
-                    <span key={kw} style={{ fontSize: i === 0 ? 'clamp(22px,3vw,30px)' : 'clamp(16px,2.2vw,20px)', fontWeight: 800, color: i === 0 ? 'var(--accent)' : '#fff', lineHeight: 1.3 }}>
-                      {kw}
-                    </span>
-                  ))}
-                </div>
-              )}
-              <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: 'var(--accent)', marginBottom: 14 }}>
-                오늘의 표지
+            {keywordsOf(heroTopic).length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2px 12px', marginBottom: 14 }}>
+                {keywordsOf(heroTopic).slice(0, 3).map((kw, i) => (
+                  <span key={kw} style={{ fontSize: i === 0 ? 'clamp(22px,3vw,30px)' : 'clamp(16px,2.2vw,20px)', fontWeight: 800, color: i === 0 ? 'var(--accent)' : '#fff', lineHeight: 1.3 }}>
+                    {kw}
+                  </span>
+                ))}
               </div>
-              <div style={{ fontSize: 'clamp(24px,3.2vw,38px)', fontWeight: 800, lineHeight: 1.28, maxWidth: 600 }}>
-                {heroTopic.name}
-              </div>
+            )}
+            <div style={{ fontSize: 'clamp(28px,3.8vw,44px)', fontWeight: 800, lineHeight: 1.24, marginBottom: 16 }}>
+              {heroTopic.name}
             </div>
+            {summaryOf(heroTopic) && (
+              <p style={{ fontSize: 15.5, color: 'var(--text2, #cfcac0)', lineHeight: 1.7, marginBottom: 12, maxWidth: 620 }}>
+                {summaryOf(heroTopic)}
+              </p>
+            )}
+            {whyItMattersOf(heroTopic) && (
+              <div style={{ fontSize: 12.5, color: 'var(--muted)', lineHeight: 1.6 }}>
+                <strong style={{ color: 'var(--accent)', fontWeight: 700 }}>왜 중요한가 · </strong>{whyItMattersOf(heroTopic)}
+              </div>
+            )}
           </Link>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div className="nj-hero-side-col">
             {sideTopics.map((t) => (
               <Link
                 key={t.slug}
                 href={`/topic/${t.slug}`}
                 className="nj-cover-card"
                 style={{
-                  flex: 1, position: 'relative', borderRadius: 16, overflow: 'hidden',
+                  position: 'relative', borderRadius: 16, overflow: 'hidden', padding: '18px 20px',
                   background: topicGradient(t.category).bg,
                   border: `1px solid ${topicGradient(t.category).border}`,
                 }}
               >
-                <div style={{ position: 'absolute', top: 14, left: 18, fontFamily: "'JetBrains Mono',monospace", fontSize: 10, color: 'var(--muted)' }}>
-                  {weightOf(t)}g
+                <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 7, marginBottom: 10, fontFamily: "'JetBrains Mono',monospace", fontSize: 10, color: 'var(--muted)' }}>
+                  <span style={{ color: 'var(--accent)' }}>{weightOf(t)}g</span>
+                  {t.category && <><span>·</span><span>{t.category}</span></>}
+                  <span>·</span>
+                  <span>보도 {storyCountOf(t)}건</span>
                 </div>
-                <div style={{ position: 'absolute', inset: 0, padding: 18, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
-                  {keywordsOf(t).length > 0 && (
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2px 8px', marginBottom: 6, maxHeight: '2.4em', overflow: 'hidden' }}>
-                      {keywordsOf(t).slice(0, 2).map((kw, i) => (
-                        <span key={kw} style={{ fontSize: i === 0 ? 'clamp(15px,2vw,18px)' : 13, fontWeight: 800, color: i === 0 ? 'var(--accent)' : '#fff', lineHeight: 1.3 }}>
-                          {kw}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                  <div style={{ fontSize: 14.5, fontWeight: 800, lineHeight: 1.4 }}>{t.name}</div>
-                </div>
+                {keywordsOf(t).length > 0 && (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2px 8px', marginBottom: 6 }}>
+                    {keywordsOf(t).slice(0, 2).map((kw, i) => (
+                      <span key={kw} style={{ fontSize: i === 0 ? 'clamp(15px,2vw,18px)' : 13, fontWeight: 800, color: i === 0 ? 'var(--accent)' : '#fff', lineHeight: 1.3 }}>
+                        {kw}
+                      </span>
+                    ))}
+                  </div>
+                )}
+                <div style={{ fontSize: 15.5, fontWeight: 800, lineHeight: 1.4, marginBottom: 8 }}>{t.name}</div>
+                {summaryOf(t) && (
+                  <p style={{ fontSize: 12.5, color: 'var(--text2, #cfcac0)', lineHeight: 1.6, marginBottom: whyItMattersOf(t) ? 6 : 0 }}>
+                    {summaryOf(t).slice(0, 70)}{summaryOf(t).length > 70 ? '…' : ''}
+                  </p>
+                )}
+                {whyItMattersOf(t) && (
+                  <div style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.5 }}>{whyItMattersOf(t).slice(0, 60)}</div>
+                )}
               </Link>
             ))}
           </div>

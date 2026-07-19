@@ -44,7 +44,9 @@
   timeout = 90
 
 [functions."enrich-article-images"]
-  schedule = "47 */3 * * *" # generate-updates(45) 이후·editorial-plan(50) 이전 — 이번 주기 우선순위 반영해 이미지 보강(2026-07-12 자동화)
+  # 2026-07-19: 자동 schedule 제거 — 이미지 제거·텍스트 중심 개편(PM 지시). 신규 콘텐츠 생산
+  # 과정에서 더 이상 이미지 수집을 필수/자동 단계로 두지 않는다. 함수 자체와 og_image_url
+  # 데이터는 삭제하지 않고 남겨둔다(과거 데이터 보존, Admin 수동 실행은 계속 가능).
   timeout = 90
 
 [functions."process-stories-background"]

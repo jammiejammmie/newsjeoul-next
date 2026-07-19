@@ -9,9 +9,11 @@ function client() {
 
 export async function getActiveTopics(limit = 10) {
   const supabase = client()
+  // 이미지 제거·텍스트 중심 개편(PM 지시 2026-07-19) — Home 카드에 "관련 보도 수"를 실제 숫자로
+  // 보여주기 위해 topic_stories를 count 집계로 함께 가져온다(PostgREST 임베디드 count, N+1 방지).
   const { data } = await supabase
     .from('topics')
-    .select('id, slug, name, summary, status, lifecycle_stage, importance_score, popularity_score, updated_at, category, ai_context')
+    .select('id, slug, name, summary, status, lifecycle_stage, importance_score, popularity_score, updated_at, category, ai_context, topic_stories(count)')
     .eq('status', 'active')
     .order('importance_score', { ascending: false })
     .order('popularity_score', { ascending: false })

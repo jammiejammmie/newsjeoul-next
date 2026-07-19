@@ -1,12 +1,27 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
+import { createClient } from '@supabase/supabase-js'
 import { getTopicBySlug } from '@/lib/topics'
 import { generateArticleSchema } from '@/lib/schema/article'
 import { generateBreadcrumbSchema } from '@/lib/schema/breadcrumb'
 
 export const dynamic = 'force-dynamic'
 const BASE = 'https://newsjeoul.co.kr'
+
+// 내부링크 최소 3개 보장(PM 지시 2026-07-19) — 형제 앵글이 적거나 없어도 관련 Topic으로 채운다.
+async function getRelatedTopicsForLink(topicId: string) {
+  const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
+  const { data } = await supabase
+    .from('topic_relations')
+    .select('source_topic_id, target_topic_id, source:topics!topic_relations_source_topic_id_fkey(slug,name), target:topics!topic_relations_target_topic_id_fkey(slug,name)')
+    .or(`source_topic_id.eq.${topicId},target_topic_id.eq.${topicId}`)
+    .order('strength_score', { ascending: false })
+    .limit(4)
+  return (data || [])
+    .map((row: any) => (row.source_topic_id === topicId ? row.target : row.source))
+    .filter(Boolean)
+}
 
 // 문단 사이 빈 줄로 구분된 본문을 <p> 목록으로 변환 — 메인 Topic 페이지의 렌더링 관례와 통일.
 function renderBody(body: string) {
@@ -46,6 +61,8 @@ export default async function ExpansionDraftPage({ params }: { params: Promise<{
   const found = await getDraft(slug, angle)
   if (!found) notFound()
   const { topic, draft, siblings } = found
+  // 형제 앵글이 2개 미만이면 관련 Topic으로 채워 항상 3개 이상 내부링크를 보장한다.
+  const relatedTopics = siblings.length < 2 ? await getRelatedTopicsForLink(topic.id) : []
 
   const jsonLd = generateArticleSchema({
     headline: draft.title,
@@ -100,6 +117,11 @@ export default async function ExpansionDraftPage({ params }: { params: Promise<{
             {siblings.map((s: any) => (
               <Link key={s.angle} href={`/topic/${topic.slug}/${s.angle}`} style={{ fontSize: 14, color: 'var(--text)', textDecoration: 'none' }}>
                 → {s.title}
+              </Link>
+            ))}
+            {relatedTopics.map((t: any) => (
+              <Link key={t.slug} href={`/topic/${t.slug}`} style={{ fontSize: 14, color: 'var(--text)', textDecoration: 'none' }}>
+                → {t.name}
               </Link>
             ))}
           </div>

@@ -2,10 +2,9 @@ import { createClient } from '@supabase/supabase-js'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { getTopicBySlug, getTopicStories, getTopicEntities, getTopicUpdates, getTopicImage, getTopicTimeline } from '@/lib/topics'
+import { getTopicBySlug, getTopicStories, getTopicEntities, getTopicUpdates, getTopicTimeline } from '@/lib/topics'
 import { entityIcon, categoryIcon } from '@/lib/icons'
 import PerspectiveExplorer from '@/components/topic/PerspectiveExplorer'
-import HeroImage from '@/components/story/HeroImage'
 import { generateArticleSchema } from '@/lib/schema/article'
 import { generateBreadcrumbSchema } from '@/lib/schema/breadcrumb'
 import { generateFaqSchema } from '@/lib/schema/faq'
@@ -71,12 +70,11 @@ export default async function TopicPage({ params }: { params: Promise<{ slug: st
   const topic = await getTopicBySlug(slug)
   if (!topic) notFound()
 
-  const [stories, entities, updates, relatedTopics, image, timeline] = await Promise.all([
+  const [stories, entities, updates, relatedTopics, timeline] = await Promise.all([
     getTopicStories(topic.id, 20),
     getTopicEntities(topic.id),
     getTopicUpdates(topic.id, 5),
     getRelatedTopics(topic.id),
-    getTopicImage(topic.id),
     getTopicTimeline(topic.id, 8),
   ])
 
@@ -119,10 +117,8 @@ export default async function TopicPage({ params }: { params: Promise<{ slug: st
         {topic.category && <><span>›</span><span>{topic.category}</span></>}
       </div>
 
-      {/* BRIEF */}
+      {/* BRIEF — 이미지 제거·텍스트 중심 개편(PM 지시 2026-07-19) */}
       <div style={{ padding: '20px 0 36px' }}>
-        {image && <HeroImage src={image} />}
-
         {/* 핵심 키워드(PM 지시 2026-07-17) — 탐험의 입구: 매칭되는 엔티티가 있으면 그 페이지로 연결 */}
         {displayKeywords.length > 0 && (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 14px', marginBottom: 16 }}>
@@ -142,8 +138,11 @@ export default async function TopicPage({ params }: { params: Promise<{ slug: st
           </div>
         )}
 
-        <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 14 }}>
-          TOPIC · 무게 {weight}g
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, fontSize: 12, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 14 }}>
+          <span>무게 {weight}g</span>
+          {topic.category && <><span>·</span><span>{topic.category}</span></>}
+          <span>·</span>
+          <span>관련 보도 {stories.length}건</span>
         </div>
         {weightInfo?.reasons?.length > 0 && (
           <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 14, lineHeight: 1.7 }}>

@@ -20,9 +20,9 @@ const REQUEST_HEADERS = { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + S
 
 // ── Data ─────────────────────────────────────────────────────────
 // 후보 Topic 선정 — Migration 비의존(topics.ai_context.threads만 사용). 반환값 null이면 정상 상태(오류 아님).
-// 선정 기준: 발행 완료 + 완성된 draft(lead+blocks) + 24시간 내 미게시 + 무게(importance_score) 높은 순.
-// 대표 이미지가 있는 후보를 우선하되(클릭 유도), 없다고 전부 배제하면 미배정 위험이 있으므로
-// 이미지 있는 후보가 하나도 없으면 이미지 없는 것 중에서도 고른다(0% 미배정 원칙과 동일한 폴백 철학).
+// 선정 기준: 발행 완료 + 완성된 draft(lead+blocks) + 원문 출처 URL 존재 + 24시간 내 미게시 +
+// 무게(importance_score) 높은 순. 2026-07-19: 이미지 우선순위 제거(텍스트 중심 개편 — Threads 게시는
+// 원래도 TEXT 전용이라 이미지 유무는 선정 기준에서 의미가 없었다).
 async function fetchCandidateTopic() {
   const cutoff = new Date(Date.now() - 86400000).toISOString();
   const res = await fetch(
@@ -42,11 +42,7 @@ async function fetchCandidateTopic() {
     return draft && draft.lead && Array.isArray(draft.blocks) && draft.blocks.length > 0
       && evidence?.sources?.some((s) => s.url);
   });
-  if (!complete.length) return null;
-
-  const withImage = complete.filter((t) => (t.ai_context?.evidence?.images || []).length > 0);
-  const pool = withImage.length ? withImage : complete; // 이미지 있는 후보 우선, 없으면 전체 폴백
-  return pool[0] || null;
+  return complete[0] || null;
 }
 
 // ── Post log(상세, best-effort) ──────────────────────────────────

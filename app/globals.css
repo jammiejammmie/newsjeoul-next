@@ -657,6 +657,14 @@ body {
 .nj-cover-card { transition: transform .25s ease; display: block; }
 .nj-cover-card:hover { transform: translateY(-3px); }
 
+/* 이미지 제거·텍스트 중심 개편(PM 지시 2026-07-19) — 카드 높이는 콘텐츠 길이를 따라가고
+   (고정 height 제거), 데스크톱에서만 2:1 그리드, 모바일은 세로 1열 스택. */
+.nj-hero-grid { display: grid; grid-template-columns: 1fr; gap: 14px; }
+@media (min-width: 761px) {
+  .nj-hero-grid { grid-template-columns: 2fr 1fr; align-items: stretch; }
+}
+.nj-hero-side-col { display: flex; flex-direction: column; gap: 14px; }
+
 .nj-index-row { transition: background .2s ease; }
 .nj-index-row:hover { background: rgba(243, 239, 230, .03); }
 
