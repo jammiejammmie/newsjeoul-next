@@ -91,6 +91,8 @@ export default async function TopicPage({ params }: { params: Promise<{ slug: st
   const weightInfo = topic.ai_context?.weight
   const editorsAssigned = plan?.editors_assigned || []
   const displayKeywords = draft?.display_keywords || []
+  // Expansion Engine(PM 지시 2026-07-19) — 이 Topic에서 파생된 다른 앵글 글들(가이드/비교/배경/FAQ 등)
+  const expansionDrafts = topic.ai_context?.expansion_drafts || []
 
   const jsonLd = generateArticleSchema({
     headline: topic.name,
@@ -165,6 +167,23 @@ export default async function TopicPage({ params }: { params: Promise<{ slug: st
           </p>
         )}
       </div>
+
+      {/* EXPANSION DRAFTS — 이 Topic에서 파생된 다른 관점의 글(PM 지시 2026-07-19, 내부링크 필수 3개+) */}
+      {expansionDrafts.length > 0 && (
+        <div style={{ marginBottom: 40 }}>
+          <div style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 16 }}>
+            이 주제를 더 깊이 알아보기
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {expansionDrafts.map((d: any) => (
+              <Link key={d.angle} href={`/topic/${topic.slug}/${d.angle}`} style={{ display: 'block', border: '1px solid var(--border)', background: 'var(--card)', borderRadius: 10, padding: '12px 16px', textDecoration: 'none' }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 4 }}>{d.label}</div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>{d.title}</div>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* ENTITY BAND */}
       {entities.length > 0 && (

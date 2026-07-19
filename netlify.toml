@@ -85,6 +85,11 @@
 [functions."generate-editorial-draft-background"]
   schedule = "55 */3 * * *" # editorial-plan(50) 다음 — 계획 수립분을 받아 생성
 
+[functions."generate-expansion-drafts-background"]
+  schedule = "56 */3 * * *" # editorial-draft(55) 직후 — Expansion Engine(PM 지시 2026-07-19,
+                            # KPI=색인 대상 페이지 수). DEEP_DIVE 외 6종 라우팅 결과에 실제 콘텐츠를
+                            # 연결하고, 무게 높은 DEEP_DIVE Topic에는 보너스 앵글(가이드/비교/배경/FAQ)을 추가한다.
+
 [functions."generate-relation-context-background"]
   schedule = "58 */3 * * *" # editorial-draft(55) 직후 — 이번 주기에 새로 published된 Topic의
                             # 관계·엔티티 설명을 바로 채운다(2026-07-12, 운영 검증 통과 후 자동화)

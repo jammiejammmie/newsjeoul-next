@@ -21,7 +21,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     )
     const [{ data: topics }, { data: entities }] = await Promise.all([
-      supabase.from('topics').select('slug, category, updated_at').eq('status', 'active').order('updated_at', { ascending: false }).limit(1000),
+      supabase.from('topics').select('slug, category, updated_at, ai_context').eq('status', 'active').order('updated_at', { ascending: false }).limit(1000),
       supabase.from('entities').select('slug, updated_at').eq('status', 'active').order('updated_at', { ascending: false }).limit(1000),
     ])
 
@@ -38,6 +38,17 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: 'daily',
       priority: 0.9,
     }))
+
+    // Expansion Engine(PM 지시 2026-07-19) — 하나의 Topic이 여러 개의 실제 색인 대상 페이지가 되도록,
+    // ai_context.expansion_drafts에 쌓인 각 앵글도 /topic/{slug}/{angle}로 별도 등록한다.
+    const expansionRoutes: MetadataRoute.Sitemap = (topics || []).flatMap((t: any) =>
+      ((t.ai_context?.expansion_drafts || []) as any[]).map((d) => ({
+        url: `${BASE_URL}/topic/${t.slug}/${d.angle}`,
+        lastModified: d.generated_at ? new Date(d.generated_at) : (t.updated_at ? new Date(t.updated_at) : new Date()),
+        changeFrequency: 'weekly' as const,
+        priority: 0.75,
+      }))
+    )
 
     const entityRoutes: MetadataRoute.Sitemap = (entities || []).map((e: any) => ({
       url: `${BASE_URL}/entity/${e.slug}`,
@@ -62,7 +73,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       )
     ).flat()
 
-    return [...staticRoutes, ...topicRoutes, ...categoryRoutes, ...entityRoutes, ...genericContentRoutes]
+    return [...staticRoutes, ...topicRoutes, ...expansionRoutes, ...categoryRoutes, ...entityRoutes, ...genericContentRoutes]
   } catch {
     return staticRoutes
   }
