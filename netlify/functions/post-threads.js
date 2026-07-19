@@ -1,66 +1,84 @@
 // Threads 자동 포스팅 — 발행된 Topic 중 가장 무게가 무거운(importance_score) 미게시 건.
-// 근거: PM 지시(2026-07-17, "Threads 자동 게시 장애 정정 및 복구") — 기존엔 "오늘 생성된 stories"
-// 중에서만 골라 하루 중 신규 story가 없으면 예외를 던져 GitHub Actions가 "실패"로 오인했다(정상
-// Skip이어야 할 상황이 장애 메일로 잘못 보고됨). 이제는 published Topic 풀(오늘 국한 아님, 최근
-// 24시간 내 이미 게시된 것만 제외)에서 고른다 — 후보가 없으면 예외 대신 null을 반환해 핸들러가
-// 정상 Skip(200)으로 처리한다.
+// 근거: PM 지시(2026-07-17 "Threads 자동 게시 장애 정정 및 복구", 2026-07-19 "Threads 즉시 정상화").
 //
-// 하루 여러 차례 게시 지원: 매번 "최근 24시간 내 미게시" 후보 중 최상위를 고르므로, 이미 게시한
-// Topic은 자동으로 후순위가 되어 같은 회차에 반복 게시되지 않는다(예전엔 story_id 단위로 결정론적
-// 단일 후보만 있어 하루 여러 번 호출해도 항상 같은 것만 나왔다).
+// 2026-07-19 재작성 — 핵심 변경: 중복 방지·후보 선정을 threads_posts의 신규 컬럼(topic_id 등,
+// 미적용 Migration)에 의존하지 않게 바꿨다. 기존 실제 오류 로그로 확인된 문제:
+//   "threads_posts 조회 실패: column threads_posts.topic_id does not exist" (2026-07-19 04:17 UTC)
+// 이제는 topics.ai_context.threads(기존에 이미 존재하는 jsonb 컬럼)만으로 핵심 동작이 전부 된다.
+// threads_posts에 대한 상세 로그 INSERT는 best-effort로 남기되, 실패해도 핵심 동작(중복방지·게시)에는
+// 영향이 없다 — 단, 이 실패는 더 이상 조용히 삼키지 않고 명확히 표시한다(아래 savePostLog 참고).
+//
+// 순서(비용 보호): 자격증명 확인 → 후보 선정(+중복 확인) → (dry면 여기서 미리보기 반환) →
+// Claude 문구 생성 → Threads 게시 → 성공 기록. 자격증명이 없거나 후보가 없으면 Claude를 호출하지 않는다.
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
 const THREADS_USER_ID = process.env.THREADS_USER_ID;
 const THREADS_ACCESS_TOKEN = process.env.THREADS_ACCESS_TOKEN;
 const BASE_URL = 'https://newsjeoul.co.kr';
+const REQUEST_HEADERS = { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY };
 
 // ── Data ─────────────────────────────────────────────────────────
-// 후보 Topic 선정 — 반환값 null이면 "지금 게시할 만한 게 없다"는 정상 상태(오류 아님).
+// 후보 Topic 선정 — Migration 비의존(topics.ai_context.threads만 사용). 반환값 null이면 정상 상태(오류 아님).
+// 선정 기준: 발행 완료 + 완성된 draft(lead+blocks) + 24시간 내 미게시 + 무게(importance_score) 높은 순.
+// 대표 이미지가 있는 후보를 우선하되(클릭 유도), 없다고 전부 배제하면 미배정 위험이 있으므로
+// 이미지 있는 후보가 하나도 없으면 이미지 없는 것 중에서도 고른다(0% 미배정 원칙과 동일한 폴백 철학).
 async function fetchCandidateTopic() {
-  const since = new Date(Date.now() - 86400000).toISOString();
-  const headers = { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY };
-
-  const recentRes = await fetch(
-    `${SUPABASE_URL}/rest/v1/threads_posts?select=topic_id&posted_at=gte.${encodeURIComponent(since)}&topic_id=not.is.null`,
-    { headers }
-  );
-  if (!recentRes.ok) throw new Error('threads_posts 조회 실패: ' + await recentRes.text());
-  const recentIds = (await recentRes.json()).map((r) => r.topic_id).filter(Boolean);
-  const excludeFilter = recentIds.length ? `&id=not.in.(${recentIds.join(',')})` : '';
-
+  const cutoff = new Date(Date.now() - 86400000).toISOString();
   const res = await fetch(
-    `${SUPABASE_URL}/rest/v1/topics?select=id,slug,name,summary,importance_score,ai_context&status=eq.active&editorial_status=eq.published${excludeFilter}&order=importance_score.desc&limit=5`,
-    { headers }
+    `${SUPABASE_URL}/rest/v1/topics?select=id,slug,name,summary,importance_score,ai_context` +
+    `&status=eq.active&editorial_status=eq.published` +
+    `&or=(ai_context->threads->>posted_at.is.null,ai_context->threads->>posted_at.lt.${encodeURIComponent(cutoff)})` +
+    `&order=importance_score.desc&limit=10`,
+    { headers: REQUEST_HEADERS }
   );
   if (!res.ok) throw new Error('topics 조회 실패: ' + await res.text());
   const rows = await res.json();
-  return rows[0] || null;
+
+  // 완성도 확인 — 원문 기사 URL 확인을 위해 evidence.sources도 같이 체크
+  const complete = rows.filter((t) => {
+    const draft = t.ai_context?.draft;
+    const evidence = t.ai_context?.evidence;
+    return draft && draft.lead && Array.isArray(draft.blocks) && draft.blocks.length > 0
+      && evidence?.sources?.some((s) => s.url);
+  });
+  if (!complete.length) return null;
+
+  const withImage = complete.filter((t) => (t.ai_context?.evidence?.images || []).length > 0);
+  const pool = withImage.length ? withImage : complete; // 이미지 있는 후보 우선, 없으면 전체 폴백
+  return pool[0] || null;
 }
 
-// ── Post log ──────────────────────────────────────────────────────
+// ── Post log(상세, best-effort) ──────────────────────────────────
+// 실패해도 핵심 동작(dedup은 이미 ai_context.threads에 기록된 뒤이므로 안전)에 영향 없지만,
+// 더 이상 조용히 삼키지 않는다 — 호출부에서 성공/실패를 구분해 반환값에 반영한다.
 async function savePostLog(fields) {
-  const res = await fetch(
-    `${SUPABASE_URL}/rest/v1/threads_posts`,
-    {
-      method: 'POST',
-      headers: {
-        'apikey': SUPABASE_KEY,
-        'Authorization': 'Bearer ' + SUPABASE_KEY,
-        'Content-Type': 'application/json',
-        'Prefer': 'return=minimal',
-      },
-      body: JSON.stringify(fields),
-    }
-  );
-  if (!res.ok) console.error('게시 로그 저장 실패:', await res.text());
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/threads_posts`, {
+    method: 'POST',
+    headers: { ...REQUEST_HEADERS, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+    body: JSON.stringify(fields),
+  });
+  if (!res.ok) {
+    const detail = await res.text();
+    console.error('THREADS_LOG_SAVE_FAILED(핵심 동작에는 영향 없음, 상세 로그만 누락):', detail);
+    return { ok: false, detail };
+  }
+  return { ok: true };
+}
+
+// 핵심 dedup 기록 — 기존 ai_context merge 패턴 재사용, 이 프로젝트 전체에서 이미 검증된 방식.
+async function markTopicPosted(topic, postId, hookType) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/topics?id=eq.${topic.id}`, {
+    method: 'PATCH',
+    headers: { ...REQUEST_HEADERS, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+    body: JSON.stringify({
+      ai_context: { ...(topic.ai_context || {}), threads: { posted_at: new Date().toISOString(), post_id: postId, hook_type: hookType } },
+    }),
+  });
+  if (!res.ok) throw new Error('핵심 dedup 기록 실패(topics.ai_context.threads): ' + await res.text());
 }
 
 // ── Hook 기반 Threads 문구 생성(PM 지시 2026-07-17) ─────────────────
-// 목표: 내용을 전부 알려주는 게 아니라 "못 본 절반"을 확인하고 싶게 만드는 것.
-// 구조: 강한 첫 문장 → 사람들이 놓친 지점 → 답을 다 말하지 않는 정보 격차 → 뉴스저울 유도.
-// 금지: 사실과 다른 과장, 본문에 없는 결론, 공포 조장, 무조건적 낚시, "충격"/"소름"/"난리 났다" 같은
-// 상투어, 링크를 눌러도 답이 없는 문구.
 async function generateHookCopy(topic, url) {
   const draft = topic.ai_context?.draft;
   const keywords = draft?.display_keywords || [];
@@ -92,16 +110,8 @@ async function generateHookCopy(topic, url) {
 
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': ANTHROPIC_KEY,
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify({
-      model: 'claude-sonnet-5',
-      max_tokens: 500,
-      messages: [{ role: 'user', content: prompt }],
-    }),
+    headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
+    body: JSON.stringify({ model: 'claude-sonnet-5', max_tokens: 500, messages: [{ role: 'user', content: prompt }] }),
   });
   if (!res.ok) throw new Error('Claude API 에러: ' + await res.text());
   const data = await res.json();
@@ -115,29 +125,16 @@ async function generateHookCopy(topic, url) {
 
 // ── Threads API ──────────────────────────────────────────────────
 async function createContainer(text) {
-  const params = new URLSearchParams({
-    media_type: 'TEXT',
-    text,
-    access_token: THREADS_ACCESS_TOKEN,
-  });
-  const res = await fetch(
-    `https://graph.threads.net/v1.0/${THREADS_USER_ID}/threads`,
-    { method: 'POST', body: params }
-  );
+  const params = new URLSearchParams({ media_type: 'TEXT', text, access_token: THREADS_ACCESS_TOKEN });
+  const res = await fetch(`https://graph.threads.net/v1.0/${THREADS_USER_ID}/threads`, { method: 'POST', body: params });
   const data = await res.json();
   if (!res.ok || !data.id) throw new Error('createContainer 실패: ' + JSON.stringify(data));
   return data.id;
 }
 
 async function publishPost(containerId) {
-  const params = new URLSearchParams({
-    creation_id: containerId,
-    access_token: THREADS_ACCESS_TOKEN,
-  });
-  const res = await fetch(
-    `https://graph.threads.net/v1.0/${THREADS_USER_ID}/threads_publish`,
-    { method: 'POST', body: params }
-  );
+  const params = new URLSearchParams({ creation_id: containerId, access_token: THREADS_ACCESS_TOKEN });
+  const res = await fetch(`https://graph.threads.net/v1.0/${THREADS_USER_ID}/threads_publish`, { method: 'POST', body: params });
   const data = await res.json();
   if (!res.ok || !data.id) throw new Error('publishPost 실패: ' + JSON.stringify(data));
   return data.id;
@@ -149,8 +146,9 @@ exports.handler = async function (event) {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 200, headers, body: '' };
 
   // Netlify Scheduled Function은 httpMethod='POST'로 호출되지만 x-admin-key 헤더가 없다
-  // (event.headers['x-nf-event']==='schedule'로 식별) — 2026-07-17 실운영 검증 중 발견,
-  // 이 조건이 없으면 자동 스케줄 호출이 전부 401로 조용히 거부돼 파이프라인이 절대 자동으로 안 돈다.
+  // (event.headers['x-nf-event']==='schedule'로 식별) — 이 조건이 없으면 자동 스케줄 호출이
+  // 전부 401로 조용히 거부된다. 단, 이 함수는 GitHub Actions만을 유일한 트리거로 쓰기로 결정했으므로
+  // (netlify.toml의 자체 schedule 제거, Threads Final Design §1) 실제로는 이 분기를 안 타야 정상이다.
   if (event.httpMethod && event.headers?.['x-nf-event'] !== 'schedule') {
     const key = event.headers?.['x-admin-key'] || event.queryStringParameters?.key;
     if (key !== process.env.ADMIN_KEY) {
@@ -160,55 +158,55 @@ exports.handler = async function (event) {
 
   const isDry = event.queryStringParameters?.dry === 'true';
 
-  try {
-    const topic = await fetchCandidateTopic();
+  // 1. 자격증명 확인 — Claude 호출보다 반드시 먼저(비용 보호)
+  if (!isDry && (!THREADS_USER_ID || !THREADS_ACCESS_TOKEN)) {
+    return { statusCode: 500, headers, body: JSON.stringify({ error: 'THREADS_USER_ID 또는 THREADS_ACCESS_TOKEN 환경변수 없음' }) };
+  }
 
-    // 후보 없음 = 정상 Skip(오류 아님) — PM 지시: "정상 Skip은 GitHub Actions 실패로 처리하지 않음"
+  try {
+    // 2. 후보 선정(+중복 확인 포함)
+    const topic = await fetchCandidateTopic();
     if (!topic) {
       console.log('게시 가능한 신규 Topic 없음 — 정상 Skip');
-      if (!isDry) await savePostLog({ status: 'skipped', failure_reason: '게시 가능한 신규 Topic 없음' });
       return { statusCode: 200, headers, body: JSON.stringify({ skipped: true, reason: '게시 가능한 신규 Topic 없음' }) };
     }
 
     const plan = topic.ai_context?.plan;
     const editors = (plan?.editors_assigned || []).map((e) => e.name);
-    const { hookType, text: hookBody } = await generateHookCopy(topic, `${BASE_URL}/topic/${topic.slug}`);
-    const url = `${BASE_URL}/topic/${topic.slug}?utm_source=threads&utm_medium=social&utm_campaign=organic_threads&utm_content=${topic.id}_${hookType}`;
-    const text = hookBody.replace(`${BASE_URL}/topic/${topic.slug}`, url); // 유도 문장 안 URL에도 UTM 반영
+    const baseUrl = `${BASE_URL}/topic/${topic.slug}`;
+
+    // 3. Claude 문구 생성(여기부터 비용 발생)
+    const { hookType, text: hookBody } = await generateHookCopy(topic, baseUrl);
+    const url = `${baseUrl}?utm_source=threads&utm_medium=social&utm_campaign=organic_threads&utm_content=${topic.id}_${hookType}`;
+    const text = hookBody.replace(baseUrl, url);
 
     console.log('포스팅 내용:\n', text);
 
     if (isDry) {
-      return {
-        statusCode: 200, headers,
-        body: JSON.stringify({ dry: true, topicId: topic.id, hookType, editors, title: topic.name, url, text }),
-      };
+      return { statusCode: 200, headers, body: JSON.stringify({ dry: true, topicId: topic.id, hookType, editors, title: topic.name, url, text }) };
     }
 
-    if (!THREADS_USER_ID || !THREADS_ACCESS_TOKEN) {
-      await savePostLog({ topic_id: topic.id, hook_type: hookType, editors, status: 'failed', failure_reason: 'THREADS_USER_ID/THREADS_ACCESS_TOKEN 환경변수 없음', source_url: url });
-      return {
-        statusCode: 500, headers,
-        body: JSON.stringify({ error: 'THREADS_USER_ID 또는 THREADS_ACCESS_TOKEN 환경변수 없음' }),
-      };
-    }
-
+    // 4. Threads 게시
     let postId;
     try {
       const containerId = await createContainer(text);
       await new Promise((r) => setTimeout(r, 3000));
       postId = await publishPost(containerId);
     } catch (postErr) {
-      await savePostLog({ topic_id: topic.id, hook_type: hookType, editors, status: 'failed', failure_reason: postErr.message, source_url: url });
-      throw postErr;
+      console.error('THREADS_POST_FAILED_AFTER_CLAUDE_CALL(Claude 비용은 이미 발생):', postErr.message);
+      return { statusCode: 500, headers, body: JSON.stringify({ error: postErr.message, note: 'Claude 호출 이후 게시 단계에서 실패 — 비용은 이미 발생했을 수 있음' }) };
     }
 
-    await savePostLog({ topic_id: topic.id, post_id: postId, hook_type: hookType, editors, status: 'success', source_url: url });
+    // 5. 핵심 dedup 기록(반드시 성공해야 함 — 실패 시 다음 실행에서 중복 게시 위험이 있으므로 예외를 던진다)
+    await markTopicPosted(topic, postId, hookType);
+
+    // 6. 상세 로그(best-effort) — 실패해도 위 핵심 기록은 이미 끝난 뒤이므로 안전
+    const logResult = await savePostLog({ topic_id: topic.id, post_id: postId, hook_type: hookType, editors, status: 'success', source_url: url });
 
     console.log('Threads 게시 완료:', postId);
     return {
       statusCode: 200, headers,
-      body: JSON.stringify({ ok: true, postId, topicId: topic.id, hookType, editors, title: topic.name, url }),
+      body: JSON.stringify({ ok: true, postId, topicId: topic.id, hookType, editors, title: topic.name, url, detailLogSaved: logResult.ok }),
     };
   } catch (e) {
     console.error(e.message);

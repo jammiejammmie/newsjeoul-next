@@ -66,7 +66,9 @@
   timeout = 90
 
 [functions."post-threads"]
-  schedule = "0 1 * * *"
+  # 2026-07-19: 자체 schedule 제거 — GitHub Actions(.github/workflows/post-threads.yml)만을
+  # 유일한 트리거로 유지한다(Threads Final Design §1). 이전엔 여기와 GitHub Actions가 같은
+  # 시각(0 1 * * *)에 동시 존재해 헤더명 버그가 고쳐지면 이중 게시 위험이 있었다.
   timeout = 90
 
 # Editorial Engine (2026-07-11 Phase 2~3, Background Function 전환) — 365일 무인 운영 목표.
