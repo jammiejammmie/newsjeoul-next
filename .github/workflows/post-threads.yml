@@ -1,14 +1,27 @@
-name: Post to Threads (daily 10:00 KST)
+name: Post to Threads (hourly)
 
+# 2026-07-19: 하루 1회 → 매시 정각으로 변경(PM 지시 "웹 생산량에 비례하는 Threads 생산량",
+# 목표 하루 20건 이상, 시간 분산 발행). 후보가 없거나 품질 기준 미달, 이미 게시된 Topic인
+# 경우 post-threads.js가 정상 Skip(200, reason 필드 포함)으로 처리하므로 매시간 시도해도
+# 무해하다 — 실제 게시는 thread_score가 충분히 높은 새 후보가 있을 때만 일어난다(평생 1회
+# 게시 원칙은 topics.ai_context.threads로 보장, post-threads.js 참고).
+#
+# 시간 분산(PM 지시 §6): 정각 클러스터링을 피하기 위해 0~14분 랜덤 지연을 둔다. 별도
+# 워크플로/스케줄을 추가하는 대신 같은 Job 안에서 짧게 sleep하는 방식이라 러너 비용 증가는
+# 미미하다(최대 14분 대기 후 즉시 종료).
 on:
   schedule:
-    - cron: '0 1 * * *'   # 01:00 UTC = 10:00 KST
+    - cron: '0 * * * *'   # 매시 정각(UTC) 트리거, 실제 호출은 아래 지연 이후
   workflow_dispatch:        # 수동 실행 가능 (테스트용)
 
 jobs:
   post:
     runs-on: ubuntu-latest
     steps:
+      - name: Random delay (0-14 min) to avoid on-the-hour clustering
+        if: github.event_name == 'schedule'
+        run: sleep $((RANDOM % 900))
+
       - name: Call post-threads Netlify function
         run: |
           RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \

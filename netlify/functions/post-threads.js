@@ -1,15 +1,66 @@
-// Threads 자동 포스팅 — 발행된 Topic 중 가장 무게가 무거운(importance_score) 미게시 건.
-// 근거: PM 지시(2026-07-17 "Threads 자동 게시 장애 정정 및 복구", 2026-07-19 "Threads 즉시 정상화").
+// ═══════════════════════════════════════════════════════════════════════════
+// 뉴스저울 Attention Engine — 이 파일은 그 첫 채널 어댑터(Threads)다. 2026-07-21 채과장 최종 리뷰 반영.
 //
-// 2026-07-19 재작성 — 핵심 변경: 중복 방지·후보 선정을 threads_posts의 신규 컬럼(topic_id 등,
-// 미적용 Migration)에 의존하지 않게 바꿨다. 기존 실제 오류 로그로 확인된 문제:
-//   "threads_posts 조회 실패: column threads_posts.topic_id does not exist" (2026-07-19 04:17 UTC)
-// 이제는 topics.ai_context.threads(기존에 이미 존재하는 jsonb 컬럼)만으로 핵심 동작이 전부 된다.
-// threads_posts에 대한 상세 로그 INSERT는 best-effort로 남기되, 실패해도 핵심 동작(중복방지·게시)에는
-// 영향이 없다 — 단, 이 실패는 더 이상 조용히 삼키지 않고 명확히 표시한다(아래 savePostLog 참고).
+// 이 엔진의 목적은 "게시"가 아니다. 목적은 다음 흐름이다(이 철학은 개발자가 바뀌어도 유지돼야 한다):
 //
-// 순서(비용 보호): 자격증명 확인 → 후보 선정(+중복 확인) → (dry면 여기서 미리보기 반환) →
-// Claude 문구 생성 → Threads 게시 → 성공 기록. 자격증명이 없거나 후보가 없으면 Claude를 호출하지 않는다.
+//     Google Search 증가 → 색인 증가 → 외부 유입 증가 → 뉴스저울 내부 탐험(Exploration) 증가
+//
+// 클릭은 수단이지 목표가 아니다. 목표는 유입된 사용자가 뉴스저울 안에서 얼마나 오래·깊이
+// 탐험하는가다. 그래서 아래 Distribution Score는 CTR 하나가 아니라 탐험 가능성(Exploration)을
+// CTR과 동등하거나 더 중요하게 취급한다.
+//
+// 장기 아키텍처(지금은 Threads 어댑터 하나만 구현돼 있다):
+//
+//         Attention Engine
+//               │
+//               ▼
+//        Distribution Engine   ← 이 파일의 선정 로직(채널 독립)
+//               │
+//     ┌─────────┼─────────────┬─────────┬───────────┬─────┬──────┐
+//     ▼         ▼             ▼         ▼           ▼     ▼      ▼
+//  Threads   Google           X      Facebook   Newsletter RSS  Push
+//  (구현됨)  (구현 안 됨)   (구현 안 됨) (구현 안 됨) (구현 안 됨)(...)(...)
+//     │
+//     ▼
+//  사용자 → 뉴스저울 → 탐험
+//
+// 채널은 전부 Adapter일 뿐이다. "관심(Attention)을 어디에 어떻게 배분할지"는 채널마다 다시
+// 판단하는 게 아니라 이 파일의 공통 엔진(Editorial Score → Distribution Score → 적응형 문턱값)이
+// 담당한다. 이 파일 안에서도 그 경계를 코드 섹션 배너로 명시해뒀다 — "채널 독립 영역"은 두 번째
+// 채널이 추가돼도 그대로 재사용되고, "채널 종속 영역(Threads Adapter)"만 새로 작성하면 된다.
+//
+// 최종 원칙(2026-07-21 채과장 최종 승인 기준 — 이 8줄은 앞으로 이 파일과 그 뒤를 잇는 모든
+// 채널 어댑터가 따라야 하는 계약이다):
+//   1. 채널은 Adapter다.
+//   2. 판단은 Distribution Engine이 한다 — 채널마다 판단 로직을 다시 만들지 않는다.
+//   3. 콘텐츠 품질은 Editorial Score가 판단한다.
+//   4. 배포 우선순위는 Distribution Score가 판단한다.
+//   5. 최종 목표는 클릭이 아니라 Exploration이다.
+//   6. Google 검색 유입이 가장 중요한 KPI다.
+//   7. Distribution Engine은 장기적으로 뉴스저울의 Attention Engine으로 발전한다.
+//   8. Threads는 그 첫 번째 Adapter일 뿐이다.
+//
+// 이번 재설계로 바뀐 것:
+// - Thread Score → Editorial Score로 일반화(콘텐츠 자체 품질, 채널 무관).
+// - Distribution Score를 계산만 하지 않고 저장한다(ai_context.engines.distribution, markTopicPosted
+//   참고) — "왜 이 Topic을 선택했는가"를 나중에 분석·학습·운영 통계에 쓸 수 있도록. engines 네임
+//   스페이스 아래 두고 version 필드를 넣은 이유는, 알고리즘이 바뀌어도(v2, v3) 과거 기록과 공존할
+//   수 있게 하기 위해서다.
+// - 향후 확장 지점을 코드에 명시적으로 남겨뒀다(구현은 안 함, 구조만 열어둠):
+//   · Expected Session Time / Exploration Depth — CTR 대신 "얼마나 오래 머무는가"를 직접 점수화.
+//   · Search Opportunity Score — 검색량/경쟁도/롱테일/Evergreen/트렌드 등을 종합한 점수.
+//   두 컴포넌트 다 DISTRIBUTION_WEIGHTS에 아직 없다 — 추가할 때는 기존 가중치를 재조정해야 한다.
+//
+// 핵심 원칙(계속 유지):
+// - Migration 비의존: topics.ai_context.threads/engines(기존 jsonb 컬럼)만으로 이력 관리.
+// - 비용 보호: 자격증명 확인 → 후보 조회 → 점수 계산(전부 DB 데이터만 사용) → 품질/배급 게이트
+//   통과 후에만 Claude 호출.
+// - 동일 Topic은 평생 1회만 게시(ai_context.threads 존재 여부로 영구 제외).
+// - Adaptive Distribution 유지: "오늘 20개 올려" 같은 수동 목표가 아니라, 오늘 실제 생산량에
+//   비례해 게시 목표·품질 문턱값을 스스로 계산한다(computeDailyTarget). 운영자가 숫자를 바꿀
+//   필요가 없다.
+// ═══════════════════════════════════════════════════════════════════════════
+const CHANNEL = 'threads'; // 두 번째 채널 어댑터를 만들 때는 그 파일에서 이 값만 바꾸면 된다.
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
@@ -18,36 +69,313 @@ const THREADS_ACCESS_TOKEN = process.env.THREADS_ACCESS_TOKEN;
 const BASE_URL = 'https://newsjeoul.co.kr';
 const REQUEST_HEADERS = { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY };
 
-// ── Data ─────────────────────────────────────────────────────────
-// 후보 Topic 선정 — Migration 비의존(topics.ai_context.threads만 사용). 반환값 null이면 정상 상태(오류 아님).
-// 선정 기준: 발행 완료 + 완성된 draft(lead+blocks) + 원문 출처 URL 존재 + 24시간 내 미게시 +
-// 무게(importance_score) 높은 순. 2026-07-19: 이미지 우선순위 제거(텍스트 중심 개편 — Threads 게시는
-// 원래도 TEXT 전용이라 이미지 유무는 선정 기준에서 의미가 없었다).
-async function fetchCandidateTopic() {
-  const cutoff = new Date(Date.now() - 86400000).toISOString();
+// ── 상수(마법 숫자 금지 — 전부 여기서 관리, 근거를 주석에 명시) ─────────────
+const MIN_EDITORIAL_SCORE = 60; // 콘텐츠 자체 품질 하한선(100점 만점) — Distribution Score와 별개의 하드 게이트.
+const MIN_BODY_LENGTH = 300; // 본문이 이보다 짧으면 "지나치게 빈약"으로 간주해 무조건 제외.
+const CANDIDATE_POOL_SIZE = 30; // 점수 계산 대상으로 가져올 후보 풀 크기.
+const RECENT_HISTORY_WINDOW = 3; // 최근 게시 패턴(recentPattern) 판단에 쓰는 "최근 게시 N건".
+
+// 오늘 생산량 대비 목표 게시 수 — PM 예시(기사100→5~10, 500→20~30, 1000→40~60)의 중간값에
+// 해당하는 계수. 실측 CTR/색인 증가 데이터가 쌓이면 재조정 대상이다(현재는 초기 보정값).
+const DAILY_TARGET_RATIO = 0.05;
+const MIN_DAILY_TARGET = 3;
+// 목표치 이내일 때(공급 여유 있음) 요구 점수는 낮게, 목표치를 초과했을 때(이미 충분히 배급됨)는
+// 정말 뛰어난 후보만 통과하도록 점진적으로 엄격해진다 — 고정 상한이 아니라 적응형 문턱값이다.
+const DISTRIBUTION_SCORE_FLOOR = 55;
+const DISTRIBUTION_SCORE_CEILING = 80;
+
+// Distribution Score 구성 가중치(합=1.0) — PM 지시 §1의 9개 요소를 7개 계산 컴포넌트로 매핑.
+// (카테고리 생산량 + 카테고리별 오늘 게시 수 → categoryAllocation 하나로 통합: 두 값의 격차가
+//  실제로 의미 있는 신호이기 때문)
+const DISTRIBUTION_WEIGHTS = {
+  editorialScore: 0.20,     // Editorial Score(콘텐츠 자체 품질 — 채널 무관, 구 Thread Score)
+  categoryAllocation: 0.20, // 카테고리 생산량 vs 카테고리별 오늘 게시 수 격차("오늘 부족한 분야" 우선)
+  recentPattern: 0.10,      // 최근 게시 패턴(직전/최근 3건과의 반복 여부)
+  searchIntent: 0.15,       // 검색 의도 적합성
+  expectedCTR: 0.15,        // 예상 CTR(구조적 proxy — 실제 클릭 데이터 없음, 아래 함수 주석 참고)
+  topicWeight: 0.10,        // Topic Weight(importance_score)
+  exploration: 0.10,        // Exploration 가능성 — 클릭 이후 더 탐험할 거리가 있는가(아래 주석 참고)
+};
+// 합계는 1.0이어야 한다. 아래 두 컴포넌트는 PM 지시(2026-07-21 §3, §6)로 미리 문서화만 해두는
+// 확장 지점이다 — 지금은 구현하지 않는다. 실제로 추가할 때는 반드시 위 가중치를 재조정해서
+// 합이 1.0을 유지하도록 해야 한다(새 키를 0이 아닌 값으로 넣고 기존 값들을 비례 축소).
+//   - expectedSession(또는 explorationDepth): CTR 대신 "얼마나 오래/깊이 머무는가"를 직접 점수화.
+//     필요 데이터: 실제 세션 시간·페이지뷰 로그(현재 없음 — 애널리틱스 연동 필요).
+//   - searchOpportunity: 검색량·경쟁도·롱테일 여부·Evergreen 여부·검색 의도 명확성·계절성·트렌드
+//     상승 여부를 종합한 점수. 필요 데이터: 검색 키워드 볼륨/트렌드 데이터(현재 없음 — 외부 API
+//     연동 필요, 예: Google Trends/Search Console).
+
+// ═══ 채널 독립 영역 시작(Attention/Distribution Engine 공통) ═══════════════
+// 여기서부터 selectCandidate()까지는 Threads를 전혀 몰라도 되는 코드다. 두 번째 채널(Google/X/
+// Facebook/Newsletter/RSS/Push)을 추가할 때 이 영역은 건드리지 않는 것이 목표다 — 채널마다
+// 새로 판단하는 게 아니라, 여기서 계산된 Editorial/Distribution Score를 그대로 재사용한다.
+//
+// ── Editorial Score(콘텐츠 자체 품질 — Distribution Score의 입력 중 하나일 뿐, 최종 기준 아님) ──
+// 구 "Thread Score". Threads뿐 아니라 어떤 채널에도 재사용 가능한, 콘텐츠 자체의 품질 점수라는
+// 의미로 이름을 일반화했다(PM 지시 2026-07-21 §2) — 계산 로직 자체는 바뀌지 않았다.
+// 총점 100 = 무게25 + 완성도20 + 출처10 + 왜중요한가10 + 키워드10 + 논쟁성10 + 최신성15
+function computeEditorialScore(topic) {
+  const b = {};
+  const draft = topic.ai_context?.draft || {};
+  const evidence = topic.ai_context?.evidence || {};
+  const weight = topic.ai_context?.weight || {};
+
+  b.weight = Math.min(25, Math.round(((topic.importance_score || 0) / 999) * 25));
+
+  const leadLen = (draft.lead || '').length;
+  const blockCount = Array.isArray(draft.blocks) ? draft.blocks.length : 0;
+  const bodyLen = (draft.blocks || []).reduce((s, blk) => s + (blk.content || '').length, 0);
+  b.completeness = (leadLen >= 20 ? 5 : 0) + (blockCount >= 2 ? 5 : 0) + (bodyLen >= MIN_BODY_LENGTH ? 10 : 0);
+
+  b.source = (evidence.sources || []).some((s) => s.url) ? 10 : 0;
+  b.whyItMatters = (weight.reasons || []).length > 0 ? 10 : 0;
+
+  const kwCount = (draft.display_keywords || []).length;
+  b.keywords = kwCount >= 2 ? 10 : kwCount === 1 ? 5 : 0;
+
+  const comp = weight.components || {};
+  b.controversy = Math.min(10, Math.round(((comp.controversy_score_bonus || 0) + (comp.dual_perspective_bonus || 0)) / 10));
+
+  const hoursSince = topic.updated_at ? (Date.now() - new Date(topic.updated_at).getTime()) / 3600000 : 999;
+  b.recency = hoursSince <= 6 ? 15 : hoursSince <= 24 ? 9 : hoursSince <= 48 ? 4 : 0;
+
+  const score = Object.values(b).reduce((a, v) => a + v, 0);
+  return { score, breakdown: b, bodyLen };
+}
+
+// 최소 품질 게이트(전부 하드 조건 — 하나라도 실패하면 제외, PM 지시 §4)
+function passesMinimumQuality(topic, scored) {
+  const draft = topic.ai_context?.draft;
+  const evidence = topic.ai_context?.evidence;
+  if (!topic.name) return false;
+  if (!draft || !draft.lead) return false;
+  if (!Array.isArray(draft.blocks) || draft.blocks.length === 0) return false;
+  if (!evidence?.sources?.some((s) => s.url)) return false;
+  if (scored.bodyLen < MIN_BODY_LENGTH) return false;
+  if (scored.score < MIN_EDITORIAL_SCORE) return false;
+  return true;
+}
+
+// ── Distribution Score 하위 컴포넌트 ────────────────────────────────
+// 오늘 생산은 많은데 게시는 적게 된 분야("부족한 분야")에 가산점을 준다. gap이 클수록(생산 비중 >
+// 게시 비중) 점수가 올라간다 — 자동차만 100개 생산돼도 자동차만 계속 오르는 문제를 여기서 막는다.
+function computeCategoryAllocationScore(category, producedStats, postedStats) {
+  const catCount = Object.keys(producedStats.byCategory).length || 1;
+  const producedShare = producedStats.total > 0
+    ? (producedStats.byCategory[category] || 0) / producedStats.total
+    : 1 / catCount;
+  const postedShare = postedStats.total > 0 ? (postedStats.byCategory[category] || 0) / postedStats.total : 0;
+  const gap = producedShare - postedShare;
+  return Math.max(0, Math.min(100, 50 + gap * 200));
+}
+
+function computeRecentPatternScore(category, recentCategories) {
+  if (!recentCategories.length) return 100;
+  if (recentCategories[0] === category) return 0; // 직전과 동일 — 강한 감점
+  if (recentCategories.includes(category)) return 40; // 최근 3건 안에 등장 — 약한 감점
+  return 100;
+}
+
+const SEARCH_INTENT_SCORE_BY_GATE = {
+  SEARCH_GUIDE: 100, COMPARE: 95, PRODUCT_BRIEF: 90, UPDATE: 75,
+  BACKGROUND: 60, DEEP_DIVE: 55, SHORT_BRIEF: 40, REJECT: 20,
+};
+function computeSearchIntentScore(topic) {
+  return SEARCH_INTENT_SCORE_BY_GATE[topic.gate_status] ?? 50;
+}
+
+// 예상 CTR — 실제 클릭 로그가 아직 없어 "측정치"가 아니라 "구조적 proxy"다. 숫자·비교 표현·
+// 대립 시각·키워드 밀도처럼 클릭을 유도하는 것으로 알려진 구조적 신호만 사용한다. 실제 Threads
+// 클릭 데이터가 쌓이면 이 함수를 실측 기반으로 교체해야 한다(현재는 근사치임을 명시).
+function estimateExpectedCTR(topic) {
+  let s = 40;
+  const title = topic.name || '';
+  if (/\d/.test(title)) s += 15;
+  if (/vs\.?|대비|비교|얼마|왜|어떻게|누가/i.test(title)) s += 15;
+  const perspectives = topic.ai_context?.draft?.perspective_markers || [];
+  if (perspectives.length > 1) s += 15;
+  const kw = topic.ai_context?.draft?.display_keywords || [];
+  if (kw.length >= 2) s += 15;
+  return Math.min(100, s);
+}
+
+function computeTopicWeightScore(topic) {
+  return Math.max(0, Math.min(100, Math.round(((topic.importance_score || 0) / 999) * 100)));
+}
+
+// Exploration Score — PM 지시(2026-07-21 §4): "클릭 → 탐험"이 뉴스저울의 철학이고, Exploration은
+// 앞으로 CTR보다 더 중요한 지표가 된다. 유입된 방문자가 클릭 이후 얼마나 더 오래·깊이 다른 색인
+// 페이지로 이동할 가능성이 있는지를 반영한다.
+//
+// 이 함수가 다뤄야 할 신호 9가지와 현재 구현 상태(향후 아래 목록을 다 채우는 게 목표 — 지금은
+// 함수 구조만 열어두고, 이미 공짜로 있는 데이터부터 채웠다):
+//   [구현됨] Guide 존재 여부      — expansion_drafts에 angle:'guide' 존재
+//   [구현됨] Compare 존재 여부    — expansion_drafts에 angle:'compare' 존재
+//   [구현됨] FAQ 존재 여부        — expansion_drafts에 angle:'faq' 존재
+//   [구현됨] History 존재 여부    — expansion_drafts에 angle:'background' 존재(배경 설명 = History)
+//   [구현됨] Timeline 존재 여부   — expansion_drafts에 angle:'update' 존재(진행 상황 갱신 = Timeline)
+//   [구현됨] Expansion Draft 수   — expansion_drafts.length
+//   [미구현] Related Topic 수     — topic_relations 쿼리 필요(아래 참고)
+//   [미구현] 내부 링크 수         — topic_relations + expansion_drafts 상호링크 집계 필요
+//   [미구현] 연결된 Entity 수     — topic_entities 쿼리 필요
+// 미구현 3개는 후보 30개마다 매시간 관계/엔티티 쿼리를 추가로 던지는 비용 대비 이득을 아직
+// 검증하지 못해 보류했다. 이 컴포넌트를 별도 함수로 분리해둔 이유가 그것이다: 나중에 그 신호를
+// 추가해도 가중치 구조(DISTRIBUTION_WEIGHTS.exploration)는 그대로 두고 이 함수 내부만 확장하면 된다.
+const EXPLORATION_SIGNAL_ANGLES = ['guide', 'compare', 'faq', 'background', 'update'];
+function computeExplorationScore(topic) {
+  const drafts = topic.ai_context?.expansion_drafts || [];
+  const anglesPresent = new Set(drafts.map((d) => d.angle));
+  const signalCount = EXPLORATION_SIGNAL_ANGLES.filter((a) => anglesPresent.has(a)).length;
+  const importance = topic.importance_score || 0;
+  const potentialBonusAngles = importance >= 400 ? 3 : importance >= 250 ? 2 : 1;
+  return Math.min(100, drafts.length * 15 + signalCount * 10 + potentialBonusAngles * 10);
+}
+
+function computeDistributionScore(topic, baseQuality, ctx) {
+  const components = {
+    editorialScore: baseQuality.score,
+    categoryAllocation: computeCategoryAllocationScore(topic.category, ctx.producedStats, ctx.postedStats),
+    recentPattern: computeRecentPatternScore(topic.category, ctx.recentCategories),
+    searchIntent: computeSearchIntentScore(topic),
+    expectedCTR: estimateExpectedCTR(topic),
+    topicWeight: computeTopicWeightScore(topic),
+    exploration: computeExplorationScore(topic),
+  };
+  const distributionScore = Math.round(
+    Object.entries(DISTRIBUTION_WEIGHTS).reduce((sum, [key, w]) => sum + components[key] * w, 0)
+  );
+  return { distributionScore, components };
+}
+
+// 오늘 실제 생산량에 비례한 목표치 — 고정값 없음. 생산이 없으면 목표도 0.
+function computeDailyTarget(totalProducedToday) {
+  if (totalProducedToday <= 0) return 0;
+  return Math.max(MIN_DAILY_TARGET, Math.round(totalProducedToday * DAILY_TARGET_RATIO));
+}
+
+// 목표 대비 진행률에 따라 요구 점수를 부드럽게 올린다(하드 컷오프 아님) — 목표를 채웠어도
+// 정말 좋은 후보는 여전히 통과할 수 있다. 목표가 0(오늘 생산 없음)이면 예외적인 경우만 허용.
+function computeAdaptiveMinDistributionScore(dailyTarget, postedToday) {
+  if (dailyTarget <= 0) return DISTRIBUTION_SCORE_CEILING;
+  const progress = postedToday / dailyTarget;
+  if (progress <= 1) return DISTRIBUTION_SCORE_FLOOR;
+  const over = Math.min(1, progress - 1);
+  return Math.round(DISTRIBUTION_SCORE_FLOOR + (DISTRIBUTION_SCORE_CEILING - DISTRIBUTION_SCORE_FLOOR) * over);
+}
+
+// ── Data(채널 독립 — CHANNEL 상수로 파라미터화, 두 번째 채널이 생겨도 그대로 재사용) ──────
+// 평생 1회 게시 원칙 — ai_context[CHANNEL]이 이미 있으면(=posted_at 존재) 영구 제외. 채널별로
+// 독립된 dedup 키를 쓰기 때문에(ai_context.threads / 나중엔 ai_context.google 등) 한 Topic이
+// 여러 채널에 각각 게시되는 것은 막지 않는다 — "평생 1회"는 채널 단위다.
+async function fetchCandidatePool() {
   const res = await fetch(
-    `${SUPABASE_URL}/rest/v1/topics?select=id,slug,name,summary,importance_score,ai_context` +
-    `&status=eq.active&editorial_status=eq.published` +
-    `&or=(ai_context->threads->>posted_at.is.null,ai_context->threads->>posted_at.lt.${encodeURIComponent(cutoff)})` +
-    `&order=importance_score.desc&limit=10`,
+    `${SUPABASE_URL}/rest/v1/topics?select=id,slug,name,summary,category,gate_status,importance_score,updated_at,ai_context` +
+    `&status=eq.active&editorial_status=eq.published&ai_context->${CHANNEL}->>posted_at=is.null` +
+    `&order=importance_score.desc&limit=${CANDIDATE_POOL_SIZE}`,
     { headers: REQUEST_HEADERS }
   );
   if (!res.ok) throw new Error('topics 조회 실패: ' + await res.text());
-  const rows = await res.json();
-
-  // 완성도 확인 — 원문 기사 URL 확인을 위해 evidence.sources도 같이 체크
-  const complete = rows.filter((t) => {
-    const draft = t.ai_context?.draft;
-    const evidence = t.ai_context?.evidence;
-    return draft && draft.lead && Array.isArray(draft.blocks) && draft.blocks.length > 0
-      && evidence?.sources?.some((s) => s.url);
-  });
-  return complete[0] || null;
+  return res.json();
 }
 
+// 최근 게시 이력(전체 기간 중 최근 N건, 카테고리 반복 패턴 판단용) — jsonb 경로 정렬 문법 리스크를
+// 피해 넉넉히 가져와 클라이언트에서 정렬한다.
+async function fetchRecentPostedCategories(limit) {
+  const res = await fetch(
+    `${SUPABASE_URL}/rest/v1/topics?select=category,ai_context&status=eq.active` +
+    `&ai_context->${CHANNEL}->>posted_at=not.is.null&limit=30`,
+    { headers: REQUEST_HEADERS }
+  );
+  if (!res.ok) return [];
+  const rows = await res.json();
+  return rows
+    .sort((a, b) => (b.ai_context?.[CHANNEL]?.posted_at || '').localeCompare(a.ai_context?.[CHANNEL]?.posted_at || ''))
+    .slice(0, limit)
+    .map((r) => r.category)
+    .filter(Boolean);
+}
+
+// 오늘(UTC) 실제 웹 생산량 — 총량과 카테고리별 분포. computeDailyTarget과 categoryAllocation의 입력.
+async function fetchTodayProducedStats() {
+  const todayStart = new Date().toISOString().slice(0, 10) + 'T00:00:00';
+  const res = await fetch(
+    `${SUPABASE_URL}/rest/v1/topics?select=id,category&status=eq.active&editorial_status=eq.published` +
+    `&created_at=gte.${encodeURIComponent(todayStart)}`,
+    { headers: REQUEST_HEADERS }
+  );
+  if (!res.ok) return { total: 0, byCategory: {} };
+  const rows = await res.json();
+  const byCategory = {};
+  rows.forEach((r) => { byCategory[r.category] = (byCategory[r.category] || 0) + 1; });
+  return { total: rows.length, byCategory };
+}
+
+// 오늘(UTC) 이 채널의 게시 실적 — 총량과 카테고리별 분포. 운영 보고(오늘 게시 성공 수)에도 그대로 쓴다.
+async function fetchTodayPostedStats() {
+  const todayStart = new Date().toISOString().slice(0, 10) + 'T00:00:00';
+  const res = await fetch(
+    `${SUPABASE_URL}/rest/v1/topics?select=id,category&status=eq.active` +
+    `&ai_context->${CHANNEL}->>posted_at=gte.${encodeURIComponent(todayStart)}`,
+    { headers: REQUEST_HEADERS }
+  );
+  if (!res.ok) return { total: 0, byCategory: {} };
+  const rows = await res.json();
+  const byCategory = {};
+  rows.forEach((r) => { byCategory[r.category] = (byCategory[r.category] || 0) + 1; });
+  return { total: rows.length, byCategory };
+}
+
+// 후보 선정 전체 파이프라인 — Thread Score(품질 하한선) → Distribution Score(배급 우선순위) →
+// 오늘 생산량 기반 적응형 문턱값. 반환: { topic, reason, detail } — topic이 null이면 reason에
+// 사유가 담긴다(no_candidate/below_quality_threshold/below_distribution_threshold).
+async function selectCandidate() {
+  const [pool, recentCategories, producedStats, postedStats] = await Promise.all([
+    fetchCandidatePool(),
+    fetchRecentPostedCategories(RECENT_HISTORY_WINDOW),
+    fetchTodayProducedStats(),
+    fetchTodayPostedStats(),
+  ]);
+  const dailyTarget = computeDailyTarget(producedStats.total);
+  const adaptiveMinScore = computeAdaptiveMinDistributionScore(dailyTarget, postedStats.total);
+  const baseDetail = { dailyTarget, todayProducedTotal: producedStats.total, todayPostedTotal: postedStats.total };
+
+  if (!pool.length) {
+    return { topic: null, reason: 'no_candidate', detail: { poolSize: 0, ...baseDetail } };
+  }
+
+  const scoredAll = pool.map((t) => ({ topic: t, base: computeEditorialScore(t) }));
+  const eligible = scoredAll.filter((s) => passesMinimumQuality(s.topic, s.base));
+  if (!eligible.length) {
+    return {
+      topic: null, reason: 'below_quality_threshold',
+      detail: { poolSize: pool.length, minEditorialScore: MIN_EDITORIAL_SCORE, topEditorialScoreSeen: Math.max(...scoredAll.map((s) => s.base.score), 0), ...baseDetail },
+    };
+  }
+
+  const ctx = { producedStats, postedStats, recentCategories };
+  const ranked = eligible
+    .map((s) => ({ topic: s.topic, ...computeDistributionScore(s.topic, s.base, ctx) }))
+    .sort((a, b) => b.distributionScore - a.distributionScore);
+
+  const winner = ranked.find((r) => r.distributionScore >= adaptiveMinScore);
+  if (!winner) {
+    return {
+      topic: null, reason: 'below_distribution_threshold',
+      detail: { adaptiveMinScore, topDistributionScoreSeen: ranked[0]?.distributionScore || 0, candidatesConsidered: ranked.length, ...baseDetail },
+    };
+  }
+
+  return {
+    topic: winner.topic, reason: 'success',
+    detail: { distributionScore: winner.distributionScore, components: winner.components, adaptiveMinScore, candidatesConsidered: ranked.length, recentCategories, ...baseDetail },
+  };
+}
+
+// 채널 독립 선정 로직은 여기까지다. 아래 저장 함수들은 CHANNEL 상수로 파라미터화돼 있어 그대로
+// 재사용되지만, Threads Graph API 호출 자체(생성 문구/게시)는 채널마다 새로 작성해야 한다.
+// ═══ 채널 독립 영역 끝 ═════════════════════════════════════════════════════
+
 // ── Post log(상세, best-effort) ──────────────────────────────────
-// 실패해도 핵심 동작(dedup은 이미 ai_context.threads에 기록된 뒤이므로 안전)에 영향 없지만,
-// 더 이상 조용히 삼키지 않는다 — 호출부에서 성공/실패를 구분해 반환값에 반영한다.
 async function savePostLog(fields) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/threads_posts`, {
     method: 'POST',
@@ -56,25 +384,69 @@ async function savePostLog(fields) {
   });
   if (!res.ok) {
     const detail = await res.text();
-    console.error('THREADS_LOG_SAVE_FAILED(핵심 동작에는 영향 없음, 상세 로그만 누락):', detail);
+    console.error(`DISTRIBUTION_LOG_SAVE_FAILED[${CHANNEL}](핵심 동작에는 영향 없음, 상세 로그만 누락):`, detail);
     return { ok: false, detail };
   }
   return { ok: true };
 }
 
-// 핵심 dedup 기록 — 기존 ai_context merge 패턴 재사용, 이 프로젝트 전체에서 이미 검증된 방식.
-async function markTopicPosted(topic, postId, hookType) {
+// 핵심 dedup 기록 + Distribution Score 저장 — 기존 ai_context merge 패턴 재사용.
+//
+// ai_context.engines.distribution은 "왜 이 Topic이 선택됐는가"를 나중에 분석·AI 학습·운영
+// 통계·점수 변화 추적에 쓸 수 있도록 계산 결과를 실제로 저장한다(PM 지시 2026-07-21 §4 — 계산만
+// 하고 버리지 말 것). engines 네임스페이스 아래 두고 version을 남기는 이유는 채점 알고리즘이
+// v2/v3로 바뀌어도 과거 기록과 공존시키기 위해서다. 지금은 채널이 하나뿐이라 topic당 1개 객체로
+// 최신값만 덮어쓴다 — 두 번째 채널이 생겨 같은 Topic이 여러 채널에 각각 다른 시점에 게시될 수
+// 있게 되면, 이 필드를 채널별/시점별 배열로 바꿔야 할 수 있다(지금은 그 정도로 충분하다고 판단).
+const DISTRIBUTION_ENGINE_VERSION = 1; // 채점 알고리즘이 바뀌면 올린다 — 과거 기록(v1)과 새 기록(v2)이 공존해야 하므로 값 자체를 덮어쓰지 않고 버전을 남긴다.
+
+async function markTopicPosted(topic, postId, hookType, distributionDetail) {
+  const c = distributionDetail?.components || {};
   const res = await fetch(`${SUPABASE_URL}/rest/v1/topics?id=eq.${topic.id}`, {
     method: 'PATCH',
     headers: { ...REQUEST_HEADERS, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
     body: JSON.stringify({
-      ai_context: { ...(topic.ai_context || {}), threads: { posted_at: new Date().toISOString(), post_id: postId, hook_type: hookType } },
+      ai_context: {
+        ...(topic.ai_context || {}),
+        [CHANNEL]: { posted_at: new Date().toISOString(), post_id: postId, hook_type: hookType },
+        engines: {
+          ...(topic.ai_context?.engines || {}),
+          distribution: {
+            version: DISTRIBUTION_ENGINE_VERSION,
+            score: distributionDetail?.distributionScore ?? null,
+            components: {
+              editorial_score: c.editorialScore ?? null,
+              expected_ctr: c.expectedCTR ?? null,
+              exploration: c.exploration ?? null,
+              topic_weight: c.topicWeight ?? null,
+              category_allocation: c.categoryAllocation ?? null,
+              recent_pattern: c.recentPattern ?? null,
+              search_intent: c.searchIntent ?? null,
+            },
+            channel: CHANNEL,
+            calculated_at: new Date().toISOString(),
+          },
+        },
+      },
     }),
   });
-  if (!res.ok) throw new Error('핵심 dedup 기록 실패(topics.ai_context.threads): ' + await res.text());
+  if (!res.ok) throw new Error(`핵심 dedup 기록 실패(topics.ai_context.${CHANNEL}): ` + await res.text());
 }
 
-// ── Hook 기반 Threads 문구 생성(PM 지시 2026-07-17) ─────────────────
+// 게시 직전 최종 재확인(레이스 컨디션 방어) — 동시 실행 시 같은 Topic이 중복 선택될 가능성을 차단.
+async function isStillUnposted(topicId) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/topics?id=eq.${topicId}&select=ai_context`, { headers: REQUEST_HEADERS });
+  if (!res.ok) return true; // 조회 실패 시엔 진행(과도한 차단 방지) — 이후 markTopicPosted가 최종 방어선
+  const [row] = await res.json();
+  return !row?.ai_context?.[CHANNEL]?.posted_at;
+}
+
+// ═══ 채널 종속 영역 시작(Threads Adapter) ═══════════════════════════════════
+// 여기서부터 파일 끝까지는 이 채널(Threads)에만 해당하는 코드다. 두 번째 채널을 추가할 때는
+// 새 파일에 이 영역만 새로 작성하고(문구 생성 프롬프트, API 포맷), 위 채널 독립 영역은 import해
+// 재사용하면 된다(지금은 한 파일에 같이 있지만 분리 준비가 된 상태다).
+//
+// ── Hook 기반 Threads 문구 생성 ─────────────────
 async function generateHookCopy(topic, url) {
   const draft = topic.ai_context?.draft;
   const keywords = draft?.display_keywords || [];
@@ -84,13 +456,13 @@ async function generateHookCopy(topic, url) {
 목표: 제목만 봐서는 알 수 없는 "못 본 절반"을 확인하고 싶게 만드는 것 — 본문 내용을 전부 요약하지 마라.
 
 문구 구조(반드시 이 순서, 줄바꿈으로 구분):
-1. 강한 첫 문장(대비·의외성·질문 중 하나)
-2. 사람들이 놓친 지점
-3. 답을 다 말하지 않는 정보 격차(궁금증은 남기되 거짓·과장 없이)
+1. 강한 첫 문장(관심을 끄는 질문 또는 핵심 변화)
+2. 왜 중요한지
+3. 답을 다 말하지 않는 정보 격차(사이트에서 더 읽을 이유, 궁금증은 남기되 거짓·과장 없이)
 4. 뉴스저울 유도 문장 1줄(URL은 쓰지 마라 — 별도로 붙인다)
 
-허용: 강한 대비, 의외성, 질문, 구체적인 숫자·인물·기업·정책명, "제목만 보면 놓치는 부분", "정작 중요한 건 따로 있다"는 정보 격차.
-금지: 사실과 다른 과장, 본문에 없는 결론, 공포 조장, 무조건적 낚시, "충격"·"소름"·"난리 났다" 같은 저품질 상투어 반복, 링크를 눌러도 답이 없는 문구.
+허용: 강한 대비, 의외성, 질문, 구체적인 숫자·인물·기업·정책명.
+금지: 사실과 다른 과장, 본문에 없는 결론 추가, 공포 조장, 무조건적 낚시, "충격"·"소름"·"난리 났다" 같은 저품질 상투어, 링크를 눌러도 답이 없는 문구, 지나치게 긴 글(Threads에서 읽히는 길이 유지).
 
 제목: ${topic.name}
 요약: ${topic.summary || ''}
@@ -119,7 +491,7 @@ async function generateHookCopy(topic, url) {
   return { hookType, text: `${parsed.text}\n\n뉴스저울 →\n${url}` };
 }
 
-// ── Threads API ──────────────────────────────────────────────────
+// ── Threads API(텍스트 전용 — 이미지 없어도 정상, 이미지 필드는 애초에 참조하지 않는다) ──────
 async function createContainer(text) {
   const params = new URLSearchParams({ media_type: 'TEXT', text, access_token: THREADS_ACCESS_TOKEN });
   const res = await fetch(`https://graph.threads.net/v1.0/${THREADS_USER_ID}/threads`, { method: 'POST', body: params });
@@ -141,10 +513,6 @@ exports.handler = async function (event) {
   const headers = { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' };
   if (event.httpMethod === 'OPTIONS') return { statusCode: 200, headers, body: '' };
 
-  // Netlify Scheduled Function은 httpMethod='POST'로 호출되지만 x-admin-key 헤더가 없다
-  // (event.headers['x-nf-event']==='schedule'로 식별) — 이 조건이 없으면 자동 스케줄 호출이
-  // 전부 401로 조용히 거부된다. 단, 이 함수는 GitHub Actions만을 유일한 트리거로 쓰기로 결정했으므로
-  // (netlify.toml의 자체 schedule 제거, Threads Final Design §1) 실제로는 이 분기를 안 타야 정상이다.
   if (event.httpMethod && event.headers?.['x-nf-event'] !== 'schedule') {
     const key = event.headers?.['x-admin-key'] || event.queryStringParameters?.key;
     if (key !== process.env.ADMIN_KEY) {
@@ -156,56 +524,78 @@ exports.handler = async function (event) {
 
   // 1. 자격증명 확인 — Claude 호출보다 반드시 먼저(비용 보호)
   if (!isDry && (!THREADS_USER_ID || !THREADS_ACCESS_TOKEN)) {
-    return { statusCode: 500, headers, body: JSON.stringify({ error: 'THREADS_USER_ID 또는 THREADS_ACCESS_TOKEN 환경변수 없음' }) };
+    return { statusCode: 500, headers, body: JSON.stringify({ reason: 'credential_missing', error: 'THREADS_USER_ID 또는 THREADS_ACCESS_TOKEN 환경변수 없음' }) };
   }
 
   try {
-    // 2. 후보 선정(+중복 확인 포함)
-    const topic = await fetchCandidateTopic();
+    // 2. 후보 선정(Thread Score 품질 게이트 + Distribution Score 배급 우선순위) — Claude 호출 전
+    const { topic, reason, detail } = await selectCandidate();
     if (!topic) {
-      console.log('게시 가능한 신규 Topic 없음 — 정상 Skip');
-      return { statusCode: 200, headers, body: JSON.stringify({ skipped: true, reason: '게시 가능한 신규 Topic 없음' }) };
+      console.log(`DISTRIBUTION_SKIP[${CHANNEL}](${reason}):`, JSON.stringify(detail));
+      return { statusCode: 200, headers, body: JSON.stringify({ skipped: true, reason, detail }) };
     }
+    console.log(`DISTRIBUTION_CANDIDATE_SELECTED[${CHANNEL}]:`, topic.name, JSON.stringify(detail));
 
     const plan = topic.ai_context?.plan;
     const editors = (plan?.editors_assigned || []).map((e) => e.name);
     const baseUrl = `${BASE_URL}/topic/${topic.slug}`;
 
     // 3. Claude 문구 생성(여기부터 비용 발생)
-    const { hookType, text: hookBody } = await generateHookCopy(topic, baseUrl);
+    let hookType, hookBody;
+    try {
+      ({ hookType, text: hookBody } = await generateHookCopy(topic, baseUrl));
+    } catch (claudeErr) {
+      console.error(`DISTRIBUTION_SKIP[${CHANNEL}](claude_failed):`, claudeErr.message);
+      return { statusCode: 500, headers, body: JSON.stringify({ reason: 'claude_failed', error: claudeErr.message }) };
+    }
     const url = `${baseUrl}?utm_source=threads&utm_medium=social&utm_campaign=organic_threads&utm_content=${topic.id}_${hookType}`;
     const text = hookBody.replace(baseUrl, url);
 
     console.log('포스팅 내용:\n', text);
 
     if (isDry) {
-      return { statusCode: 200, headers, body: JSON.stringify({ dry: true, topicId: topic.id, hookType, editors, title: topic.name, url, text }) };
+      return { statusCode: 200, headers, body: JSON.stringify({ dry: true, reason: 'success', topicId: topic.id, hookType, editors, title: topic.name, url, text, scoreDetail: detail }) };
     }
 
-    // 4. Threads 게시
+    // 레이스 컨디션 방어 — Claude 호출 사이 다른 실행이 먼저 게시했을 가능성 재확인
+    if (!(await isStillUnposted(topic.id))) {
+      console.log(`DISTRIBUTION_SKIP[${CHANNEL}](duplicate_topic): 다른 실행이 먼저 게시함`);
+      return { statusCode: 200, headers, body: JSON.stringify({ skipped: true, reason: 'duplicate_topic', topicId: topic.id }) };
+    }
+
+    // 4. Threads 게시(이미지 필드 전혀 참조하지 않음 — TEXT 전용, 없어도 정상)
     let postId;
     try {
       const containerId = await createContainer(text);
       await new Promise((r) => setTimeout(r, 3000));
       postId = await publishPost(containerId);
     } catch (postErr) {
-      console.error('THREADS_POST_FAILED_AFTER_CLAUDE_CALL(Claude 비용은 이미 발생):', postErr.message);
-      return { statusCode: 500, headers, body: JSON.stringify({ error: postErr.message, note: 'Claude 호출 이후 게시 단계에서 실패 — 비용은 이미 발생했을 수 있음' }) };
+      console.error(`DISTRIBUTION_SKIP[${CHANNEL}](threads_api_failed, Claude 비용은 이미 발생):`, postErr.message);
+      return { statusCode: 500, headers, body: JSON.stringify({ reason: 'threads_api_failed', error: postErr.message, note: 'Claude 호출 이후 게시 단계에서 실패 — 비용은 이미 발생했을 수 있음' }) };
     }
 
-    // 5. 핵심 dedup 기록(반드시 성공해야 함 — 실패 시 다음 실행에서 중복 게시 위험이 있으므로 예외를 던진다)
-    await markTopicPosted(topic, postId, hookType);
+    // 5. 핵심 dedup 기록(실패 시 예외 — 다음 실행에서 중복 게시 위험이 있으므로 반드시 성공해야 함)
+    try {
+      await markTopicPosted(topic, postId, hookType, detail);
+    } catch (dedupErr) {
+      console.error(`DISTRIBUTION_SKIP[${CHANNEL}](dedup_save_failed, 게시는 이미 성공, Post ID 보존):`, postId, dedupErr.message);
+      return { statusCode: 500, headers, body: JSON.stringify({ reason: 'dedup_save_failed', error: dedupErr.message, postId, topicId: topic.id, note: '게시는 성공했으나 중복방지 기록 실패 — Post ID 보존됨, 수동 확인 필요' }) };
+    }
 
-    // 6. 상세 로그(best-effort) — 실패해도 위 핵심 기록은 이미 끝난 뒤이므로 안전
-    const logResult = await savePostLog({ topic_id: topic.id, post_id: postId, hook_type: hookType, editors, status: 'success', source_url: url });
+    // 6. 상세 로그(best-effort)
+    const logResult = await savePostLog({
+      topic_id: topic.id, post_id: postId, hook_type: hookType, editors, status: 'success', source_url: url,
+      distribution_score: detail.distributionScore, editorial_score: detail.components?.editorialScore,
+    });
 
-    console.log('Threads 게시 완료:', postId);
+    const todaySuccessCount = detail.todayPostedTotal + 1;
+    console.log(`DISTRIBUTION_SUCCESS[${CHANNEL}]:`, postId, '| 오늘 누적 성공:', todaySuccessCount, '| 오늘 목표:', detail.dailyTarget);
     return {
       statusCode: 200, headers,
-      body: JSON.stringify({ ok: true, postId, topicId: topic.id, hookType, editors, title: topic.name, url, detailLogSaved: logResult.ok }),
+      body: JSON.stringify({ ok: true, reason: 'success', postId, topicId: topic.id, hookType, editors, title: topic.name, url, detailLogSaved: logResult.ok, scoreDetail: detail, todaySuccessCount, dailyTarget: detail.dailyTarget }),
     };
   } catch (e) {
     console.error(e.message);
-    return { statusCode: 500, headers, body: JSON.stringify({ error: e.message }) };
+    return { statusCode: 500, headers, body: JSON.stringify({ reason: 'unexpected_error', error: e.message }) };
   }
 };
