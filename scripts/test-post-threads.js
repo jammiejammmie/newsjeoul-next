@@ -1,13 +1,16 @@
-// post-threads.js(Distribution Engine) 회귀 테스트 — 실제 서비스를 호출하지 않고 fetch를 모의(mock)해서 검증한다.
-// 실행: node scripts/test-post-threads.js
+// post-threads-background.js(Distribution Engine) 회귀 테스트 — 실제 서비스를 호출하지 않고
+// fetch를 모의(mock)해서 검증한다. 실행: node scripts/test-post-threads.js
 process.env.SUPABASE_URL = 'https://fake.supabase.co';
 process.env.SUPABASE_SERVICE_KEY = 'fake';
 process.env.ANTHROPIC_API_KEY = 'fake';
 process.env.ADMIN_KEY = 'real-admin-key';
 process.env.THREADS_USER_ID = 'fake-user';
 process.env.THREADS_ACCESS_TOKEN = 'fake-token';
+// 실제 2~5분 대기를 그대로 기다리면 테스트가 몇 분씩 걸리므로 테스트 전용으로 짧게 오버라이드.
+process.env.POST_GAP_MIN_MS = '5';
+process.env.POST_GAP_MAX_MS = '10';
 
-const path = require('path').resolve(__dirname, '../netlify/functions/post-threads.js');
+const path = require('path').resolve(__dirname, '../netlify/functions/post-threads-background.js');
 
 function makeTopic(id, name, category, importance, overrides) {
   return Object.assign(
@@ -26,6 +29,7 @@ function makeTopic(id, name, category, importance, overrides) {
 }
 
 function jsonRes(obj) { return { ok: true, json: async () => obj, text: async () => JSON.stringify(obj) }; }
+function headRes(count) { return { ok: true, headers: { get: (k) => (k === 'content-range' ? `0-0/${count}` : null) }, text: async () => '' }; }
 
 const results = [];
 function check(label, pass) { results.push({ label, pass }); console.log((pass ? 'PASS' : 'FAIL') + ' - ' + label); }
@@ -35,22 +39,28 @@ function freshHandler() {
   return require(path);
 }
 
-// scenario 기본값 — 대부분의 테스트는 "오늘 생산 200건, 오늘 게시 0건"인 여유로운 상황을 가정한다
-// (dailyTarget≈10, adaptiveMinScore=하한 55) — 개별 테스트가 필요에 따라 override한다.
+// scenario 기본값 — "오늘 기사 250건(목표 25건 정확히), 오늘 게시 25건(=목표와 정확히 같음)"으로
+// 고정해 remaining=0 → postsThisRun=1이 실제 현재 시각과 무관하게 항상 결정되도록 한다(테스트
+// 결정성 확보). adaptiveMinScore도 progress=1<=1이라 항상 FLOOR(55)로 고정된다.
 async function run(scenario) {
   const s = Object.assign({
-    pool: [], recentPosted: [], producedTotal: 200, producedByCategory: {}, postedTotal: 0, postedByCategory: {},
+    pool: [], recentPosted: [], articleCount: 250, producedByCategory: {}, postedTotal: 25, postedByCategory: {},
   }, scenario);
   const patched = [];
+  const postedIds = new Set();
 
   global.fetch = async (url, opts = {}) => {
     const method = opts.method || 'GET';
 
+    if (method === 'HEAD' && url.includes('/rest/v1/articles?')) {
+      return headRes(s.articleCount);
+    }
     if (method === 'GET' && url.includes('created_at=gte.')) {
       const rows = [];
       Object.entries(s.producedByCategory).forEach(([cat, n]) => { for (let i = 0; i < n; i++) rows.push({ category: cat }); });
-      while (rows.length < s.producedTotal) rows.push({ category: '기타' });
-      return jsonRes(rows.slice(0, s.producedTotal));
+      const total = Object.values(s.producedByCategory).reduce((a, b) => a + b, 0) || 200;
+      while (rows.length < total) rows.push({ category: '기타' });
+      return jsonRes(rows);
     }
     if (method === 'GET' && url.includes('posted_at=gte.')) {
       const rows = [];
@@ -62,7 +72,7 @@ async function run(scenario) {
       return jsonRes(s.recentPosted);
     }
     if (method === 'GET' && url.includes('posted_at=is.null')) {
-      return jsonRes(s.pool);
+      return jsonRes(s.pool.filter((t) => !postedIds.has(t.id)));
     }
     if (method === 'GET' && url.includes('select=ai_context')) {
       const id = decodeURIComponent(url.match(/id=eq\.([^&]+)/)[1]);
@@ -71,6 +81,8 @@ async function run(scenario) {
     }
     if (method === 'PATCH' && url.includes('/rest/v1/topics?id=eq.')) {
       if (s.dedupSaveFails) return { ok: false, text: async () => 'dedup save error' };
+      const id = decodeURIComponent(url.match(/id=eq\.([^&]+)/)[1]);
+      postedIds.add(id);
       patched.push(JSON.parse(opts.body));
       return { ok: true, text: async () => '' };
     }
@@ -83,7 +95,7 @@ async function run(scenario) {
     }
     if (method === 'POST' && url.includes('graph.threads.net') && url.includes('/threads_publish')) {
       if (s.threadsApiFails) return { ok: false, json: async () => ({ error: 'threads publish error' }) };
-      return jsonRes({ id: s.postId || 'post-id-x' });
+      return jsonRes({ id: (s.postIds && s.postIds[postedIds.size]) || s.postId || 'post-id-' + (postedIds.size + 1) });
     }
     if (method === 'POST' && url.includes('graph.threads.net')) {
       if (s.threadsApiFails) return { ok: false, json: async () => ({ error: 'threads container error' }) };
@@ -94,15 +106,16 @@ async function run(scenario) {
 
   const mod = freshHandler();
   const res = await mod.handler({ httpMethod: 'POST', headers: { 'x-admin-key': 'real-admin-key' } });
-  return { res, body: JSON.parse(res.body), patched };
+  const body = JSON.parse(res.body);
+  return { res, body, patched, first: body.results?.[0] };
 }
 
 async function main() {
-  // 1) Distribution Score 계산 — 고득점 후보(무게/완성도/출처/키워드 모두 충족)가 성공 게시
+  // 1) Distribution Score 계산 → 고득점 후보가 성공 게시(이번 실행 성공 1건)
   {
     const t = makeTopic('t1', '정치A', '정치', 500);
-    const { body } = await run({ pool: [t] });
-    check('1) Distribution Score 계산 → 통과 후보 성공 게시', body.ok === true && body.scoreDetail.distributionScore >= 55);
+    const { body, first } = await run({ pool: [t] });
+    check('1) Distribution Score 계산 → 통과 후보 성공 게시', first?.ok === true && first.scoreDetail.distributionScore >= 55 && body.postsSucceededThisRun === 1);
   }
 
   // 2) 품질 기준 미달(본문 빈약) → below_quality_threshold — Distribution Score까지 가지 않고 차단
@@ -110,14 +123,14 @@ async function main() {
     const thin = makeTopic('t2', '빈약한 글', '경제', 500, {
       ai_context: { draft: { lead: '짧음', blocks: [{ content: '짧다' }] }, evidence: { sources: [{ url: 'https://example.com/y' }] }, weight: {} },
     });
-    const { body } = await run({ pool: [thin] });
-    check('2) 본문 빈약 → below_quality_threshold Skip', body.skipped === true && body.reason === 'below_quality_threshold');
+    const { first, body } = await run({ pool: [thin] });
+    check('2) 본문 빈약 → below_quality_threshold Skip', first?.reason === 'below_quality_threshold' && body.postsSucceededThisRun === 0);
   }
 
   // 3) 후보 자체가 없을 때 no_candidate
   {
-    const { body } = await run({ pool: [] });
-    check('3) 후보 없음 → no_candidate Skip', body.skipped === true && body.reason === 'no_candidate');
+    const { first } = await run({ pool: [] });
+    check('3) 후보 없음 → no_candidate Skip', first?.reason === 'no_candidate');
   }
 
   // 4) 카테고리 배분 엔진 — 오늘 많이 생산됐지만 아직 게시가 적은 분야(자동차)가, 생산은 적은데
@@ -125,12 +138,12 @@ async function main() {
   {
     const car = makeTopic('t-car', '자동차 이슈', '자동차', 450);
     const eco = makeTopic('t-eco', '경제 이슈', '경제', 460); // 무게는 오히려 경제가 더 높음
-    const { body } = await run({
+    const { first } = await run({
       pool: [car, eco],
-      producedTotal: 100, producedByCategory: { 자동차: 80, 경제: 20 },
+      producedByCategory: { 자동차: 80, 경제: 20 },
       postedTotal: 5, postedByCategory: { 경제: 5 },
     });
-    check('4) 카테고리 배분(생산多·게시少 분야 우선) → 자동차 선택', body.ok === true && body.topicId === 't-car');
+    check('4) 카테고리 배분(생산多·게시少 분야 우선) → 자동차 선택', first?.ok === true && first.topicId === 't-car');
   }
 
   // 5) 최근 3건 다양성 — 최근 3건 안에 등장한 카테고리는 감점되어 다른 분야로 전환
@@ -142,67 +155,77 @@ async function main() {
       { category: '정치', ai_context: { threads: { posted_at: new Date(Date.now() - 2000).toISOString() } } },
       { category: '사회', ai_context: { threads: { posted_at: new Date(Date.now() - 3000).toISOString() } } },
     ];
-    const { body } = await run({ pool: [politics, tech], recentPosted: recent });
-    check('5) 최근 3건 내 카테고리 반복 → IT로 전환', body.ok === true && body.topicId === 't-tech');
+    const { first } = await run({ pool: [politics, tech], recentPosted: recent });
+    check('5) 최근 3건 내 카테고리 반복 → IT로 전환', first?.ok === true && first.topicId === 't-tech');
   }
 
   // 6) 검색 의도 — SEARCH_GUIDE 후보가 DEEP_DIVE 후보보다 (다른 조건 동일 시) 우선
   {
     const guide = makeTopic('t-guide', '가이드 글', '생활정보', 400, { gate_status: 'SEARCH_GUIDE' });
-    const deep = makeTopic('t-deep', '심층 글', '생활정보', 410, { gate_status: 'DEEP_DIVE' }); // 무게는 오히려 더 높음
-    const { body } = await run({ pool: [guide, deep] });
-    check('6) 검색 의도(SEARCH_GUIDE) 우선 → guide 선택', body.ok === true && body.topicId === 't-guide');
+    const deep = makeTopic('t-deep', '심층 글', '생활정보', 410, { gate_status: 'DEEP_DIVE' });
+    const { first } = await run({ pool: [guide, deep] });
+    check('6) 검색 의도(SEARCH_GUIDE) 우선 → guide 선택', first?.ok === true && first.topicId === 't-guide');
   }
 
   // 7) 예상 CTR — 숫자/비교 표현이 있는 제목이 밋밋한 제목보다 우선
   {
     const catchy = makeTopic('t-catchy', '전기차 vs 하이브리드, 5년 유지비 비교', '자동차', 400);
-    const plain = makeTopic('t-plain', '자동차 관련 소식', '자동차', 405); // 무게는 오히려 더 높음
-    const { body } = await run({ pool: [catchy, plain] });
-    check('7) 예상 CTR(숫자·비교 표현) 우선 → catchy 선택', body.ok === true && body.topicId === 't-catchy');
+    const plain = makeTopic('t-plain', '자동차 관련 소식', '자동차', 405);
+    const { first } = await run({ pool: [catchy, plain] });
+    check('7) 예상 CTR(숫자·비교 표현) 우선 → catchy 선택', first?.ok === true && first.topicId === 't-catchy');
   }
 
   // 8) Topic Weight — 다른 조건이 동일하면 무게 높은 후보가 우선
   {
     const heavy = makeTopic('t-heavy', '무거운 이슈', '국제', 900);
     const light = makeTopic('t-light', '가벼운 이슈', '국제', 200);
-    const { body } = await run({ pool: [heavy, light] });
-    check('8) Topic Weight 높은 후보 우선 → heavy 선택', body.ok === true && body.topicId === 't-heavy');
+    const { first } = await run({ pool: [heavy, light] });
+    check('8) Topic Weight 높은 후보 우선 → heavy 선택', first?.ok === true && first.topicId === 't-heavy');
   }
 
-  // 9) Exploration 가능성(구 Expansion 가능성) — 이미 생성된 확장 앵글이 많은 후보가 (다른 조건 동일 시) 우선
+  // 9) Exploration 가능성 — 이미 생성된 확장 앵글이 많은 후보가 (다른 조건 동일 시) 우선
   {
     const expanded = makeTopic('t-expanded', '확장된 글', '경제', 400, {
       ai_context: { ...makeTopic('x', '', '', 0).ai_context, expansion_drafts: [{ angle: 'guide' }, { angle: 'compare' }, { angle: 'faq' }] },
     });
-    const bare = makeTopic('t-bare', '기본 글', '경제', 405); // 무게는 오히려 더 높음
-    const { body } = await run({ pool: [expanded, bare] });
-    check('9) Exploration 가능성 높은 후보 우선 → expanded 선택', body.ok === true && body.topicId === 't-expanded');
+    const bare = makeTopic('t-bare', '기본 글', '경제', 405);
+    const { first } = await run({ pool: [expanded, bare] });
+    check('9) Exploration 가능성 높은 후보 우선 → expanded 선택', first?.ok === true && first.topicId === 't-expanded');
   }
 
-  // 10) 오늘 생산량 비례 목표치 자동 계산(하드코딩 제거 검증) — PM 예시 3개 구간
+  // 10) 오늘 목표 계산 공식 직접 검증(articles 기준, clamp 20~60) — PM 재조정 지시(2026-07-22)
   {
-    const t = makeTopic('t-target100', '글', '경제', 400);
-    const { body } = await run({ pool: [t], producedTotal: 100 });
-    check('10-a) 생산 100건 → 목표 5~10건', body.dailyTarget >= 5 && body.dailyTarget <= 10);
-  }
-  {
-    const t = makeTopic('t-target500', '글', '경제', 400);
-    const { body } = await run({ pool: [t], producedTotal: 500 });
-    check('10-b) 생산 500건 → 목표 20~30건', body.dailyTarget >= 20 && body.dailyTarget <= 30);
-  }
-  {
-    const t = makeTopic('t-target1000', '글', '경제', 400);
-    const { body } = await run({ pool: [t], producedTotal: 1000 });
-    check('10-c) 생산 1000건 → 목표 40~60건', body.dailyTarget >= 40 && body.dailyTarget <= 60);
+    const { computeDailyTarget } = require(path)._testUtils;
+    const checks = [
+      ['10-a) articles=0 → 최소 20', computeDailyTarget(0) === 20],
+      ['10-b) articles=100 → 최소 20(100×0.1=10 clamp)', computeDailyTarget(100) === 20],
+      ['10-c) articles=210 → 약 21', computeDailyTarget(210) === 21],
+      ['10-d) articles=500 → 약 50', computeDailyTarget(500) === 50],
+      ['10-e) articles=1000 → 최대 60(clamp)', computeDailyTarget(1000) === 60],
+    ];
+    checks.forEach(([label, pass]) => check(label, pass));
   }
 
-  // 11) 적응형 임계값 — 오늘 목표치를 이미 채웠으면 평범한 후보는 Skip(below_distribution_threshold),
+  // 11) 이번 실행 게시 건수 계산(남은 목표÷남은 시간) 직접 검증 — PM 지시 예시와 동일
+  {
+    const { computePostsThisRun } = require(path)._testUtils;
+    const noon12hLeft = new Date('2026-07-22T12:00:00Z'); // UTC 12:00 → 남은 12시간
+    const evening10hLeft = new Date('2026-07-22T14:00:00Z'); // UTC 14:00 → 남은 10시간
+    const checks = [
+      ['11-a) 목표24,게시0,12시간남음 → 시간당 2건', computePostsThisRun(24, 0, noon12hLeft) === 2],
+      ['11-b) 목표40,게시10,10시간남음 → 시간당 3건', computePostsThisRun(40, 10, evening10hLeft) === 3],
+      ['11-c) 목표 이미 달성(remaining<=0) → 최소 1건은 시도', computePostsThisRun(20, 25, noon12hLeft) === 1],
+      ['11-d) 최대 3건 상한 유지(아무리 남아도)', computePostsThisRun(60, 0, noon12hLeft) === 3],
+    ];
+    checks.forEach(([label, pass]) => check(label, pass));
+  }
+
+  // 12) 적응형 임계값 — 오늘 목표치를 초과했으면 평범한 후보는 Skip(below_distribution_threshold),
   //     정말 뛰어난 후보는 여전히 통과(하드 컷오프가 아님을 함께 확인)
   {
     const mediocre = makeTopic('t-mediocre', '평범한 글', '경제', 300);
-    const { body } = await run({ pool: [mediocre], producedTotal: 100, postedTotal: 20 }); // 목표(≈10) 대비 이미 2배 게시
-    check('11-a) 목표 초과 상태에서 평범한 후보 → below_distribution_threshold', body.skipped === true && body.reason === 'below_distribution_threshold');
+    const { first } = await run({ pool: [mediocre], postedTotal: 40 }); // 목표 25 대비 60% 초과 게시된 상태
+    check('12-a) 목표 초과 상태에서 평범한 후보 → below_distribution_threshold', first?.reason === 'below_distribution_threshold');
 
     const excellentBase = makeTopic('t-excellent', '국제 1위 이슈 vs 대안, 비교', '국제', 950, { gate_status: 'SEARCH_GUIDE' });
     const excellent = Object.assign(excellentBase, {
@@ -212,93 +235,115 @@ async function main() {
         expansion_drafts: [{ angle: 'guide' }, { angle: 'compare' }, { angle: 'faq' }],
       },
     });
-    const { body: body2 } = await run({
-      pool: [excellent], producedTotal: 100, postedTotal: 20,
-      producedByCategory: { 국제: 50 }, postedByCategory: { 경제: 20 },
+    const { first: first2 } = await run({
+      pool: [excellent], postedTotal: 40,
+      producedByCategory: { 국제: 50 }, postedByCategory: { 경제: 40 },
     });
-    check('11-b) 목표 초과 상태여도 탁월한 후보는 통과(하드컷오프 아님)', body2.ok === true && body2.topicId === 't-excellent');
+    check('12-b) 목표 초과 상태여도 탁월한 후보는 통과(하드컷오프 아님)', first2?.ok === true && first2.topicId === 't-excellent');
   }
 
-  // 12) 이미지 null 상태에서도 정상 게시(이미지 필드를 아예 참조하지 않음)
+  // 13) 이미지 null 상태에서도 정상 게시(이미지 필드를 아예 참조하지 않음)
   {
     const noImage = makeTopic('t-noimg', '이미지 없는 글', '사회', 400);
     delete noImage.og_image_url;
-    const { body } = await run({ pool: [noImage] });
-    check('12) 이미지 필드 없음 → 정상 게시(오류 아님)', body.ok === true && body.postId);
+    const { first } = await run({ pool: [noImage] });
+    check('13) 이미지 필드 없음 → 정상 게시(오류 아님)', first?.ok === true && !!first.postId);
   }
 
-  // 13) Claude 실패 처리
+  // 14) Claude 실패 처리
   {
     const t = makeTopic('t-claudefail', '글', '경제', 400);
-    const { res, body } = await run({ pool: [t], claudeFails: true });
-    check('13) Claude 실패 → claude_failed, 500', res.statusCode === 500 && body.reason === 'claude_failed');
+    const { first } = await run({ pool: [t], claudeFails: true });
+    check('14) Claude 실패 → claude_failed', first?.reason === 'claude_failed');
   }
 
-  // 14) Threads API 실패 처리
+  // 15) Threads API 실패 처리
   {
     const t = makeTopic('t-threadsfail', '글', '경제', 400);
-    const { res, body } = await run({ pool: [t], threadsApiFails: true });
-    check('14) Threads API 실패 → threads_api_failed, 500', res.statusCode === 500 && body.reason === 'threads_api_failed');
+    const { first } = await run({ pool: [t], threadsApiFails: true });
+    check('15) Threads API 실패 → threads_api_failed', first?.reason === 'threads_api_failed');
   }
 
-  // 15) dedup 저장 확인 — 게시 성공 시 topics.ai_context.threads에 posted_at/post_id 기록
+  // 16) dedup 저장 확인 — 게시 성공 시 topics.ai_context.threads에 posted_at/post_id 기록
   {
     const t = makeTopic('t-dedup', '글', '경제', 400);
-    const { body, patched } = await run({ pool: [t], postId: 'real-post-id-999' });
+    const { first, patched } = await run({ pool: [t], postId: 'real-post-id-999' });
     const savedThreads = patched[0]?.ai_context?.threads;
-    check('15) dedup 저장 확인(ai_context.threads.post_id 기록)', body.ok === true && savedThreads?.post_id === 'real-post-id-999' && !!savedThreads?.posted_at);
+    check('16) dedup 저장 확인(ai_context.threads.post_id 기록)', first?.ok === true && savedThreads?.post_id === 'real-post-id-999' && !!savedThreads?.posted_at);
   }
 
-  // 16) dedup 저장 실패 시 postId 보존 + dedup_save_failed 반환(게시 자체는 이미 성공한 상태)
+  // 17) dedup 저장 실패 시 postId 보존 + dedup_save_failed 반환(게시 자체는 이미 성공한 상태)
   {
     const t = makeTopic('t-dedupfail', '글', '경제', 400);
-    const { res, body } = await run({ pool: [t], dedupSaveFails: true, postId: 'post-before-dedup-fail' });
-    check('16) dedup 저장 실패 → dedup_save_failed, postId 보존', res.statusCode === 500 && body.reason === 'dedup_save_failed' && body.postId === 'post-before-dedup-fail');
+    const { first } = await run({ pool: [t], dedupSaveFails: true, postId: 'post-before-dedup-fail' });
+    check('17) dedup 저장 실패 → dedup_save_failed, postId 보존', first?.reason === 'dedup_save_failed' && first.postId === 'post-before-dedup-fail');
   }
 
-  // 16-b) Distribution Score 저장 확인 — ai_context.engines.distribution에 계산 근거가 버전과
-  //       함께 실제로 저장되는지(PM 지시 2026-07-21 §4: 계산만 하고 버리지 말 것, v1/v2 공존 대비)
+  // 18) ai_context.engines.distribution 저장 확인(version/score/components/channel/calculated_at)
   {
     const t = makeTopic('t-distsave', '글', '경제', 400);
-    const { body, patched } = await run({ pool: [t], postId: 'post-for-dist-save' });
+    const { first, patched } = await run({ pool: [t], postId: 'post-for-dist-save' });
     const saved = patched[0]?.ai_context?.engines?.distribution;
     check(
-      '16-b) ai_context.engines.distribution 저장(version/score/components/channel/calculated_at)',
-      body.ok === true && saved && saved.version === 1 && saved.score === body.scoreDetail.distributionScore &&
+      '18) ai_context.engines.distribution 저장',
+      first?.ok === true && saved && saved.version === 1 && saved.score === first.scoreDetail.distributionScore &&
       typeof saved.components?.editorial_score === 'number' && saved.channel === 'threads' && !!saved.calculated_at
     );
   }
 
-  // 17) 레이스 컨디션 — 선택 직후 다른 실행이 먼저 게시했으면 duplicate_topic으로 재차단
+  // 19) 레이스 컨디션 — 선택 직후 다른 실행이 먼저 게시했으면 duplicate_topic으로 재차단
   {
     const t = makeTopic('t-race', '글', '경제', 400);
-    const { body } = await run({ pool: [t], raceAlreadyPosted: 't-race' });
-    check('17) 레이스 컨디션 재확인 → duplicate_topic Skip', body.skipped === true && body.reason === 'duplicate_topic');
+    const { first } = await run({ pool: [t], raceAlreadyPosted: 't-race' });
+    check('19) 레이스 컨디션 재확인 → duplicate_topic Skip', first?.reason === 'duplicate_topic');
   }
 
-  // 18) 회귀 픽스처 — 실제 성공한 Post ID(18081263792288677)로 게시 성공 응답이 그 값을 그대로 반환
+  // 20) 회귀 픽스처 — 실제 성공한 Post ID(18081263792288677)로 게시 성공 응답이 그 값을 그대로 반환
   {
     const t = makeTopic('iran-tanker-attack-war-fears', '이란 유조선 공격 및 전쟁 우려', '국제', 480);
-    const { body } = await run({ pool: [t], postId: '18081263792288677' });
-    check('18) 회귀 픽스처(Post ID 18081263792288677) 그대로 반환', body.ok === true && body.postId === '18081263792288677');
+    const { first } = await run({ pool: [t], postId: '18081263792288677' });
+    check('20) 회귀 픽스처(Post ID 18081263792288677) 그대로 반환', first?.ok === true && first.postId === '18081263792288677');
   }
 
-  // 19) 회귀 픽스처 — 두 번째 실제 게시(18122769340814327)가 배분 로직 적용 후에도 정상 처리되는지
+  // 21) 회귀 픽스처 — 두 번째 실제 게시(18122769340814327)가 배분 로직 적용 후에도 정상 처리되는지
   {
     const t2 = makeTopic('choe-son-hui-moscow-visit', '최선희 북한 외무상 러시아 방문', '국제', 470);
     const recent = [{ category: '국제', ai_context: { threads: { posted_at: new Date().toISOString() } } }];
     const other = makeTopic('other-domestic', '국내 이슈', '경제', 460);
-    const { body } = await run({ pool: [t2, other], recentPosted: recent, postId: '18122769340814327' });
-    check('19) 회귀 픽스처(두 번째 실제 게시) 배분 적용 후 정상 처리', body.ok === true && body.postId === '18122769340814327');
+    const { first } = await run({ pool: [t2, other], recentPosted: recent, postId: '18122769340814327' });
+    check('21) 회귀 픽스처(두 번째 실제 게시) 배분 적용 후 정상 처리', first?.ok === true && first.postId === '18122769340814327');
   }
 
-  // 20) 자격증명 없음 — Claude/Threads API 호출 전에 즉시 credential_missing으로 차단
+  // 22) 자격증명 없음 — Claude/Threads API 호출 전에 즉시 credential_missing으로 차단(top-level, statusCode 500)
   {
     delete process.env.THREADS_USER_ID;
     const t = makeTopic('t-nocred', '글', '경제', 400);
     const { res, body } = await run({ pool: [t] });
-    check('20) 자격증명 없음 → credential_missing, Claude 호출 전 차단', res.statusCode === 500 && body.reason === 'credential_missing');
+    check('22) 자격증명 없음 → credential_missing, Claude 호출 전 차단', res.statusCode === 500 && body.reason === 'credential_missing');
     process.env.THREADS_USER_ID = 'fake-user';
+  }
+
+  // 23) 1회 실행 다건 게시 — 남은 목표가 충분하면 최대 3건까지, 서로 다른 Topic을 순차 게시
+  //     (postedTotal=0, articleCount=600 → dailyTarget=60(clamp) → remaining=60 → 시간대 무관하게
+  //     항상 postsThisRun=3으로 결정됨을 이용해 테스트 결정성 확보)
+  {
+    const t1 = makeTopic('t-multi-1', '정치 이슈', '정치', 500);
+    const t2 = makeTopic('t-multi-2', '경제 이슈', '경제', 490);
+    const t3 = makeTopic('t-multi-3', 'IT 이슈', 'IT', 480);
+    const { body, patched } = await run({ pool: [t1, t2, t3], articleCount: 600, postedTotal: 0, postIds: ['multi-post-1', 'multi-post-2', 'multi-post-3'] });
+    const distinctTopics = new Set(body.results.map((r) => r.topicId));
+    check('23) 1회 실행에서 최대 3건 게시, 서로 다른 Topic 선택', body.postsAttemptedThisRun === 3 && body.postsSucceededThisRun === 3 && distinctTopics.size === 3 && patched.length === 3);
+  }
+
+  // 24) 후보 소진 시 조기 중단 — 목표는 충분히 남았지만(3건 시도 가능) 후보가 1개뿐이면 1건만
+  //     게시하고 억지로 채우지 않고 중단(no_candidate로 자연 종료)
+  {
+    const only = makeTopic('t-only-one', '단일 후보', '사회', 500);
+    const { body } = await run({ pool: [only], articleCount: 600, postedTotal: 0 });
+    check(
+      '24) 후보 소진 시 조기 중단(억지로 채우지 않음)',
+      body.postsAttemptedThisRun === 2 && body.postsSucceededThisRun === 1 && body.results[1].reason === 'no_candidate'
+    );
   }
 
   const failCount = results.filter((r) => !r.pass).length;

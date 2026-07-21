@@ -67,11 +67,13 @@
   schedule = "45 */3 * * *"
   timeout = 90
 
-[functions."post-threads"]
+[functions."post-threads-background"]
   # 2026-07-19: 자체 schedule 제거 — GitHub Actions(.github/workflows/post-threads.yml)만을
   # 유일한 트리거로 유지한다(Threads Final Design §1). 이전엔 여기와 GitHub Actions가 같은
   # 시각(0 1 * * *)에 동시 존재해 헤더명 버그가 고쳐지면 이중 게시 위험이 있었다.
-  timeout = 90
+  # 2026-07-22: post-threads.js → post-threads-background.js로 전환(PM 지시 — 1회 실행당 최대
+  # 3건, 게시 사이 2~5분 간격 요구사항은 26초 동기 함수 하드캡으로 구현 불가능해 Background
+  # Function으로 전환). timeout 설정은 Background Function에는 사실상 상한 없음을 의미(최대 15분).
 
 # Editorial Engine (2026-07-11 Phase 2~3, Background Function 전환) — 365일 무인 운영 목표.
 # 동기 함수 26초 하드캡을 피하기 위해 -background 접미사로 전환(최대 15분 실행, 응답은 즉시 202).

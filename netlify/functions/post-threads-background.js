@@ -59,6 +59,13 @@
 // - Adaptive Distribution 유지: "오늘 20개 올려" 같은 수동 목표가 아니라, 오늘 실제 생산량에
 //   비례해 게시 목표·품질 문턱값을 스스로 계산한다(computeDailyTarget). 운영자가 숫자를 바꿀
 //   필요가 없다.
+//
+// 추가 반영(2026-07-22, PM 지시 — 배급량 재보정 + Background Function 전환):
+// - 목표 계산 기준을 published Topic 수에서 원본 기사(articles) 수로 변경 + 최소 20/최대 60의
+//   비례 목표(clamp(round(articles×0.10), 20, 60))로 재보정 — 이전 공식은 초기 생산 단계에서
+//   목표가 3건까지 떨어져 "생산량 비례"의 취지에 비해 지나치게 낮았다.
+// - 1회 실행당 최대 3건, 게시 사이 2~5분 간격을 두려면 26초 동기 함수 하드캡을 넘기 때문에 파일을
+//   Background Function으로 전환했다(호출자는 202만 받고 실제 결과는 함수 로그로만 확인 가능).
 // ═══════════════════════════════════════════════════════════════════════════
 const CHANNEL = 'threads'; // 두 번째 채널 어댑터를 만들 때는 그 파일에서 이 값만 바꾸면 된다.
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -75,14 +82,29 @@ const MIN_BODY_LENGTH = 300; // 본문이 이보다 짧으면 "지나치게 빈�
 const CANDIDATE_POOL_SIZE = 30; // 점수 계산 대상으로 가져올 후보 풀 크기.
 const RECENT_HISTORY_WINDOW = 3; // 최근 게시 패턴(recentPattern) 판단에 쓰는 "최근 게시 N건".
 
-// 오늘 생산량 대비 목표 게시 수 — PM 예시(기사100→5~10, 500→20~30, 1000→40~60)의 중간값에
-// 해당하는 계수. 실측 CTR/색인 증가 데이터가 쌓이면 재조정 대상이다(현재는 초기 보정값).
-const DAILY_TARGET_RATIO = 0.05;
-const MIN_DAILY_TARGET = 3;
+// 오늘 목표 게시 수 — PM 재조정 지시(2026-07-22): 기준을 "오늘 published Topic 수"에서 "오늘
+// 원본 기사(articles) 수"로 변경. published Topic만 기준으로 삼으면(예: 오늘 10건) 목표가 3건까지
+// 떨어져 "생산량에 비례"라는 원래 취지와 달리 실제 배급량이 지나치게 작아지는 문제가 있었다(콘텐츠
+// 공장이 커지는 초기 단계엔 기사 생산이 published Topic 전환보다 훨씬 앞서 달리기 때문). 최소/최대
+// 하한·상한을 명시적으로 둔 이유는 "기사 100건 이하"처럼 생산이 아직 적은 시기에도 배급 채널 자체가
+// 죽어있는 것처럼 보이지 않게 하기 위해서다(PM 지시: "기본 목표는 하루 20건 이상").
+const ARTICLE_TARGET_RATIO = 0.10; // articles × 10%
+const MIN_DAILY_TARGET = 20;
+const MAX_DAILY_TARGET = 60;
 // 목표치 이내일 때(공급 여유 있음) 요구 점수는 낮게, 목표치를 초과했을 때(이미 충분히 배급됨)는
 // 정말 뛰어난 후보만 통과하도록 점진적으로 엄격해진다 — 고정 상한이 아니라 적응형 문턱값이다.
 const DISTRIBUTION_SCORE_FLOOR = 55;
 const DISTRIBUTION_SCORE_CEILING = 80;
+
+// 1회 실행(Netlify Background Function, 최대 15분 예산)당 최대 게시 건수와 게시 사이 간격.
+// 매시간 1건씩만으로는 "하루 20건 이상"을 달성하기 어려워(하루 최대 24건) PM 지시로 도입 —
+// 남은 목표를 남은 시간으로 나눠 이번 실행에서 몇 건을 시도할지 결정한다(computePostsThisRun).
+// 간격을 두는 이유는 Threads API 연속 호출로 인한 스팸성 패턴을 피하기 위함.
+const MAX_POSTS_PER_RUN = 3;
+// 테스트에서만 오버라이드 가능(운영 기본값은 그대로 2~5분) — 실제 분 단위 대기를 mock 테스트에서
+// 그대로 기다리면 테스트가 몇 분씩 걸리므로, 테스트 전용 환경변수로만 짧게 조정할 수 있게 열어둔다.
+const MIN_GAP_MS = Number(process.env.POST_GAP_MIN_MS) || 2 * 60 * 1000; // 2분
+const MAX_GAP_MS = Number(process.env.POST_GAP_MAX_MS) || 5 * 60 * 1000; // 5분
 
 // Distribution Score 구성 가중치(합=1.0) — PM 지시 §1의 9개 요소를 7개 계산 컴포넌트로 매핑.
 // (카테고리 생산량 + 카테고리별 오늘 게시 수 → categoryAllocation 하나로 통합: 두 값의 격차가
@@ -247,10 +269,22 @@ function computeDistributionScore(topic, baseQuality, ctx) {
   return { distributionScore, components };
 }
 
-// 오늘 실제 생산량에 비례한 목표치 — 고정값 없음. 생산이 없으면 목표도 0.
-function computeDailyTarget(totalProducedToday) {
-  if (totalProducedToday <= 0) return 0;
-  return Math.max(MIN_DAILY_TARGET, Math.round(totalProducedToday * DAILY_TARGET_RATIO));
+// 오늘 원본 기사(articles) 수에 비례한 목표치 — clamp(round(articles×0.10), 20, 60).
+// "고정 20건"이 아니라 "최소 20, 최대 60인 비례 목표"다: 기사가 늘어나면 목표도 60까지 계속
+// 늘어난다(PM 지시 2026-07-22 — 기사100→20, 210→21, 500→50, 600+→60 상한).
+function computeDailyTarget(todayArticles) {
+  const raw = Math.round(todayArticles * ARTICLE_TARGET_RATIO);
+  return Math.max(MIN_DAILY_TARGET, Math.min(MAX_DAILY_TARGET, raw));
+}
+
+// 이번 실행(1시간 주기)에서 몇 건을 시도할지 — "남은 목표 ÷ 남은 시간"(PM 지시 2026-07-22 예시와
+// 동일한 계산). 목표를 이미 채웠어도 0건이 아니라 1건은 시도한다 — 정말 뛰어난 후보라면 적응형
+// 문턱값(computeAdaptiveMinDistributionScore)이 알아서 통과시키고, 아니면 자연히 Skip된다.
+function computePostsThisRun(dailyTarget, postedToday, now = new Date()) {
+  const remaining = Math.max(0, dailyTarget - postedToday);
+  if (remaining <= 0) return 1;
+  const hoursRemainingToday = Math.max(1, 24 - (now.getUTCHours() + now.getUTCMinutes() / 60));
+  return Math.min(MAX_POSTS_PER_RUN, Math.max(1, Math.ceil(remaining / hoursRemainingToday)));
 }
 
 // 목표 대비 진행률에 따라 요구 점수를 부드럽게 올린다(하드 컷오프 아님) — 목표를 채웠어도
@@ -310,6 +344,19 @@ async function fetchTodayProducedStats() {
   return { total: rows.length, byCategory };
 }
 
+// 오늘(UTC) 원본 기사(articles) 수 — computeDailyTarget의 유일한 입력. 카테고리 배분과는 무관하고
+// 오직 "오늘 배급 목표"를 정하는 데만 쓴다(PM 지시 2026-07-22 — articles 수=오늘 배급 규모 결정,
+// published Topic/장문=실제 게시 후보, 이 둘의 역할을 분리).
+async function fetchTodayArticleCount() {
+  const todayStart = new Date().toISOString().slice(0, 10) + 'T00:00:00';
+  const res = await fetch(
+    `${SUPABASE_URL}/rest/v1/articles?select=id&created_at=gte.${encodeURIComponent(todayStart)}`,
+    { headers: { ...REQUEST_HEADERS, Prefer: 'count=exact' }, method: 'HEAD' }
+  );
+  const range = res.headers.get('content-range');
+  return range ? parseInt(range.split('/')[1], 10) || 0 : 0;
+}
+
 // 오늘(UTC) 이 채널의 게시 실적 — 총량과 카테고리별 분포. 운영 보고(오늘 게시 성공 수)에도 그대로 쓴다.
 async function fetchTodayPostedStats() {
   const todayStart = new Date().toISOString().slice(0, 10) + 'T00:00:00';
@@ -329,15 +376,16 @@ async function fetchTodayPostedStats() {
 // 오늘 생산량 기반 적응형 문턱값. 반환: { topic, reason, detail } — topic이 null이면 reason에
 // 사유가 담긴다(no_candidate/below_quality_threshold/below_distribution_threshold).
 async function selectCandidate() {
-  const [pool, recentCategories, producedStats, postedStats] = await Promise.all([
+  const [pool, recentCategories, producedStats, postedStats, articleCount] = await Promise.all([
     fetchCandidatePool(),
     fetchRecentPostedCategories(RECENT_HISTORY_WINDOW),
     fetchTodayProducedStats(),
     fetchTodayPostedStats(),
+    fetchTodayArticleCount(),
   ]);
-  const dailyTarget = computeDailyTarget(producedStats.total);
+  const dailyTarget = computeDailyTarget(articleCount);
   const adaptiveMinScore = computeAdaptiveMinDistributionScore(dailyTarget, postedStats.total);
-  const baseDetail = { dailyTarget, todayProducedTotal: producedStats.total, todayPostedTotal: postedStats.total };
+  const baseDetail = { dailyTarget, todayArticleCount: articleCount, todayProducedTotal: producedStats.total, todayPostedTotal: postedStats.total };
 
   if (!pool.length) {
     return { topic: null, reason: 'no_candidate', detail: { poolSize: 0, ...baseDetail } };
@@ -508,7 +556,75 @@ async function publishPost(containerId) {
   return data.id;
 }
 
+// 후보 선정 → Claude 문구 생성 → 게시 → dedup 기록 → 상세 로그, 1건 전체 흐름.
+// 이 함수 자체는 실패해도 throw하지 않는다 — 결과를 {ok, reason, ...} 객체로 반환해 호출자(핸들러
+// 루프)가 다음 시도를 계속할지 멈출지 판단하게 한다(품질 미달/후보 없음이면 억지로 채우지 않고 중단).
+async function attemptOnePost() {
+  // 1. 후보 선정(Editorial Score 품질 게이트 + Distribution Score 배급 우선순위) — Claude 호출 전
+  const { topic, reason, detail } = await selectCandidate();
+  if (!topic) {
+    console.log(`DISTRIBUTION_SKIP[${CHANNEL}](${reason}):`, JSON.stringify(detail));
+    return { ok: false, skipped: true, reason, detail };
+  }
+  console.log(`DISTRIBUTION_CANDIDATE_SELECTED[${CHANNEL}]:`, topic.name, JSON.stringify(detail));
+
+  const plan = topic.ai_context?.plan;
+  const editors = (plan?.editors_assigned || []).map((e) => e.name);
+  const baseUrl = `${BASE_URL}/topic/${topic.slug}`;
+
+  // 2. Claude 문구 생성(여기부터 비용 발생)
+  let hookType, hookBody;
+  try {
+    ({ hookType, text: hookBody } = await generateHookCopy(topic, baseUrl));
+  } catch (claudeErr) {
+    console.error(`DISTRIBUTION_SKIP[${CHANNEL}](claude_failed):`, claudeErr.message);
+    return { ok: false, reason: 'claude_failed', error: claudeErr.message };
+  }
+  const url = `${baseUrl}?utm_source=threads&utm_medium=social&utm_campaign=organic_threads&utm_content=${topic.id}_${hookType}`;
+  const text = hookBody.replace(baseUrl, url);
+  console.log('포스팅 내용:\n', text);
+
+  // 레이스 컨디션 방어 — Claude 호출 사이 다른 실행이 먼저 게시했을 가능성 재확인
+  if (!(await isStillUnposted(topic.id))) {
+    console.log(`DISTRIBUTION_SKIP[${CHANNEL}](duplicate_topic): 다른 실행이 먼저 게시함`);
+    return { ok: false, skipped: true, reason: 'duplicate_topic', topicId: topic.id };
+  }
+
+  // 3. Threads 게시(이미지 필드 전혀 참조하지 않음 — TEXT 전용, 없어도 정상)
+  let postId;
+  try {
+    const containerId = await createContainer(text);
+    await new Promise((r) => setTimeout(r, 3000));
+    postId = await publishPost(containerId);
+  } catch (postErr) {
+    console.error(`DISTRIBUTION_SKIP[${CHANNEL}](threads_api_failed, Claude 비용은 이미 발생):`, postErr.message);
+    return { ok: false, reason: 'threads_api_failed', error: postErr.message };
+  }
+
+  // 4. 핵심 dedup 기록(실패해도 게시 자체는 이미 성공 — Post ID를 결과에 보존)
+  try {
+    await markTopicPosted(topic, postId, hookType, detail);
+  } catch (dedupErr) {
+    console.error(`DISTRIBUTION_SKIP[${CHANNEL}](dedup_save_failed, 게시는 이미 성공, Post ID 보존):`, postId, dedupErr.message);
+    return { ok: false, reason: 'dedup_save_failed', error: dedupErr.message, postId, topicId: topic.id };
+  }
+
+  // 5. 상세 로그(best-effort)
+  const logResult = await savePostLog({
+    topic_id: topic.id, post_id: postId, hook_type: hookType, editors, status: 'success', source_url: url,
+    distribution_score: detail.distributionScore, editorial_score: detail.components?.editorialScore,
+  });
+
+  console.log(`DISTRIBUTION_SUCCESS[${CHANNEL}]:`, postId, '| topic:', topic.slug, '| url:', url);
+  return { ok: true, reason: 'success', postId, topicId: topic.id, slug: topic.slug, hookType, editors, title: topic.name, url, detailLogSaved: logResult.ok, scoreDetail: detail };
+}
+
 // ── Handler ──────────────────────────────────────────────────────
+// Background Function(최대 15분 예산) — 파일명이 -background로 끝나면 Netlify가 호출자에게
+// 즉시 202를 반환하고 이 핸들러는 백그라운드에서 계속 실행된다(호출자는 반환값을 받지 못한다 —
+// 결과는 이 함수의 console.log와 DB 상태로만 확인 가능하다). 1회 실행(hourly)당 최대 3건까지
+// 게시 사이 2~5분 간격을 두는 요구사항은 26초 하드캡이 있는 동기 함수로는 구현할 수 없어
+// Background Function으로 전환했다(PM 지시 2026-07-22).
 exports.handler = async function (event) {
   const headers = { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' };
   if (event.httpMethod === 'OPTIONS') return { statusCode: 200, headers, body: '' };
@@ -522,80 +638,58 @@ exports.handler = async function (event) {
 
   const isDry = event.queryStringParameters?.dry === 'true';
 
-  // 1. 자격증명 확인 — Claude 호출보다 반드시 먼저(비용 보호)
+  // 자격증명 확인 — Claude 호출보다 반드시 먼저(비용 보호)
   if (!isDry && (!THREADS_USER_ID || !THREADS_ACCESS_TOKEN)) {
+    console.error(`DISTRIBUTION_SKIP[${CHANNEL}](credential_missing)`);
     return { statusCode: 500, headers, body: JSON.stringify({ reason: 'credential_missing', error: 'THREADS_USER_ID 또는 THREADS_ACCESS_TOKEN 환경변수 없음' }) };
   }
 
-  try {
-    // 2. 후보 선정(Thread Score 품질 게이트 + Distribution Score 배급 우선순위) — Claude 호출 전
+  if (isDry) {
+    // dry 모드는 미리보기 1건만 — 실제 게시/루프 없음.
     const { topic, reason, detail } = await selectCandidate();
-    if (!topic) {
-      console.log(`DISTRIBUTION_SKIP[${CHANNEL}](${reason}):`, JSON.stringify(detail));
-      return { statusCode: 200, headers, body: JSON.stringify({ skipped: true, reason, detail }) };
-    }
-    console.log(`DISTRIBUTION_CANDIDATE_SELECTED[${CHANNEL}]:`, topic.name, JSON.stringify(detail));
-
-    const plan = topic.ai_context?.plan;
-    const editors = (plan?.editors_assigned || []).map((e) => e.name);
+    if (!topic) return { statusCode: 200, headers, body: JSON.stringify({ dry: true, skipped: true, reason, detail }) };
     const baseUrl = `${BASE_URL}/topic/${topic.slug}`;
-
-    // 3. Claude 문구 생성(여기부터 비용 발생)
-    let hookType, hookBody;
-    try {
-      ({ hookType, text: hookBody } = await generateHookCopy(topic, baseUrl));
-    } catch (claudeErr) {
-      console.error(`DISTRIBUTION_SKIP[${CHANNEL}](claude_failed):`, claudeErr.message);
-      return { statusCode: 500, headers, body: JSON.stringify({ reason: 'claude_failed', error: claudeErr.message }) };
-    }
+    const { hookType, text: hookBody } = await generateHookCopy(topic, baseUrl);
     const url = `${baseUrl}?utm_source=threads&utm_medium=social&utm_campaign=organic_threads&utm_content=${topic.id}_${hookType}`;
     const text = hookBody.replace(baseUrl, url);
+    return { statusCode: 200, headers, body: JSON.stringify({ dry: true, reason: 'success', topicId: topic.id, hookType, title: topic.name, url, text, scoreDetail: detail }) };
+  }
 
-    console.log('포스팅 내용:\n', text);
+  try {
+    // 이번 실행에서 몇 건을 시도할지 미리 계산(운영 로그 가시성 + 루프 조건에 사용)
+    const [articleCount, postedStatsNow] = await Promise.all([fetchTodayArticleCount(), fetchTodayPostedStats()]);
+    const dailyTarget = computeDailyTarget(articleCount);
+    const postsThisRun = computePostsThisRun(dailyTarget, postedStatsNow.total);
+    console.log(`DISTRIBUTION_RUN_PLAN[${CHANNEL}]: articles=${articleCount} dailyTarget=${dailyTarget} postedToday=${postedStatsNow.total} postsThisRun=${postsThisRun}`);
 
-    if (isDry) {
-      return { statusCode: 200, headers, body: JSON.stringify({ dry: true, reason: 'success', topicId: topic.id, hookType, editors, title: topic.name, url, text, scoreDetail: detail }) };
+    const results = [];
+    for (let i = 0; i < postsThisRun; i++) {
+      const result = await attemptOnePost();
+      results.push(result);
+      if (!result.ok) {
+        console.log(`DISTRIBUTION_RUN_STOP[${CHANNEL}]: ${i + 1}번째 시도에서 중단(사유: ${result.reason})`);
+        break; // 후보 없음/품질 미달/실패 — 억지로 채우지 않고 이번 실행 종료
+      }
+      if (i < postsThisRun - 1) {
+        const gapMs = Math.round(MIN_GAP_MS + Math.random() * (MAX_GAP_MS - MIN_GAP_MS));
+        console.log(`DISTRIBUTION_GAP[${CHANNEL}]: 다음 게시까지 ${Math.round(gapMs / 1000)}초 대기`);
+        await new Promise((r) => setTimeout(r, gapMs));
+      }
     }
 
-    // 레이스 컨디션 방어 — Claude 호출 사이 다른 실행이 먼저 게시했을 가능성 재확인
-    if (!(await isStillUnposted(topic.id))) {
-      console.log(`DISTRIBUTION_SKIP[${CHANNEL}](duplicate_topic): 다른 실행이 먼저 게시함`);
-      return { statusCode: 200, headers, body: JSON.stringify({ skipped: true, reason: 'duplicate_topic', topicId: topic.id }) };
-    }
-
-    // 4. Threads 게시(이미지 필드 전혀 참조하지 않음 — TEXT 전용, 없어도 정상)
-    let postId;
-    try {
-      const containerId = await createContainer(text);
-      await new Promise((r) => setTimeout(r, 3000));
-      postId = await publishPost(containerId);
-    } catch (postErr) {
-      console.error(`DISTRIBUTION_SKIP[${CHANNEL}](threads_api_failed, Claude 비용은 이미 발생):`, postErr.message);
-      return { statusCode: 500, headers, body: JSON.stringify({ reason: 'threads_api_failed', error: postErr.message, note: 'Claude 호출 이후 게시 단계에서 실패 — 비용은 이미 발생했을 수 있음' }) };
-    }
-
-    // 5. 핵심 dedup 기록(실패 시 예외 — 다음 실행에서 중복 게시 위험이 있으므로 반드시 성공해야 함)
-    try {
-      await markTopicPosted(topic, postId, hookType, detail);
-    } catch (dedupErr) {
-      console.error(`DISTRIBUTION_SKIP[${CHANNEL}](dedup_save_failed, 게시는 이미 성공, Post ID 보존):`, postId, dedupErr.message);
-      return { statusCode: 500, headers, body: JSON.stringify({ reason: 'dedup_save_failed', error: dedupErr.message, postId, topicId: topic.id, note: '게시는 성공했으나 중복방지 기록 실패 — Post ID 보존됨, 수동 확인 필요' }) };
-    }
-
-    // 6. 상세 로그(best-effort)
-    const logResult = await savePostLog({
-      topic_id: topic.id, post_id: postId, hook_type: hookType, editors, status: 'success', source_url: url,
-      distribution_score: detail.distributionScore, editorial_score: detail.components?.editorialScore,
-    });
-
-    const todaySuccessCount = detail.todayPostedTotal + 1;
-    console.log(`DISTRIBUTION_SUCCESS[${CHANNEL}]:`, postId, '| 오늘 누적 성공:', todaySuccessCount, '| 오늘 목표:', detail.dailyTarget);
+    const successCount = results.filter((r) => r.ok).length;
+    const todaySuccessCount = postedStatsNow.total + successCount;
+    console.log(`DISTRIBUTION_RUN_DONE[${CHANNEL}]: 이번 실행 성공 ${successCount}/${results.length}건, 오늘 누적 ${todaySuccessCount}건(목표 ${dailyTarget})`);
     return {
       statusCode: 200, headers,
-      body: JSON.stringify({ ok: true, reason: 'success', postId, topicId: topic.id, hookType, editors, title: topic.name, url, detailLogSaved: logResult.ok, scoreDetail: detail, todaySuccessCount, dailyTarget: detail.dailyTarget }),
+      body: JSON.stringify({ ok: true, dailyTarget, postsAttemptedThisRun: results.length, postsSucceededThisRun: successCount, todaySuccessCount, results }),
     };
   } catch (e) {
-    console.error(e.message);
+    console.error(`DISTRIBUTION_RUN_ERROR[${CHANNEL}]:`, e.message);
     return { statusCode: 500, headers, body: JSON.stringify({ reason: 'unexpected_error', error: e.message }) };
   }
 };
+
+// 테스트 전용 — 순수 함수 몇 개를 직접 단위 테스트하기 위해 노출한다(mock fetch/실제 대기 없이
+// 공식만 검증). 프로덕션 코드 경로에서는 쓰이지 않는다.
+exports._testUtils = { computeDailyTarget, computePostsThisRun, computeAdaptiveMinDistributionScore };
