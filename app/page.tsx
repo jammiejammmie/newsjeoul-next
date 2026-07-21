@@ -52,9 +52,7 @@ export default async function Home() {
     )
   }
 
-  // Hero는 메가토픽 화이트리스트 우선(§lib/topics.ts pickHeroTopic 주석 참고 —
-  // importance_score가 아직 실제 계산되지 않아 순수 정렬만으로는 단발성 사건이 우연히 1등이 될 수 있음).
-  // 나머지(사이드/Living Index)는 화이트리스트 없이 있는 그대로의 순위를 보여준다.
+  // Hero는 실제 importance_score(Weight Engine) 1위 — getActiveTopics()가 이미 정렬해 넘겨준다.
   const heroTopic = pickHeroTopic(activeTopics)!
   const rest = activeTopics.filter((t) => t.slug !== heroTopic.slug)
   const sideTopics = rest.slice(0, 2)
