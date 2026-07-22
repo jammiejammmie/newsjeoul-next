@@ -12,4 +12,10 @@ ALTER TABLE threads_posts ADD COLUMN IF NOT EXISTS failure_reason text;        -
 ALTER TABLE threads_posts ADD COLUMN IF NOT EXISTS retry_count integer NOT NULL DEFAULT 0;
 ALTER TABLE threads_posts ADD COLUMN IF NOT EXISTS source_url text;           -- 실제 게시에 사용한 뉴스저울 링크(UTM 포함)
 
+-- 2026-07-22 추가(PM 지시 "Threads 운영 로그 강화" — Distribution Engine 튜닝을 위해 게시마다
+-- 점수 근거를 함께 남길 것). post-threads-background.js의 savePostLog()가 이미 이 두 필드를
+-- 보내고 있었으나(컬럼이 없어 그동안 무시됨) 이제 실제로 저장된다.
+ALTER TABLE threads_posts ADD COLUMN IF NOT EXISTS distribution_score numeric;
+ALTER TABLE threads_posts ADD COLUMN IF NOT EXISTS editorial_score numeric;
+
 CREATE INDEX IF NOT EXISTS idx_threads_posts_topic_id ON threads_posts(topic_id);

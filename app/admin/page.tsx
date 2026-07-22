@@ -17,10 +17,11 @@ export default function AdminPage() {
   const [editors, setEditors] = useState<any[]>([])
   const [editorTagFilter, setEditorTagFilter] = useState<string>('all')
   const [health, setHealth] = useState<any[]>([])
+  const [distOps, setDistOps] = useState<any>(null)
 
   useEffect(() => {
     const k = localStorage.getItem('nj_admin_key') || ''
-    if (k) { setSavedKey(k); loadStats(); loadEditorialStatus(); loadGateTopics(); loadEditors(); loadAutomationHealth() }
+    if (k) { setSavedKey(k); loadStats(); loadEditorialStatus(); loadGateTopics(); loadEditors(); loadAutomationHealth(); loadDistributionOps() }
   }, [])
 
   function addLog(type: string, msg: string) {
@@ -143,6 +144,85 @@ export default function AdminPage() {
     } catch (e) {}
   }
 
+  // Distribution Engine 운영 대시보드(PM 지시 2026-07-22 — "코드가 맞는지"보다 "실제로 얼마나
+  // 생산·유통했는지"를 관리자 화면에서 바로 볼 것). hero_history/distribution_run_log/
+  // distribution_skip_log 테이블은 supabase/distribution_ops_logging_migration.sql 적용 전에는
+  // 조회가 실패할 수 있으므로 테이블별로 개별 try/catch — 하나가 없어도 나머지는 정상 표시.
+  async function loadDistributionOps() {
+    const headers = { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY }
+    const todayStart = new Date().toISOString().slice(0, 10) + 'T00:00:00'
+
+    const safeJson = async (url: string, extraHeaders?: any) => {
+      try {
+        const r = await fetch(url, { headers: { ...headers, ...extraHeaders } })
+        if (!r.ok) return { ok: false, data: null }
+        return { ok: true, data: await r.json() }
+      } catch { return { ok: false, data: null } }
+    }
+    const safeCount = async (url: string) => {
+      try {
+        const r = await fetch(url, { method: 'HEAD', headers: { ...headers, Prefer: 'count=exact' } })
+        if (!r.ok) return null
+        return parseInt((r.headers.get('content-range') || '/0').split('/')[1]) || 0
+      } catch { return null }
+    }
+
+    const [
+      threadsPostedTodayCount,
+      recentThreadsRes, heroNowRes, heroHistoryRes, runLogTodayRes, skipLogTodayRes, threadsPostsRes,
+    ] = await Promise.all([
+      safeCount(`${SUPABASE_URL}/rest/v1/topics?select=id&status=eq.active&ai_context->threads->>posted_at=gte.${encodeURIComponent(todayStart)}`),
+      safeJson(`${SUPABASE_URL}/rest/v1/topics?select=category,ai_context&status=eq.active&ai_context->threads->>posted_at=not.is.null&limit=30`),
+      safeJson(`${SUPABASE_URL}/rest/v1/topics?select=id,name,importance_score,updated_at&status=eq.active&order=importance_score.desc&limit=1`),
+      safeJson(`${SUPABASE_URL}/rest/v1/hero_history?select=*&order=changed_at.desc&limit=20`),
+      safeJson(`${SUPABASE_URL}/rest/v1/distribution_run_log?select=*&run_at=gte.${encodeURIComponent(todayStart)}&order=run_at.desc&limit=30`),
+      safeJson(`${SUPABASE_URL}/rest/v1/distribution_skip_log?select=reason,distribution_score,editorial_score&run_at=gte.${encodeURIComponent(todayStart)}&limit=1000`),
+      safeJson(`${SUPABASE_URL}/rest/v1/threads_posts?select=*&order=posted_at.desc&limit=100`),
+    ])
+
+    // 오늘 새로 생성/갱신된 Topic 전체를 한 번에 가져와 Topic/장문/Expansion 신규 건수를 클라이언트에서 계산
+    const updatedTodayRes = await safeJson(`${SUPABASE_URL}/rest/v1/topics?select=id,created_at,ai_context&updated_at=gte.${encodeURIComponent(todayStart)}&limit=500`)
+    const updatedToday: any[] = updatedTodayRes.data || []
+    const newTopicsToday = updatedToday.filter((t) => t.created_at >= todayStart).length
+    const draftsToday = updatedToday.filter((t) => (t.ai_context?.draft?.generated_at || '') >= todayStart).length
+    const expansionToday = updatedToday.reduce((sum, t) => sum + (t.ai_context?.expansion_drafts || []).filter((d: any) => (d.generated_at || '') >= todayStart).length, 0)
+
+    const runRows: any[] = runLogTodayRes.data || []
+    const dailyTarget = runRows[0]?.daily_target ?? null
+    const attemptedSum = runRows.reduce((a, r) => a + (r.posts_attempted || 0), 0)
+    const succeededSum = runRows.reduce((a, r) => a + (r.posts_succeeded || 0), 0)
+
+    const lastPostedAt = (recentThreadsRes.data || [])
+      .map((t: any) => t.ai_context?.threads?.posted_at)
+      .filter(Boolean)
+      .sort()
+      .slice(-1)[0] || null
+
+    const skipRows: any[] = skipLogTodayRes.data || []
+    const skipByReason: Record<string, number> = {}
+    skipRows.forEach((r) => { skipByReason[r.reason] = (skipByReason[r.reason] || 0) + 1 })
+    const distScores = skipRows.map((r) => r.distribution_score).filter((v) => typeof v === 'number')
+    const editScores = skipRows.map((r) => r.editorial_score).filter((v) => typeof v === 'number')
+    const stat = (arr: number[]) => arr.length ? { min: Math.min(...arr), max: Math.max(...arr), avg: Math.round(arr.reduce((a, b) => a + b, 0) / arr.length) } : null
+
+    setDistOps({
+      newTopicsToday, draftsToday, expansionToday,
+      threadsPostedToday: threadsPostedTodayCount, dailyTarget, attemptedSum, succeededSum,
+      lastPostedAt,
+      heroNow: heroNowRes.data?.[0] || null,
+      heroHistory: heroHistoryRes.data || [],
+      skipByReason, distScoreStat: stat(distScores), editScoreStat: stat(editScores),
+      skipTotal: skipRows.length,
+      recentThreadsPosts: threadsPostsRes.data || [],
+      migrationsMissing: {
+        heroHistory: !heroHistoryRes.ok,
+        runLog: !runLogTodayRes.ok,
+        skipLog: !skipLogTodayRes.ok,
+        threadsPostsExtended: threadsPostsRes.ok && (threadsPostsRes.data || []).length > 0 && threadsPostsRes.data[0].topic_id === undefined,
+      },
+    })
+  }
+
   async function overrideGate(topicId: string, newStatus: string) {
     try {
       const res = await fetch(`${SITE_URL}/.netlify/functions/override-gate-status`, {
@@ -161,7 +241,7 @@ export default function AdminPage() {
     localStorage.setItem('nj_admin_key', adminKey)
     setSavedKey(adminKey)
     addLog('info', '로그인 완료')
-    loadStats(); loadEditorialStatus(); loadGateTopics(); loadEditors(); loadAutomationHealth()
+    loadStats(); loadEditorialStatus(); loadGateTopics(); loadEditors(); loadAutomationHealth(); loadDistributionOps()
   }
 
   async function callFn(fnName: string) {
@@ -332,6 +412,94 @@ export default function AdminPage() {
           })}
           {health.length === 0 && <div style={{ fontSize: 11, color: 'var(--muted)' }}>불러오는 중...</div>}
         </div>
+      </div>
+
+      {/* Distribution Engine 운영 현황(PM 지시 2026-07-22) — 오늘 생산·유통량, Hero 변경 이력,
+          Threads 목표/실적, 탈락 후보 사유·점수 분포를 한 화면에서 확인 */}
+      <div style={s.card}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+          <div style={{ fontSize: 13, fontWeight: 700 }}>📡 Distribution Engine 운영 현황</div>
+          <button onClick={loadDistributionOps} style={{ fontSize: 10, padding: '3px 9px', background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 999, color: 'var(--muted)', cursor: 'pointer' }}>
+            ↻ 새로고침
+          </button>
+        </div>
+        {!distOps ? (
+          <div style={{ fontSize: 11, color: 'var(--muted)' }}>불러오는 중...</div>
+        ) : (
+          <>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6, marginBottom: 12 }}>
+              {[
+                ['오늘 신규 Topic', distOps.newTopicsToday],
+                ['오늘 신규 장문', distOps.draftsToday],
+                ['오늘 Expansion', distOps.expansionToday],
+                ['Threads 목표', distOps.dailyTarget ?? '—'],
+                ['Threads 게시', distOps.threadsPostedToday ?? '—'],
+                ['성공률', distOps.attemptedSum ? `${Math.round((distOps.succeededSum / distOps.attemptedSum) * 100)}%` : '—'],
+              ].map(([label, val]) => (
+                <div key={label as string} style={{ background: 'var(--bg2)', borderRadius: 8, padding: '8px 6px', textAlign: 'center' }}>
+                  <div style={{ fontSize: 17, fontWeight: 700 }}>{val as any}</div>
+                  <div style={{ fontSize: 9.5, color: 'var(--muted)' }}>{label}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 12 }}>
+              마지막 Threads 게시: {distOps.lastPostedAt ? new Date(distOps.lastPostedAt).toLocaleString('ko-KR') : '기록 없음'}
+            </div>
+
+            {/* Hero */}
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 11.5, fontWeight: 700, marginBottom: 6 }}>
+                🏆 현재 Hero: {distOps.heroNow ? `${distOps.heroNow.name} (${distOps.heroNow.importance_score}g)` : '—'}
+              </div>
+              <div style={{ fontSize: 10.5, color: 'var(--muted)', marginBottom: 6 }}>
+                마지막 변경: {distOps.heroHistory[0] ? new Date(distOps.heroHistory[0].changed_at).toLocaleString('ko-KR') : (distOps.migrationsMissing.heroHistory ? '마이그레이션 미적용' : '변경 이력 없음')}
+              </div>
+              {distOps.heroHistory.length > 0 && (
+                <div style={{ ...s.logArea, minHeight: 0, maxHeight: 140, fontSize: 10.5 }}>
+                  {distOps.heroHistory.map((h: any) => (
+                    <div key={h.id}>
+                      {new Date(h.changed_at).toLocaleString('ko-KR')} — {h.from_topic_name || '(없음)'}({h.from_importance_score ?? '-'}g) → {h.to_topic_name}({h.to_importance_score}g)
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* 탈락 후보 사유·점수 분포 */}
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 11.5, fontWeight: 700, marginBottom: 6 }}>
+                🚫 오늘 게시하지 않은 후보 {distOps.skipTotal}건{distOps.migrationsMissing.skipLog ? ' (마이그레이션 미적용)' : ''}
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 6 }}>
+                {Object.entries(distOps.skipByReason).map(([reason, count]) => (
+                  <span key={reason} style={{ fontSize: 10.5, padding: '3px 8px', background: 'var(--bg2)', borderRadius: 999, color: 'var(--muted)' }}>{reason}: {count as any}</span>
+                ))}
+                {distOps.skipTotal === 0 && <span style={{ fontSize: 10.5, color: 'var(--muted)' }}>없음</span>}
+              </div>
+              {(distOps.distScoreStat || distOps.editScoreStat) && (
+                <div style={{ fontSize: 10.5, color: 'var(--muted)' }}>
+                  {distOps.distScoreStat && <>Distribution Score min/avg/max: {distOps.distScoreStat.min}/{distOps.distScoreStat.avg}/{distOps.distScoreStat.max}　</>}
+                  {distOps.editScoreStat && <>Editorial Score min/avg/max: {distOps.editScoreStat.min}/{distOps.editScoreStat.avg}/{distOps.editScoreStat.max}</>}
+                </div>
+              )}
+            </div>
+
+            {/* 최근 Threads 게시 100건 */}
+            <div>
+              <div style={{ fontSize: 11.5, fontWeight: 700, marginBottom: 6 }}>
+                📮 최근 Threads 게시({distOps.recentThreadsPosts.length}건){distOps.migrationsMissing.threadsPostsExtended ? ' — 상세 컬럼 마이그레이션 미적용' : ''}
+              </div>
+              <div style={{ ...s.logArea, minHeight: 0, maxHeight: 180, fontSize: 10.5 }}>
+                {distOps.recentThreadsPosts.map((p: any) => (
+                  <div key={p.id}>
+                    {p.posted_at ? new Date(p.posted_at).toLocaleString('ko-KR') : '-'} · {p.hook_type || '-'} · dist={p.distribution_score ?? '-'} · edit={p.editorial_score ?? '-'} · <a href={p.source_url} target="_blank" rel="noreferrer" style={{ color: 'var(--accent)' }}>{p.post_id}</a>
+                  </div>
+                ))}
+                {distOps.recentThreadsPosts.length === 0 && <div>기록 없음</div>}
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       {/* 통계 */}

@@ -375,6 +375,24 @@ async function fetchTodayPostedStats() {
 // 후보 선정 전체 파이프라인 — Thread Score(품질 하한선) → Distribution Score(배급 우선순위) →
 // 오늘 생산량 기반 적응형 문턱값. 반환: { topic, reason, detail } — topic이 null이면 reason에
 // 사유가 담긴다(no_candidate/below_quality_threshold/below_distribution_threshold).
+// 게시하지 않은 후보 로그(best-effort) — 지금은 알고리즘보다 "왜 게시가 적었는지" 분석할 수 있는
+// 데이터가 더 중요하다(PM 지시 2026-07-22). 실패해도 메인 흐름을 막지 않는다. distribution_skip_log
+// 테이블이 아직 마이그레이션 전이면(supabase/distribution_ops_logging_migration.sql 미적용) 조용히
+// 실패하고 넘어간다.
+async function logSkippedCandidates(rows) {
+  if (!rows.length) return;
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/distribution_skip_log`, {
+      method: 'POST',
+      headers: { ...REQUEST_HEADERS, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+      body: JSON.stringify(rows),
+    });
+    if (!res.ok) console.error(`DISTRIBUTION_SKIP_LOG_FAILED[${CHANNEL}](참고용 로그만 누락):`, await res.text());
+  } catch (e) {
+    console.error(`DISTRIBUTION_SKIP_LOG_FAILED[${CHANNEL}](참고용 로그만 누락):`, e.message);
+  }
+}
+
 async function selectCandidate() {
   const [pool, recentCategories, producedStats, postedStats, articleCount] = await Promise.all([
     fetchCandidatePool(),
@@ -388,12 +406,20 @@ async function selectCandidate() {
   const baseDetail = { dailyTarget, todayArticleCount: articleCount, todayProducedTotal: producedStats.total, todayPostedTotal: postedStats.total };
 
   if (!pool.length) {
+    await logSkippedCandidates([{ channel: CHANNEL, reason: 'no_candidate', detail: { poolSize: 0 } }]);
     return { topic: null, reason: 'no_candidate', detail: { poolSize: 0, ...baseDetail } };
   }
 
   const scoredAll = pool.map((t) => ({ topic: t, base: computeEditorialScore(t) }));
   const eligible = scoredAll.filter((s) => passesMinimumQuality(s.topic, s.base));
+  const ineligible = scoredAll.filter((s) => !passesMinimumQuality(s.topic, s.base));
+  const ineligibleRows = ineligible.map((s) => ({
+    channel: CHANNEL, topic_id: s.topic.id, topic_name: s.topic.name, category: s.topic.category,
+    editorial_score: s.base.score, reason: 'quality_threshold', detail: { breakdown: s.base.breakdown },
+  }));
+
   if (!eligible.length) {
+    await logSkippedCandidates(ineligibleRows);
     return {
       topic: null, reason: 'below_quality_threshold',
       detail: { poolSize: pool.length, minEditorialScore: MIN_EDITORIAL_SCORE, topEditorialScoreSeen: Math.max(...scoredAll.map((s) => s.base.score), 0), ...baseDetail },
@@ -406,6 +432,16 @@ async function selectCandidate() {
     .sort((a, b) => b.distributionScore - a.distributionScore);
 
   const winner = ranked.find((r) => r.distributionScore >= adaptiveMinScore);
+
+  const belowDistributionRows = ranked
+    .filter((r) => r.topic.id !== winner?.topic.id && r.distributionScore < adaptiveMinScore)
+    .map((r) => ({
+      channel: CHANNEL, topic_id: r.topic.id, topic_name: r.topic.name, category: r.topic.category,
+      editorial_score: r.components.editorialScore, distribution_score: r.distributionScore,
+      reason: 'distribution_threshold', detail: { components: r.components, adaptiveMinScore },
+    }));
+  await logSkippedCandidates([...ineligibleRows, ...belowDistributionRows]);
+
   if (!winner) {
     return {
       topic: null, reason: 'below_distribution_threshold',
@@ -587,6 +623,7 @@ async function attemptOnePost() {
   // 레이스 컨디션 방어 — Claude 호출 사이 다른 실행이 먼저 게시했을 가능성 재확인
   if (!(await isStillUnposted(topic.id))) {
     console.log(`DISTRIBUTION_SKIP[${CHANNEL}](duplicate_topic): 다른 실행이 먼저 게시함`);
+    await logSkippedCandidates([{ channel: CHANNEL, topic_id: topic.id, topic_name: topic.name, category: topic.category, reason: 'duplicate', detail: {} }]);
     return { ok: false, skipped: true, reason: 'duplicate_topic', topicId: topic.id };
   }
 
@@ -680,6 +717,24 @@ exports.handler = async function (event) {
     const successCount = results.filter((r) => r.ok).length;
     const todaySuccessCount = postedStatsNow.total + successCount;
     console.log(`DISTRIBUTION_RUN_DONE[${CHANNEL}]: 이번 실행 성공 ${successCount}/${results.length}건, 오늘 누적 ${todaySuccessCount}건(목표 ${dailyTarget})`);
+
+    // 시간대별 목표/실적 기록(best-effort) — 하루가 끝난 뒤 Distribution Engine이 제대로
+    // 동작했는지 시간대별로 재구성할 수 있게 한다(PM 지시 2026-07-22 §5).
+    try {
+      const logRes = await fetch(`${SUPABASE_URL}/rest/v1/distribution_run_log`, {
+        method: 'POST',
+        headers: { ...REQUEST_HEADERS, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+        body: JSON.stringify({
+          channel: CHANNEL, today_article_count: articleCount, daily_target: dailyTarget,
+          posted_before_run: postedStatsNow.total, posts_attempted: results.length,
+          posts_succeeded: successCount, posted_after_run: todaySuccessCount,
+        }),
+      });
+      if (!logRes.ok) console.error(`DISTRIBUTION_RUN_LOG_FAILED[${CHANNEL}](참고용 로그만 누락):`, await logRes.text());
+    } catch (e) {
+      console.error(`DISTRIBUTION_RUN_LOG_FAILED[${CHANNEL}](참고용 로그만 누락):`, e.message);
+    }
+
     return {
       statusCode: 200, headers,
       body: JSON.stringify({ ok: true, dailyTarget, postsAttemptedThisRun: results.length, postsSucceededThisRun: successCount, todaySuccessCount, results }),

@@ -102,6 +102,41 @@ function computeWeight(topic, stories, entities, plan) {
   return { grams, reasons, components };
 }
 
+// Hero(대표 기사) 변경 이력 기록(best-effort) — PM 지시(2026-07-22): "이력이 있어야 Weight Engine이
+// 정상 동작하는지 판단할 수 있다." 이 함수가 매 3시간 무게를 갱신한 직후가 Hero 순위가 바뀔 수
+// 있는 시점이므로 여기서 확인한다(app/page.tsx는 매 요청마다 렌더링만 할 뿐 쓰기를 하지 않는다 —
+// anon key는 어차피 hero_history에 쓸 권한이 없다, global_rls_policy.sql의 "service write" 정책).
+// hero_history 테이블이 아직 마이그레이션 전이면 조용히 실패하고 넘어간다.
+async function trackHeroHistory() {
+  try {
+    const top = await supabaseGet('topics', '?status=eq.active&select=id,name,importance_score&order=importance_score.desc&limit=1');
+    if (!top.length) return;
+    const current = top[0];
+
+    const lastHistory = await supabaseGet('hero_history', '?select=to_topic_id,to_topic_name,to_importance_score&order=changed_at.desc&limit=1');
+    const last = lastHistory[0] || null;
+
+    if (last && last.to_topic_id === current.id) return; // Hero 변화 없음
+
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/hero_history`, {
+      method: 'POST',
+      headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+      body: JSON.stringify({
+        from_topic_id: last?.to_topic_id ?? null,
+        from_topic_name: last?.to_topic_name ?? null,
+        from_importance_score: last?.to_importance_score ?? null,
+        to_topic_id: current.id,
+        to_topic_name: current.name,
+        to_importance_score: current.importance_score,
+      }),
+    });
+    if (!res.ok) console.error('HERO_HISTORY_LOG_FAILED(참고용 로그만 누락):', await res.text());
+    else console.log(`HERO_CHANGED: ${last?.to_topic_name || '(없음)'} → ${current.name} (${current.importance_score}g)`);
+  } catch (e) {
+    console.error('HERO_HISTORY_LOG_FAILED(참고용 로그만 누락):', e.message);
+  }
+}
+
 exports.handler = async function (event) {
   const headers = { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' };
   if (event.httpMethod === 'OPTIONS') return { statusCode: 200, headers, body: '' };
@@ -185,6 +220,8 @@ exports.handler = async function (event) {
         console.error('update-topic-weight topic 처리 오류:', topic.id, e.message);
       }
     }
+
+    await trackHeroHistory();
 
     return {
       statusCode: 200,

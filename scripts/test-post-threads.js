@@ -48,6 +48,8 @@ async function run(scenario) {
   }, scenario);
   const patched = [];
   const postedIds = new Set();
+  const skipLogRows = [];
+  const runLogRows = [];
 
   global.fetch = async (url, opts = {}) => {
     const method = opts.method || 'GET';
@@ -93,6 +95,14 @@ async function run(scenario) {
     if (method === 'POST' && url.includes('/rest/v1/threads_posts')) {
       return { ok: true, text: async () => '' };
     }
+    if (method === 'POST' && url.includes('/rest/v1/distribution_skip_log')) {
+      skipLogRows.push(...JSON.parse(opts.body));
+      return { ok: true, text: async () => '' };
+    }
+    if (method === 'POST' && url.includes('/rest/v1/distribution_run_log')) {
+      runLogRows.push(JSON.parse(opts.body));
+      return { ok: true, text: async () => '' };
+    }
     if (method === 'POST' && url.includes('graph.threads.net') && url.includes('/threads_publish')) {
       if (s.threadsApiFails) return { ok: false, json: async () => ({ error: 'threads publish error' }) };
       return jsonRes({ id: (s.postIds && s.postIds[postedIds.size]) || s.postId || 'post-id-' + (postedIds.size + 1) });
@@ -107,7 +117,7 @@ async function run(scenario) {
   const mod = freshHandler();
   const res = await mod.handler({ httpMethod: 'POST', headers: { 'x-admin-key': 'real-admin-key' } });
   const body = JSON.parse(res.body);
-  return { res, body, patched, first: body.results?.[0] };
+  return { res, body, patched, first: body.results?.[0], skipLogRows, runLogRows };
 }
 
 async function main() {
@@ -343,6 +353,29 @@ async function main() {
     check(
       '24) 후보 소진 시 조기 중단(억지로 채우지 않음)',
       body.postsAttemptedThisRun === 2 && body.postsSucceededThisRun === 1 && body.results[1].reason === 'no_candidate'
+    );
+  }
+
+  // 25) 탈락 후보 로그 — 품질 미달/배급 문턱 미달 후보가 distribution_skip_log에 사유·점수와 함께 기록되는지
+  {
+    const winner = makeTopic('t-log-winner', '당첨 후보', '정치', 500);
+    const thin = makeTopic('t-log-thin', '빈약 후보', '경제', 500, {
+      ai_context: { draft: { lead: '짧음', blocks: [{ content: '짧다' }] }, evidence: { sources: [{ url: 'https://example.com/y' }] }, weight: {} },
+    });
+    const { skipLogRows } = await run({ pool: [winner, thin] });
+    const thinRow = skipLogRows.find((r) => r.topic_id === 't-log-thin');
+    check('25) 품질 미달 후보가 distribution_skip_log에 reason=quality_threshold로 기록', thinRow?.reason === 'quality_threshold' && typeof thinRow.editorial_score === 'number');
+  }
+
+  // 26) 시간대별 목표/실적 로그 — 매 실행마다 distribution_run_log에 목표/시도/성공 건수가 기록되는지
+  {
+    const t = makeTopic('t-runlog', '글', '경제', 400);
+    const { runLogRows, body } = await run({ pool: [t] });
+    const row = runLogRows[0];
+    check(
+      '26) distribution_run_log에 목표/시도/성공 건수 기록',
+      row && row.channel === 'threads' && row.daily_target === body.dailyTarget &&
+      row.posts_attempted === body.postsAttemptedThisRun && row.posts_succeeded === body.postsSucceededThisRun
     );
   }
 
