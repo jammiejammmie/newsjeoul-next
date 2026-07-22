@@ -93,6 +93,13 @@ function buildPrompt(topic, angleConfig, editor, evidence) {
     ? `이 글은 ${editor.name} 에디터(${editor.perspective_tag}${editor.specialty ? ', ' + editor.specialty : ''})의 목소리로 쓴다. 문체: ${editor.style_signature || ''}. ${editor.banned_expressions?.length ? '절대 쓰지 않는 표현: ' + editor.banned_expressions.join(', ') : ''}`
     : '중립적인 뉴스저울 기본 문체로 작성';
 
+  // FAQ 앵글은 body(자연스러운 글)와 별도로 구조화된 qa 배열도 함께 받는다 — 검색엔진의
+  // FAQPage 스키마에 그대로 쓸 수 있는 형태(질문 원문 그대로, 답은 2~4문장으로 자기완결적).
+  // PM 지시(2026-07-22 "Schema.org 강화— FAQPage 가능한 경우 적용").
+  const faqField = angleConfig.slug === 'faq'
+    ? `,\n  "qa": [{"question": "실제 질문 문장", "answer": "그 질문만 봐도 이해되는 자기완결적 답변(2~4문장)"}] // 4~6개`
+    : '';
+
   return `너는 뉴스저울의 에디토리얼 엔진이다. 아래 이슈에 대해 "${angleConfig.label}" 관점의 글을 작성해라.
 ${editorLine}
 
@@ -111,7 +118,7 @@ ${editorLine}
   "title": "이 글만의 제목(Topic 제목과 달라야 함, 예: '{Topic명} 신청방법 총정리')",
   "lead": "리드 문단(2~3문장)",
   "body": "본문(문단 사이 빈 줄로 구분)",
-  "display_keywords": ["짧은 강조 키워드 2~4개"]
+  "display_keywords": ["짧은 강조 키워드 2~4개"]${faqField}
 }`;
 }
 
@@ -201,6 +208,7 @@ exports.handler = async function (event) {
             angle: angleConfig.slug, label: angleConfig.label, title: gen.title, lead: gen.lead, body: gen.body,
             display_keywords: gen.display_keywords || [], editor: editor ? { id: editor.id, name: editor.name, perspective: editor.perspective_tag } : null,
             generated_at: new Date().toISOString(),
+            qa: angleConfig.slug === 'faq' && Array.isArray(gen.qa) ? gen.qa : undefined,
           });
           created++;
           results.push({ topic_id: topic.id, name: topic.name, angle: angleConfig.slug });

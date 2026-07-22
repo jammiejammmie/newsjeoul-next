@@ -18,4 +18,9 @@ ALTER TABLE threads_posts ADD COLUMN IF NOT EXISTS source_url text;           --
 ALTER TABLE threads_posts ADD COLUMN IF NOT EXISTS distribution_score numeric;
 ALTER TABLE threads_posts ADD COLUMN IF NOT EXISTS editorial_score numeric;
 
+-- 2026-07-22 추가(PM 지시 "CTA 전면 개편" — "뉴스저울에서 확인하세요" 같은 반복 문구 대신 106개
+-- 유도 문구 중 랜덤으로 고른다. 어떤 문구가 실제로 클릭을 유도했는지 나중에 분석·자동 최적화할
+-- 수 있도록 문구 id를 함께 저장한다).
+ALTER TABLE threads_posts ADD COLUMN IF NOT EXISTS cta_phrase_id text;
+
 CREATE INDEX IF NOT EXISTS idx_threads_posts_topic_id ON threads_posts(topic_id);

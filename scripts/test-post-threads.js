@@ -379,6 +379,16 @@ async function main() {
     );
   }
 
+  // 27) CTA 문구 — 고정 "뉴스저울에서 확인하세요"류가 아니라 라이브러리에서 무작위로 골라 쓰는지
+  {
+    const t = makeTopic('t-cta', '글', '경제', 400);
+    const { first } = await run({ pool: [t] });
+    check(
+      '27) CTA 문구가 라이브러리에서 선택되고 반복 문구를 쓰지 않음',
+      first?.ok === true && !!first.ctaPhraseId && !first.text.includes('뉴스저울에서 확인하세요') && !first.text.includes('뉴스저울 →')
+    );
+  }
+
   const failCount = results.filter((r) => !r.pass).length;
   console.log(failCount === 0 ? `\n전체 통과(${results.length}개)` : `\n일부 실패(${failCount}/${results.length})`);
   process.exit(failCount === 0 ? 0 : 1);

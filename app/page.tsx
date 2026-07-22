@@ -30,6 +30,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: TAGLINE,
     description: desc,
+    alternates: { canonical: BASE },
     openGraph: {
       title: TAGLINE, description: desc, url: BASE, siteName: '뉴스저울',
       images: [{ url: ogImageUrl, width: 1200, height: 630 }], locale: 'ko_KR', type: 'website',

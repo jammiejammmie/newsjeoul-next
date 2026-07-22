@@ -13,6 +13,7 @@ export async function generateMetadata({ params }: { params: Promise<{ name: str
   return {
     title: `${category} 이슈 — 뉴스저울`,
     description: `뉴스저울이 추적 중인 ${category} 분야 이슈 목록입니다.`,
+    alternates: { canonical: `https://newsjeoul.co.kr/category/${encodeURIComponent(name)}` },
   }
 }
 

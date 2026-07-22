@@ -6,7 +6,10 @@ export const dynamic = 'force-dynamic'
 
 export async function generateMetadata({ searchParams }: { searchParams: Promise<{ q?: string }> }): Promise<Metadata> {
   const { q } = await searchParams
-  return { title: q ? `"${q}" 검색 결과 | 뉴스저울` : '검색 | 뉴스저울' }
+  // 내부 검색 결과 페이지는 canonical 대신 noindex — 검색어 조합마다 무한히 새 URL이 생겨
+  // 저품질 중복 페이지로 색인되는 것을 막는다(Google 공식 권장 관행, PM 지시 2026-07-22
+  // "canonical/중복 페이지 전수 점검"). follow는 유지해 내부 링크 자체는 계속 탐색되게 한다.
+  return { title: q ? `"${q}" 검색 결과 | 뉴스저울` : '검색 | 뉴스저울', robots: { index: false, follow: true } }
 }
 
 export default async function SearchPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {

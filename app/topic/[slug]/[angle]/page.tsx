@@ -5,6 +5,7 @@ import { createClient } from '@supabase/supabase-js'
 import { getTopicBySlug } from '@/lib/topics'
 import { generateArticleSchema } from '@/lib/schema/article'
 import { generateBreadcrumbSchema } from '@/lib/schema/breadcrumb'
+import { generateFaqSchema } from '@/lib/schema/faq'
 
 export const dynamic = 'force-dynamic'
 const BASE = 'https://newsjeoul.co.kr'
@@ -75,11 +76,16 @@ export default async function ExpansionDraftPage({ params }: { params: Promise<{
     { name: topic.name, url: `${BASE}/topic/${topic.slug}` },
     { name: draft.label, url: `${BASE}/topic/${topic.slug}/${angle}` },
   ])
+  // FAQ 앵글이고 구조화된 qa가 있을 때만 FAQPage 스키마 추가(PM 지시 2026-07-22 "FAQPage 가능한 경우 적용")
+  const faqLd = draft.angle === 'faq' && Array.isArray(draft.qa) && draft.qa.length > 0
+    ? generateFaqSchema(draft.qa)
+    : null
 
   return (
     <div style={{ maxWidth: 800, margin: '0 auto', padding: '0 16px' }}>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbLd) }} />
+      {faqLd && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqLd) }} />}
 
       <div style={{ padding: '16px 0 0', display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--muted)' }}>
         <Link href="/" style={{ color: 'var(--muted)', textDecoration: 'none' }}>뉴스저울</Link>
@@ -106,6 +112,18 @@ export default async function ExpansionDraftPage({ params }: { params: Promise<{
         )}
         <p style={{ fontSize: 18, fontWeight: 500, color: 'var(--text)', lineHeight: 1.9, marginBottom: 24 }}>{draft.lead}</p>
         {renderBody(draft.body)}
+
+        {/* FAQPage 구조화 데이터와 실제로 일치하는 화면상 Q&A(숨김 데이터만 있는 것 방지) */}
+        {faqLd && (
+          <div style={{ marginTop: 28 }}>
+            {draft.qa.map((item: { question: string; answer: string }, i: number) => (
+              <div key={i} style={{ marginBottom: 18 }}>
+                <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 6 }}>Q. {item.question}</div>
+                <div style={{ fontSize: 15, color: 'var(--text2)', lineHeight: 1.8 }}>A. {item.answer}</div>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* 내부링크 — 원 Topic 및 다른 앵글로 연결(탐험 경로) */}
         <div style={{ marginTop: 36, paddingTop: 24, borderTop: '1px solid var(--border)' }}>
