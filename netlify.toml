@@ -12,6 +12,12 @@
 [functions."diag-schedule-echo"]
   schedule = "*/5 * * * *"
 
+# 파이프라인 정체 자동 감지(2026-07-22, Editorial Plan~Expansion 22시간 정체 사고 이후 도입).
+# 20분마다 각 단계 마지막 성공 시각 + Editorial 백로그를 확인해 이상하면 Slack으로 알린다
+# (SLACK_WEBHOOK_URL 미설정 시 콘솔 로그만 남기고 조용히 넘어감 — 배포에 지장 없음).
+[functions."check-pipeline-health"]
+  schedule = "*/20 * * * *"
+
 # 기존 함수들
 [functions."fetch-comparisons-kr"]
   timeout = 30
