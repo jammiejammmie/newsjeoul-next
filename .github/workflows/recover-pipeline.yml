@@ -1,0 +1,27 @@
+name: Recover stalled pipeline (one-off, 2026-07-22 incident)
+
+# 목적: Editorial Plan~Expansion 22시간 정체 사고 복구. ADMIN_KEY 값을 사람이 직접 보거나
+# 채팅에 붙여넣지 않고, 이미 저장된 GitHub Secret(NEWSJEOUL_ADMIN_KEY — post-threads.yml에서도
+# 같은 이름으로 이미 사용 중)을 GitHub Actions 실행 환경 안에서만 사용한다. 이 워크플로 파일이
+# 새로 추가/수정되어 push되는 순간 자동으로 1회 실행되고(on.push.paths), 이후에는 필요할 때
+# GitHub Actions 탭에서 수동(workflow_dispatch)으로도 재실행할 수 있다.
+on:
+  push:
+    paths:
+      - '.github/workflows/recover-pipeline.yml'
+  workflow_dispatch:
+
+jobs:
+  recover:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Run recovery script
+        env:
+          ADMIN_KEY: ${{ secrets.NEWSJEOUL_ADMIN_KEY }}
+          NEXT_PUBLIC_SUPABASE_URL: 'https://xlxztrnpmzklbnyfkrze.supabase.co'
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: 'sb_publishable_RYLor2fbXqj4aHhSW0vCsw_7ZfP2a58'
+        run: node scripts/recover-pipeline.js
