@@ -1,0 +1,30 @@
+name: Update Topic Weight (hourly)
+
+# 2026-07-24: Netlify 자체 schedule(netlify.toml `59 * * * *`)이 7/22 22:44 KST 수동 복구
+# 실행 이후 51시간 넘게 단 한 번도 돌지 않은 것을 실운영 점검 중 발견 — Hero가 3일째 안 바뀌는
+# 직접 원인이었다. 같은 기간 GitHub Actions가 curl로 직접 호출하는 다른 함수들(collect-news,
+# post-threads-background 등)은 전부 정상 동작해서, Netlify 네이티브 cron이 이 함수에서만
+# 안 붙는 것으로 보고 post-threads-background와 동일하게 GitHub Actions를 유일한 트리거로 전환한다.
+#
+# update-topic-weight-background.js는 파일명이 -background로 끝나는 Background Function이라
+# Netlify가 호출 즉시 202를 반환하고 실제 처리는 비동기로 이어진다 — 여기서는 "정상 접수"만 확인한다.
+on:
+  schedule:
+    - cron: '5 * * * *'   # 매시 5분(UTC) — Hero 선정에 쓰이는 새 Topic 생성(news-pipeline)과
+                          # 겹치지 않도록 정각에서 살짝 띄움
+  workflow_dispatch:
+
+jobs:
+  update-weight:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call update-topic-weight-background Netlify function
+        run: |
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+            -H "x-admin-key: ${{ secrets.NEWSJEOUL_ADMIN_KEY }}" \
+            "https://newsjeoul.co.kr/.netlify/functions/update-topic-weight-background")
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | head -n -1)
+          echo "update-topic-weight-background → HTTP $HTTP_CODE"
+          echo "$BODY"
+          [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "202" ] || exit 1

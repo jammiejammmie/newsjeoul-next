@@ -24,3 +24,13 @@ ALTER TABLE threads_posts ADD COLUMN IF NOT EXISTS editorial_score numeric;
 ALTER TABLE threads_posts ADD COLUMN IF NOT EXISTS cta_phrase_id text;
 
 CREATE INDEX IF NOT EXISTS idx_threads_posts_topic_id ON threads_posts(topic_id);
+
+-- 2026-07-24 추가(실운영 점검 중 발견 — 이 마이그레이션 전체가 지금까지 미적용 상태였고,
+-- savePostLog()가 topic_id 등 존재하지 않는 컬럼으로 INSERT를 시도해 매번 통째로 실패, 7/17
+-- 이후 게시는 정상 진행되는데도 threads_posts에 기록이 0건 쌓이는 원인이었다.
+-- story_id/template은 Story 중심이던 구 스키마의 필수 컬럼인데, 지금 post-threads-background.js는
+-- Topic 중심으로 동작해 이 두 값을 채우지 않는다 — 구 스키마가 NOT NULL이면 마이그레이션을
+-- 전부 적용해도 INSERT가 계속 실패하므로, 더 이상 의미 없는 이 두 레거시 컬럼의 NOT NULL 제약을
+-- 제거한다(이미 NULL 허용이면 no-op으로 안전).
+ALTER TABLE threads_posts ALTER COLUMN story_id DROP NOT NULL;
+ALTER TABLE threads_posts ALTER COLUMN template DROP NOT NULL;

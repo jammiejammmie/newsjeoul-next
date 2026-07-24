@@ -112,7 +112,13 @@
   # Topic이 떠도 Hero가 최대 3시간 동안 못 바뀐다 — 매시간으로 좁혀 Hero 반응성을 높인다.
   # BATCH_SIZE=25 기준 하루 24회×25건=600건, 현재 active Topic 수(약 240개)를 하루에 두 번 이상
   # 전부 갱신할 수 있는 여유가 있다. 이 실행 끝에 hero_history 갱신도 함께 일어난다.
-  schedule = "59 * * * *"
+  #
+  # 2026-07-24: Netlify 자체 schedule 제거 — 실운영 점검 중 이 schedule이 7/22 22:44 KST(수동
+  # 복구 스크립트 실행 시점) 이후 51시간 넘게 단 한 번도 실행되지 않은 것을 확인했다(같은 기간
+  # GitHub Actions가 curl로 직접 호출하는 다른 함수들은 전부 정상 동작 — Netlify 네이티브 cron만
+  # 이 함수에서 안 붙는 것으로 보임). 원인 불명인 채로 Hero가 무한정 고정되는 걸 막기 위해
+  # post-threads-background와 동일하게 GitHub Actions(.github/workflows/update-topic-weight.yml)를
+  # 유일한 트리거로 전환한다.
 
 # 3.0 Insight/연결 배치 — 비용 최소화 위해 1일 1회만
 [functions."refresh-relationships"]
