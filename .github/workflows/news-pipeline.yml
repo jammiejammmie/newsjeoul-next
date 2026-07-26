@@ -1,8 +1,12 @@
-name: 뉴스 파이프라인 (매일 09:00 KST)
+name: 뉴스 파이프라인 (3시간마다)
 
+# 2026-07-26: 원래 netlify.toml의 collect-news~generate-updates 네이티브 schedule(0/30/35/40/45분,
+# 3시간 주기)이 7/22 22:44 KST 이후 죽어있던 것을 발견 — 이 GitHub Actions 워크플로우(과거엔 하루
+# 1회 백업용)만 유일하게 살아있어서 완전 정지는 면했지만 볼륨이 설계 대비 1/8 수준으로 저하돼
+# 있었다. 원래 주기(3시간마다)를 그대로 이 워크플로우의 유일한 트리거로 승격한다.
 on:
   schedule:
-    - cron: '0 0 * * *'   # 00:00 UTC = 09:00 KST
+    - cron: '0 */3 * * *'   # collect-news 원래 주기와 동일 — 매 3시간마다(0,3,6,9,...시 UTC)
   workflow_dispatch:
 
 jobs:

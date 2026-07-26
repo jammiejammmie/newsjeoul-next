@@ -1,0 +1,24 @@
+name: Daily Zeitgeist (새벽, 10:50 KST)
+
+# 2026-07-26: Netlify 자체 schedule 제거(네이티브 cron 전체 장애, 7/22 22:44 KST 이후) —
+# GitHub Actions를 유일한 트리거로 전환. 02시대 Insight 배치(refresh-relationships 등)보다
+# 먼저 돌도록 시각을 유지한다.
+on:
+  schedule:
+    - cron: '50 1 * * *'   # 01:50 UTC = 10:50 KST
+  workflow_dispatch:
+
+jobs:
+  zeitgeist:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call generate-zeitgeist-background Netlify function
+        run: |
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+            -H "x-admin-key: ${{ secrets.NEWSJEOUL_ADMIN_KEY }}" \
+            "https://newsjeoul.co.kr/.netlify/functions/generate-zeitgeist-background")
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | head -n -1)
+          echo "generate-zeitgeist-background → HTTP $HTTP_CODE"
+          echo "$BODY"
+          [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "202" ] || exit 1

@@ -1,0 +1,24 @@
+name: Check Pipeline Health (20분마다)
+
+# 2026-07-26: 이 함수 자체가 Netlify 네이티브 schedule로 돌던 파이프라인 정체 감지기였는데,
+# 정작 그 네이티브 schedule이 7/22 22:44 KST 이후 전체적으로 죽어서 "정체 감지기"가 자기
+# 자신도 4일간 못 돈 채 방치돼 있었다. GitHub Actions를 유일한 트리거로 전환한다.
+on:
+  schedule:
+    - cron: '*/20 * * * *'
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call check-pipeline-health Netlify function
+        run: |
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+            -H "x-admin-key: ${{ secrets.NEWSJEOUL_ADMIN_KEY }}" \
+            "https://newsjeoul.co.kr/.netlify/functions/check-pipeline-health")
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | head -n -1)
+          echo "check-pipeline-health → HTTP $HTTP_CODE"
+          echo "$BODY"
+          [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "202" ] || exit 1
