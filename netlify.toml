@@ -88,23 +88,22 @@
   schedule = "50 1 * * *" # 하루 1회, 02시대 배치(refresh-relationships 등)보다 먼저
 
 [functions."generate-editorial-plan-background"]
-  schedule = "50 */3 * * *" # generate-updates(45) 다음 — 3시간 주기
+  # 2026-07-26: Netlify 자체 schedule 제거 — 7/22 22:44 KST 이후 이 함수를 포함한 발행 5종
+  # 전부에서 네이티브 cron이 죽어있던 것을 확인(update-topic-weight-background와 동일 증상).
+  # 신규 published Topic이 4일간 0건이었던 직접 원인. GitHub Actions(.github/workflows/
+  # publish-pipeline.yml)를 유일한 트리거로 전환한다.
 
 [functions."generate-publish-gate-background"]
-  schedule = "52 */3 * * *" # editorial-plan(50) 다음, editorial-draft(55) 이전 — Gate 판정 없이
-                            # 장문 생성이 진행되지 않도록 사이에 배치(DEC-006, 2026-07-17)
+  # 2026-07-26: 위와 동일한 이유로 Netlify 자체 schedule 제거, publish-pipeline.yml로 전환.
 
 [functions."generate-editorial-draft-background"]
-  schedule = "55 */3 * * *" # editorial-plan(50) 다음 — 계획 수립분을 받아 생성
+  # 2026-07-26: 위와 동일한 이유로 Netlify 자체 schedule 제거, publish-pipeline.yml로 전환.
 
 [functions."generate-expansion-drafts-background"]
-  schedule = "56 */3 * * *" # editorial-draft(55) 직후 — Expansion Engine(PM 지시 2026-07-19,
-                            # KPI=색인 대상 페이지 수). DEEP_DIVE 외 6종 라우팅 결과에 실제 콘텐츠를
-                            # 연결하고, 무게 높은 DEEP_DIVE Topic에는 보너스 앵글(가이드/비교/배경/FAQ)을 추가한다.
+  # 2026-07-26: 위와 동일한 이유로 Netlify 자체 schedule 제거, publish-pipeline.yml로 전환.
 
 [functions."generate-relation-context-background"]
-  schedule = "58 */3 * * *" # editorial-draft(55) 직후 — 이번 주기에 새로 published된 Topic의
-                            # 관계·엔티티 설명을 바로 채운다(2026-07-12, 운영 검증 통과 후 자동화)
+  # 2026-07-26: 위와 동일한 이유로 Netlify 자체 schedule 제거, publish-pipeline.yml로 전환.
 
 [functions."update-topic-weight-background"]
   # 2026-07-22: 3시간 주기 → 매시 정각으로 상향(PM 지시 — "Hero는 계속 바뀌어야 한다. 사이트가

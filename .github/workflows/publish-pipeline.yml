@@ -1,0 +1,82 @@
+name: Publish Pipeline (editorial plan → gate → draft → expansion/relation)
+
+# 2026-07-26: Netlify 자체 schedule이 7/22 22:44 KST 이후 이 5개 함수 전부에서 죽어있던 것을
+# 실운영 점검 중 발견 — 신규 published Topic이 4일간 0건이었던 직접 원인(86 pending + 90 planned가
+# 파이프라인 중간에 정체). update-topic-weight-background/post-threads-background와 동일하게
+# GitHub Actions를 유일한 트리거로 전환한다. 원래 netlify.toml의 단계 순서(50→52→55→56→58분)와
+# 대기 시간을 그대로 유지한다.
+on:
+  schedule:
+    - cron: '50 */3 * * *'   # collect-news(0)~generate-updates(45) 체인 다음 순서
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 1. Editorial Plan (generate-editorial-plan-background)
+        run: |
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+            -H "x-admin-key: ${{ secrets.NEWSJEOUL_ADMIN_KEY }}" \
+            "https://newsjeoul.co.kr/.netlify/functions/generate-editorial-plan-background")
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | head -n -1)
+          echo "generate-editorial-plan-background → HTTP $HTTP_CODE"
+          echo "$BODY"
+          [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "202" ] || exit 1
+
+      - name: 대기 (2분)
+        run: sleep 120
+
+      - name: 2. Publish Gate (generate-publish-gate-background)
+        run: |
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+            -H "x-admin-key: ${{ secrets.NEWSJEOUL_ADMIN_KEY }}" \
+            "https://newsjeoul.co.kr/.netlify/functions/generate-publish-gate-background")
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | head -n -1)
+          echo "generate-publish-gate-background → HTTP $HTTP_CODE"
+          echo "$BODY"
+          [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "202" ] || exit 1
+
+      - name: 대기 (3분)
+        run: sleep 180
+
+      - name: 3. Editorial Draft (generate-editorial-draft-background)
+        run: |
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+            -H "x-admin-key: ${{ secrets.NEWSJEOUL_ADMIN_KEY }}" \
+            "https://newsjeoul.co.kr/.netlify/functions/generate-editorial-draft-background")
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | head -n -1)
+          echo "generate-editorial-draft-background → HTTP $HTTP_CODE"
+          echo "$BODY"
+          [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "202" ] || exit 1
+
+      - name: 대기 (1분)
+        run: sleep 60
+
+      - name: 4. Expansion Drafts (generate-expansion-drafts-background)
+        run: |
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+            -H "x-admin-key: ${{ secrets.NEWSJEOUL_ADMIN_KEY }}" \
+            "https://newsjeoul.co.kr/.netlify/functions/generate-expansion-drafts-background")
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | head -n -1)
+          echo "generate-expansion-drafts-background → HTTP $HTTP_CODE"
+          echo "$BODY"
+          [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "202" ] || exit 1
+
+      - name: 대기 (2분)
+        run: sleep 120
+
+      - name: 5. Relation Context (generate-relation-context-background)
+        run: |
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+            -H "x-admin-key: ${{ secrets.NEWSJEOUL_ADMIN_KEY }}" \
+            "https://newsjeoul.co.kr/.netlify/functions/generate-relation-context-background")
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | head -n -1)
+          echo "generate-relation-context-background → HTTP $HTTP_CODE"
+          echo "$BODY"
+          [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "202" ] || exit 1
