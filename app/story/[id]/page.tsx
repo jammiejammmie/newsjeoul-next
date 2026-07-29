@@ -26,7 +26,7 @@ function ContextBlock({ icon, label, text }: { icon: string; label: string; text
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params
   const data = await getQuestionDetail(id)
-  if (!data) return { title: '뉴스저울' }
+  if (!data) return { title: '뉴스저울', robots: { index: false, follow: false } }
 
   const { topic } = data
   const desc = topic.summary || topic.description || `${topic.name}에 대한 근거와 맥락을 정리했습니다.`

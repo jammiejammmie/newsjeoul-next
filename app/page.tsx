@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { getActiveTopics, getDiscoveryCards, pickHeroTopic } from '@/lib/topics'
 import { domainColors } from '@/lib/design-tokens'
 
-export const dynamic = 'force-dynamic'
+export const revalidate = 300
 
 const BASE = 'https://newsjeoul.co.kr'
 const TAGLINE = '뉴스저울 — 3분이면 오늘 세상을 이해합니다'

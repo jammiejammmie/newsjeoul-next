@@ -12,7 +12,7 @@ const LABEL = '비교'
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params
   const item = await getGenericContentBySlug(TABLE, slug)
-  if (!item) return { title: '뉴스저울' }
+  if (!item) return { title: '뉴스저울', robots: { index: false, follow: false } }
   return {
     title: `${item.title} | 뉴스저울 ${LABEL}`,
     description: item.summary || undefined,

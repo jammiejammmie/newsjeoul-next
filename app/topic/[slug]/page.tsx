@@ -28,7 +28,7 @@ function renderWithLeadEmphasis(text: string) {
   )
 }
 
-export const dynamic = 'force-dynamic'
+export const revalidate = 600
 const BASE = 'https://newsjeoul.co.kr'
 
 async function getRelatedTopics(topicId: string) {
@@ -50,7 +50,7 @@ async function getRelatedTopics(topicId: string) {
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params
   const topic = await getTopicBySlug(slug)
-  if (!topic) return { title: '뉴스저울' }
+  if (!topic) return { title: '뉴스저울', robots: { index: false, follow: false } }
 
   const draft = topic.ai_context?.draft
   const title = `${topic.name} — 뉴스저울`

@@ -7,7 +7,7 @@ import { generateArticleSchema } from '@/lib/schema/article'
 import { generateBreadcrumbSchema } from '@/lib/schema/breadcrumb'
 import { generateFaqSchema } from '@/lib/schema/faq'
 
-export const dynamic = 'force-dynamic'
+export const revalidate = 600
 const BASE = 'https://newsjeoul.co.kr'
 
 // 내부링크 최소 3개 보장(PM 지시 2026-07-19) — 형제 앵글이 적거나 없어도 관련 Topic으로 채운다.
@@ -43,7 +43,7 @@ async function getDraft(slug: string, angle: string) {
 export async function generateMetadata({ params }: { params: Promise<{ slug: string; angle: string }> }): Promise<Metadata> {
   const { slug, angle } = await params
   const found = await getDraft(slug, angle)
-  if (!found) return { title: '뉴스저울' }
+  if (!found) return { title: '뉴스저울', robots: { index: false, follow: false } }
   const { topic, draft } = found
   const title = `${draft.title} — 뉴스저울`
   const desc = draft.lead || topic.summary || ''

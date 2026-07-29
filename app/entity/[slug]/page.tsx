@@ -38,7 +38,7 @@ async function getRelatedEntities(entityId: string) {
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params
   const entity = await getEntityBySlug(slug)
-  if (!entity) return { title: '뉴스저울' }
+  if (!entity) return { title: '뉴스저울', robots: { index: false, follow: false } }
 
   const title = `${entity.name} — 관련 이슈 정리 | 뉴스저울`
   const desc = entity.description || `${entity.name}와 관련된 최근 이슈와 흐름을 정리했습니다.`
