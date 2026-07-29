@@ -57,6 +57,9 @@ async function run(scenario) {
     if (method === 'HEAD' && url.includes('/rest/v1/articles?')) {
       return headRes(s.articleCount);
     }
+    if (method === 'HEAD' && url.includes('/rest/v1/topics?') && url.includes('status=eq.active')) {
+      return headRes(s.activeTopicCount ?? 41);
+    }
     if (method === 'GET' && url.includes('created_at=gte.')) {
       const rows = [];
       Object.entries(s.producedByCategory).forEach(([cat, n]) => { for (let i = 0; i < n; i++) rows.push({ category: cat }); });
@@ -90,7 +93,7 @@ async function run(scenario) {
     }
     if (method === 'POST' && url.includes('anthropic.com')) {
       if (s.claudeFails) return { ok: false, text: async () => 'claude api error' };
-      return jsonRes({ content: [{ type: 'text', text: JSON.stringify({ hook_type: '정보격차', text: '문장.' }) }] });
+      return jsonRes({ content: [{ type: 'text', text: JSON.stringify({ text: '배경과 쟁점을 설명하는 문장입니다. '.repeat(4) }) }] });
     }
     if (method === 'POST' && url.includes('/rest/v1/threads_posts')) {
       return { ok: true, text: async () => '' };
@@ -379,13 +382,27 @@ async function main() {
     );
   }
 
-  // 27) CTA 문구 — 고정 "뉴스저울에서 확인하세요"류가 아니라 라이브러리에서 무작위로 골라 쓰는지
+  // 27) 마무리 문구 — 짧은 훅+CTA가 아니라 "오늘 이 외에도 N개 이슈를 다루고 있습니다" + 실제
+  //     활성 Topic 수 + 링크로 마무리되는 완결형 구조인지(2026-07-29 포스팅 방향 전면 개편)
   {
-    const t = makeTopic('t-cta', '글', '경제', 400);
+    const t = makeTopic('t-closing', '글', '경제', 400);
+    const { first } = await run({ pool: [t], activeTopicCount: 41 });
+    check(
+      '27) 마무리 문구가 활성 이슈 개수 안내 + 링크로 끝남(CTA 라이브러리 미사용)',
+      first?.ok === true &&
+      first.text.includes('오늘 이 외에도 41개 이슈를 다루고 있습니다') &&
+      first.text.includes(first.url) &&
+      !first.ctaPhraseId
+    );
+  }
+
+  // 28) URL에 hook_type 접미사가 더 이상 붙지 않는지(2026-07-29 SEO/노출 정리)
+  {
+    const t = makeTopic('t-nohooksuffix', '글', '경제', 400);
     const { first } = await run({ pool: [t] });
     check(
-      '27) CTA 문구가 라이브러리에서 선택되고 반복 문구를 쓰지 않음',
-      first?.ok === true && !!first.ctaPhraseId && !first.text.includes('뉴스저울에서 확인하세요') && !first.text.includes('뉴스저울 →')
+      '28) utm_content가 topicId만 담고 hook_type 접미사가 없음',
+      first?.ok === true && first.url.includes(`utm_content=${first.topicId}`) && !/utm_content=[^&]+_/.test(first.url)
     );
   }
 
