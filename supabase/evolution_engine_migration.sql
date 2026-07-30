@@ -78,7 +78,16 @@ ALTER TABLE weekly_reports ENABLE ROW LEVEL SECURITY;
 ALTER TABLE comment_auto_reply_log ENABLE ROW LEVEL SECURITY;
 ALTER TABLE comment_auto_reply_settings ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY IF NOT EXISTS anon_select ON proposed_event_types FOR SELECT USING (true);
-CREATE POLICY IF NOT EXISTS anon_select ON weekly_reports FOR SELECT USING (true);
-CREATE POLICY IF NOT EXISTS anon_select ON comment_auto_reply_log FOR SELECT USING (true);
-CREATE POLICY IF NOT EXISTS anon_select ON comment_auto_reply_settings FOR SELECT USING (true);
+-- CREATE POLICY는 IF NOT EXISTS를 지원하지 않아(CREATE TABLE/INDEX와 다름) DROP 후 재생성하는
+-- 방식으로 재실행해도 안전하게 만든다.
+DROP POLICY IF EXISTS anon_select ON proposed_event_types;
+CREATE POLICY anon_select ON proposed_event_types FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS anon_select ON weekly_reports;
+CREATE POLICY anon_select ON weekly_reports FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS anon_select ON comment_auto_reply_log;
+CREATE POLICY anon_select ON comment_auto_reply_log FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS anon_select ON comment_auto_reply_settings;
+CREATE POLICY anon_select ON comment_auto_reply_settings FOR SELECT USING (true);
