@@ -51,6 +51,42 @@ evidence_required, target_length, common_pitfalls, misclassification_risk)를 �
 **적용 결과**: outlets 20→29, event_type_rules 10→17, 커밋 `e500482`(추가) + `d83c35f`(임시
 함수 제거), origin/master 배포 확인.
 
+### 2026-07-30 — Track 2 완료(코드): Evolution Engine
+
+`detect-coverage-gaps-background.js`(주간 승격실패 story 분석 → proposed_event_types 제안),
+`generate-weekly-report-background.js`(카테고리 분포 + 에디터 활용률 스냅샷),
+`approve-proposed-event-type.js`(admin 승인 시에만 event_type_rules 반영, Human Promotion
+필수), `weekly-evolution-report.yml`(매주 월요일 09:00 KST GH Actions), admin 대시보드에
+제안 큐 + 최신 리포트 카드 추가. 커밋 `9000ed7`.
+- **판단**: 스케줄링은 Netlify 네이티브 schedule이 아니라 GitHub Actions로 구현 —
+  커밋 8124a03에서 "Netlify 네이티브 cron이 광범위하게 죽어있던 것"을 이유로 이미 전면
+  GH Actions로 전환한 팀 컨벤션을 그대로 따름(새로 native schedule을 또 추가하면 같은 장애
+  반복 위험).
+- BLOCKED: 신규 테이블 4종(proposed_event_types/weekly_reports 포함) — 아래 BLOCKED 섹션 참고.
+
+### 2026-07-30 — Track 3 완료(섀도우 모드까지): 댓글 자동응답
+
+`scan-comments-shadow-background.js`(최근 게시물 20건의 신규 댓글을 Claude로 분류+답변
+초안 생성, comment_auto_reply_log에 저장), `scan-comments-shadow.yml`(매시 30분 GH
+Actions), `update-comment-reply-settings.js`(admin 토글 전용), admin에 섀도우 로그 집계 +
+라이브 전환 토글 카드 추가. 커밋 예정.
+- **3-1 가드레일**: 정치적_논쟁성/욕설_혐오/개인정보_요구 즉시 제외, 그 외에도 애매하면
+  기본값 제외(needs_human_review) — 허용은 정보 보충 질문/감사·공감 표현/단순 사실확인만.
+- **판단(중요)**: **실제로 Threads에 답글을 게시하는 코드는 이번 세션에서 만들지 않았다.**
+  마스터 스펙 자체가 "섀도우 모드로 시작 → 7일 검토 → 토글 전환"을 명시했는데, 게시 코드까지
+  한 세션에서 미리 만들어두면 실제 사람에게 자동 응답이 나가는 위험 표면을 검증 없이 키우는
+  셈이라 과도하다고 판단. is_live 토글은 지금도 동작하지만(DB 값만 바꿈), 이 값을 읽어서
+  실제로 게시하는 코드가 아직 없으므로 켜도 아무 일도 안 일어난다 — 다음 단계(7일치 로그
+  검토 후)에서 게시 코드를 별도로 구현하는 게 맞다고 판단.
+- **3-3 빈도 제한**: `comment_auto_reply_settings.max_replies_per_hour`(기본 20) 컬럼은
+  준비해뒀지만, 위와 같은 이유로 게시 코드가 없어 아직 실제로 사용되진 않음 — 게시 코드
+  구현 시 반드시 이 값을 체크하도록 연결할 것.
+- **3-3 Meta 정책 자체 점검**: Threads 전용 명문 정책은 못 찾았으나, Meta의 Instagram/Messenger
+  자동화 정책 패턴(사용자가 먼저 남긴 댓글/DM에 대한 응답은 허용, 콜드 아웃리치/비공식 API
+  사용은 금지)과 일치하는 방식(자사 게시물의 사용자 발신 댓글에만, 공식 Graph API로 응답)이라
+  원칙적으로 허용 범위 안에 있을 것으로 판단 — 단 라이브 전환 직전 Threads 전용 정책 문서를
+  다시 한번 확인 필요.
+
 **1-3. Before/After 카테고리 분포**
 - Before(2026-07-23~30, 62건 published): Society 64.5% / Economy 21.0% / Science 6.5% /
   Technology 4.8% / Health 1.6% / Business 1.6% / Lifestyle·Entertainment·Crypto 0%.

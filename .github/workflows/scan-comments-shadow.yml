@@ -1,0 +1,24 @@
+name: Scan Threads Comments (Shadow Mode, hourly)
+
+# 마스터 스펙 v1 Track 3-2. 실제 댓글 게시 없음 — comment_auto_reply_log에 분류+답변 초안만
+# 기록한다(scan-comments-shadow-background.js 상단 주석 참고). Threads 포스팅 주기(post-threads.yml)
+# 와 겹치지 않게 30분 오프셋.
+on:
+  schedule:
+    - cron: '30 * * * *'   # 매시 30분(UTC)
+  workflow_dispatch:
+
+jobs:
+  scan-comments:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call scan-comments-shadow-background Netlify function
+        run: |
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+            -H "x-admin-key: ${{ secrets.NEWSJEOUL_ADMIN_KEY }}" \
+            "https://newsjeoul.co.kr/.netlify/functions/scan-comments-shadow-background")
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | head -n -1)
+          echo "scan-comments-shadow-background → HTTP $HTTP_CODE"
+          echo "$BODY"
+          [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "202" ] || exit 1

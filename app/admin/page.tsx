@@ -19,10 +19,11 @@ export default function AdminPage() {
   const [health, setHealth] = useState<any[]>([])
   const [distOps, setDistOps] = useState<any>(null)
   const [evolution, setEvolution] = useState<any>(null)
+  const [commentReply, setCommentReply] = useState<any>(null)
 
   useEffect(() => {
     const k = localStorage.getItem('nj_admin_key') || ''
-    if (k) { setSavedKey(k); loadStats(); loadEditorialStatus(); loadGateTopics(); loadEditors(); loadAutomationHealth(); loadDistributionOps(); loadEvolution() }
+    if (k) { setSavedKey(k); loadStats(); loadEditorialStatus(); loadGateTopics(); loadEditors(); loadAutomationHealth(); loadDistributionOps(); loadEvolution(); loadCommentReply() }
   }, [])
 
   function addLog(type: string, msg: string) {
@@ -240,6 +241,39 @@ export default function AdminPage() {
     })
   }
 
+  // 댓글 자동응답 섀도우 모드(마스터 스펙 v1 Track 3) — 분류별 집계 + 설정 + 최근 로그.
+  async function loadCommentReply() {
+    const headers = { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+    const [logRes, settingsRes] = await Promise.all([
+      fetch(`${SUPABASE_URL}/rest/v1/comment_auto_reply_log?select=classification,exclusion_reason,detected_at&order=detected_at.desc&limit=500`, { headers }),
+      fetch(`${SUPABASE_URL}/rest/v1/comment_auto_reply_settings?select=*&limit=1`, { headers }),
+    ])
+    if (!logRes.ok || !settingsRes.ok) { setCommentReply({ migrationPending: true }); return }
+    const logs = await logRes.json()
+    const settings = (await settingsRes.json())[0] || null
+    const byClassification: any = {}
+    logs.forEach((l: any) => {
+      const key = l.classification === 'auto_reply_eligible' ? 'auto_reply_eligible' : (l.exclusion_reason || 'needs_human_review')
+      byClassification[key] = (byClassification[key] || 0) + 1
+    })
+    const oldestAt = logs.length ? logs[logs.length - 1].detected_at : null
+    const daysOfData = oldestAt ? (Date.now() - new Date(oldestAt).getTime()) / 86400000 : 0
+    setCommentReply({ migrationPending: false, total: logs.length, byClassification, settings, readyForLive: daysOfData >= 7 && logs.length > 0 })
+  }
+
+  async function toggleCommentReplyLive(nextLive: boolean) {
+    try {
+      const res = await fetch(`${SITE_URL}/.netlify/functions/update-comment-reply-settings`, {
+        method: 'POST',
+        headers: { 'x-admin-key': savedKey, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_live: nextLive }),
+      })
+      const data = await res.json()
+      if (res.ok) { addLog('success', `✅ 댓글 자동응답 ${nextLive ? '라이브' : '섀도우'} 전환`); loadCommentReply() }
+      else addLog('error', `❌ 전환 실패: ${data.error}`)
+    } catch (e: any) { addLog('error', `❌ 실패: ${e.message}`) }
+  }
+
   async function approveProposal(proposalId: string) {
     try {
       const res = await fetch(`${SITE_URL}/.netlify/functions/approve-proposed-event-type`, {
@@ -271,7 +305,7 @@ export default function AdminPage() {
     localStorage.setItem('nj_admin_key', adminKey)
     setSavedKey(adminKey)
     addLog('info', '로그인 완료')
-    loadStats(); loadEditorialStatus(); loadGateTopics(); loadEditors(); loadAutomationHealth(); loadDistributionOps(); loadEvolution()
+    loadStats(); loadEditorialStatus(); loadGateTopics(); loadEditors(); loadAutomationHealth(); loadDistributionOps(); loadEvolution(); loadCommentReply()
   }
 
   async function callFn(fnName: string) {
@@ -585,6 +619,48 @@ export default function AdminPage() {
             ) : (
               <div style={{ fontSize: 11, color: 'var(--muted)' }}>아직 생성된 리포트 없음(매주 월요일 자동 생성)</div>
             )}
+          </>
+        )}
+      </div>
+
+      {/* 댓글 자동응답 섀도우 모드(마스터 스펙 v1 Track 3) — 실제 게시 코드는 아직 없음(의도적 단계 분리) */}
+      <div style={s.card}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+          <div style={{ fontSize: 13, fontWeight: 700 }}>💬 댓글 자동응답 (섀도우 모드)</div>
+          <button onClick={loadCommentReply} style={{ fontSize: 10, padding: '3px 9px', background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 999, color: 'var(--muted)', cursor: 'pointer' }}>
+            ↻ 새로고침
+          </button>
+        </div>
+        {!commentReply ? (
+          <div style={{ fontSize: 11, color: 'var(--muted)' }}>불러오는 중...</div>
+        ) : commentReply.migrationPending ? (
+          <div style={{ fontSize: 11, color: 'var(--muted)' }}>
+            evolution_engine_migration.sql 미적용 — comment_auto_reply_log/settings 테이블 없음(CHANGELOG.md BLOCKED 참고)
+          </div>
+        ) : (
+          <>
+            <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>
+              실제 게시 코드는 아직 구현되지 않았습니다 — 이 화면은 "이렇게 답했을 것"만 기록한
+              섀도우 로그입니다. is_live 토글은 향후 게시 기능이 구현된 뒤에 의미를 가집니다.
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 10 }}>
+              {Object.entries(commentReply.byClassification || {}).map(([k, v]: any) => (
+                <div key={k} style={{ padding: '6px 10px', background: 'var(--bg2)', borderRadius: 8, fontSize: 11 }}>
+                  {k} <b style={{ float: 'right' }}>{v}</b>
+                </div>
+              ))}
+              {commentReply.total === 0 && <div style={{ fontSize: 11, color: 'var(--muted)' }}>기록된 댓글 없음</div>}
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 11, color: 'var(--muted)' }}>
+                {commentReply.readyForLive ? '✅ 7일치 이상 섀도우 로그 축적됨 — 검토 후 라이브 전환 가능' : '⏳ 7일치 섀도우 로그 축적 대기 중'}
+                {' · 현재 상태: '}{commentReply.settings?.is_live ? '라이브' : '섀도우'}
+              </span>
+              <button onClick={() => toggleCommentReplyLive(!commentReply.settings?.is_live)}
+                style={{ fontSize: 10, padding: '3px 10px', background: commentReply.settings?.is_live ? 'var(--bg2)' : 'var(--accent)', border: '1px solid var(--border)', borderRadius: 999, color: commentReply.settings?.is_live ? 'var(--text2)' : '#000', cursor: 'pointer', fontWeight: 700 }}>
+                {commentReply.settings?.is_live ? '섀도우로 전환' : '라이브로 전환'}
+              </button>
+            </div>
           </>
         )}
       </div>
