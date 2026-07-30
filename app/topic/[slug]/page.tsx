@@ -29,6 +29,13 @@ function renderWithLeadEmphasis(text: string) {
 }
 
 export const revalidate = 600
+// generateStaticParams가 없으면 Netlify Next.js 런타임이 이 동적 세그먼트를 ISR 대상이 아닌
+// 완전 SSR로 빌드해 revalidate가 무시된다(2026-07-30 실측: Cache-Status 항상 fwd=miss,
+// Cache-Control: private,no-store). 빈 배열을 반환해 "빌드 시점엔 미리 만들 페이지 없음,
+// 첫 요청부터 온디맨드로 ISR 캐시"를 명시적으로 신호한다.
+export async function generateStaticParams() {
+  return []
+}
 const BASE = 'https://newsjeoul.co.kr'
 
 async function getRelatedTopics(topicId: string) {

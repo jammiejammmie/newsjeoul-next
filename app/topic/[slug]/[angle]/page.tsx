@@ -8,6 +8,11 @@ import { generateBreadcrumbSchema } from '@/lib/schema/breadcrumb'
 import { generateFaqSchema } from '@/lib/schema/faq'
 
 export const revalidate = 600
+// app/topic/[slug]/page.tsx와 동일한 이유로 추가 — generateStaticParams 없이는 Netlify에서
+// revalidate가 무시되고 완전 SSR로 동작한다(2026-07-30 실측).
+export async function generateStaticParams() {
+  return []
+}
 const BASE = 'https://newsjeoul.co.kr'
 
 // 내부링크 최소 3개 보장(PM 지시 2026-07-19) — 형제 앵글이 적거나 없어도 관련 Topic으로 채운다.
