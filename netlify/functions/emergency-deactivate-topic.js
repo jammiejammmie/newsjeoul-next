@@ -18,12 +18,13 @@ exports.handler = async function (event) {
   const topicId = event.queryStringParameters?.topic_id;
   if (!topicId) return { statusCode: 400, headers, body: JSON.stringify({ error: 'topic_id 필요' }) };
 
-  // status='inactive'는 topics_status_check 제약 위반으로 실패 확인(2026-07-30) — 홈/공개
-  // 쿼리는 editorial_status=eq.published 필터를 쓰므로 이 값을 바꿔 공개 노출을 즉시 차단한다.
+  // 홈 쿼리(lib/topics.ts getActiveTopics)는 status=eq.active만 필터링한다 — editorial_status는
+  // 안 본다(2026-07-30 확인). status_check 제약이 허용하는 값을 모르므로 쿼리파람으로 시도.
+  const statusValue = event.queryStringParameters?.status_value || 'inactive';
   const res = await fetch(`${SUPABASE_URL}/rest/v1/topics?id=eq.${topicId}`, {
     method: 'PATCH',
     headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', Prefer: 'return=representation' },
-    body: JSON.stringify({ editorial_status: 'planned' }),
+    body: JSON.stringify({ status: statusValue }),
   });
   const body = await res.text();
   return { statusCode: res.status, headers, body };
