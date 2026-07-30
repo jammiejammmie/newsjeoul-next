@@ -64,7 +64,14 @@ ${articles.map((a, i) => `${i}. [${a.outlet_name}] ${a.title}`).join('\n')}
 주의:
 - 같은 사건이 확실한 것만 묶어라
 - 최소 2개 이상 언론사가 다룬 것만 스토리로 만들어라
-- 광고/스포츠/연예는 제외해라`;
+- 광고/스포츠/연예는 제외해라
+- "이 대통령", "李대통령", "윤 대통령"처럼 성(姓)+직함만 축약해서 쓴 표기가 있어도, 그걸
+  절대 실명으로 확장하지 마라(예: "이 대통령"을 임의로 "이OO 대통령"으로 풀어 쓰지 말 것 —
+  기사 제목에 실명이 없는데 대표 제목에 실명을 새로 지어내면 팩트 오류다).
+- "story_title"에 직함(대통령/총리/장관/시장/회장 등)과 이름을 함께 쓸 필요가 있다면,
+  ① 원본 기사에 등장한 표기(축약형이면 축약형 그대로)를 그대로 유지하거나,
+  ② 실명이 확실하지 않으면 이름 없이 직함만 써라(예: "대통령 칠레 순방").
+  원본 기사 어디에도 없는 실명을 새로 만들어 넣는 것은 절대 금지.`;
 
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -86,6 +93,39 @@ ${articles.map((a, i) => `${i}. [${a.outlet_name}] ${a.title}`).join('\n')}
   const match = text.match(/\[[\s\S]*\]/);
   if (!match) throw new Error('Claude 클러스터링 JSON 없음');
   return JSON.parse(match[0]);
+}
+
+// 팩트오류 방지 게이트(2026-07-30, "이준석 대통령 칠레 순방" 사고 이후 추가) — 프롬프트
+// 지시만으로는 모델이 "이 대통령" 같은 축약 표기를 실명으로 잘못 확장하는 걸 100% 막지
+// 못한다(실제로 발생한 사고). 그래서 코드 레벨로 한 번 더 검증한다: story_title에
+// "실명(2자 이상)+직함" 조합이 있으면, 그 실명이 원본 기사 제목들에 실제로 등장하는지
+// 확인하고, 등장하지 않으면 실명을 지우고 직함만 남긴다(이 파일 프롬프트가 명시한 안전한
+// 대안과 동일한 형태로 폴백 — 사람 검토 없이도 팩트 오류가 발행되는 것 자체를 막는 게 목적).
+const TITLE_WORDS = ['대통령', '총리', '장관', '시장', '회장'];
+// 이름과 직함 사이 공백은 있을 수도 없을 수도 있다("이준석 대통령" vs "李대통령") — \s?로 둘 다 포착.
+const NAME_TITLE_RE = new RegExp(`([가-힣\\u4e00-\\u9fff]{1,4})\\s?(${TITLE_WORDS.join('|')})`, 'g');
+
+function verifyAndSanitizeTitle(storyTitle, sourceTitles) {
+  const sourceText = sourceTitles.join(' ');
+  let sanitized = storyTitle;
+  let flagged = false;
+
+  for (const match of [...storyTitle.matchAll(NAME_TITLE_RE)]) {
+    const [full, namePart, titleWord] = match;
+    // 1글자 성만 있는 축약형("이 대통령"의 "이", 한자 성 "李" 등)은 원문 표기를 그대로 옮긴
+    // 안전한 경우이므로 검증 대상에서 제외 — 2자 이상(=합성된 실명으로 추정)만 검증한다.
+    if (namePart.length < 2) continue;
+    if (sourceText.includes(namePart)) continue;
+
+    // 원본 어디에도 없는 실명 — 팩트 오류로 간주하고 직함만 남긴다.
+    flagged = true;
+    sanitized = sanitized.split(full).join(titleWord);
+  }
+
+  if (flagged) {
+    console.error(`FACT_CHECK_GATE: story_title 실명 미검증으로 직함만 남김 — "${storyTitle}" → "${sanitized}"`);
+  }
+  return sanitized;
 }
 
 function calcSilenceScore(articleCount, totalOutlets) {
@@ -165,6 +205,12 @@ exports.handler = async function(event) {
           .filter(Boolean);
 
         if (clusterArticles.length < 2) continue;
+
+        // 팩트오류 방지 게이트 — 검증 안 된 실명은 여기서 걸러 직함만 남긴다.
+        cluster.story_title = verifyAndSanitizeTitle(
+          cluster.story_title,
+          clusterArticles.map(a => a.title)
+        );
 
         // 중복 스토리 방지
         if (existingTitles.has(cluster.story_title)) {
