@@ -12,7 +12,28 @@
 
 ## BLOCKED
 
-### DDL(CREATE TABLE) 실행 불가 — Track 2/3 신규 테이블 4종
+### ~~DDL(CREATE TABLE) 실행 불가~~ — 2026-07-30 해결됨
+사용자가 Supabase 대시보드 SQL Editor에서 `evolution_engine_migration.sql` 직접 실행,
+성공. 실행 중 `CREATE POLICY IF NOT EXISTS` 문법 오류(PostgreSQL 미지원, 42601) 발견돼
+`DROP POLICY IF EXISTS` + `CREATE POLICY`로 수정(커밋 `ddacdea`) 후 재실행해 최종 성공.
+
+**End-to-end 검증**(4개 함수 수동 트리거 후 실제 테이블 확인):
+- `comment_auto_reply_settings`: 시드 행 정상(`is_live: false`) — RLS anon SELECT 확인.
+- `generate-weekly-report-background`: 실제 데이터로 `weekly_reports`에 리포트 1건 생성 확인
+  (카테고리 분포 41건, 0회 배정 perspective 8개 — 아직 Track 1 반영 전 데이터라 정상).
+- `detect-coverage-gaps-background`: 정상 실행됐으나 이번엔 제안 0건 — 후보 story는
+  97건(457개 중 360개만 topic 연결) 있었으니 함수가 안 도는 게 아니라 Claude가 "반복되는
+  새 패턴 없음"으로 판단한 것으로 추정(Track 1이 이미 큰 갭을 메꿔서 그럴 가능성 높음).
+  다음 주 정기 실행에서 계속 관찰.
+- `scan-comments-shadow-background`: 정상 실행, 로그 0건 — Threads Graph API로 직접
+  대조 확인한 결과 실제로 최근 게시물에 댓글이 0개라 정상적인 결과(함수 문제 아님).
+
+이제 Track 2/3 전체가 완전히 살아있는 상태 — 다음 주 월요일(Track 2)과 매시간(Track 3)
+정기 실행부터는 CHANGELOG 갱신 없이도 자동으로 누적된다.
+
+---
+
+### (참고, 해결 전 기록) 원래 BLOCKED 내용
 - **막힌 것**: `proposed_event_types`/`weekly_reports`(Track 2), `comment_auto_reply_log`/
   `comment_auto_reply_settings`(Track 3) 4개 신규 테이블 생성.
 - **이유**: PostgREST(Supabase REST API)는 DML(insert/select/update)만 가능하고 DDL을 지원하지
