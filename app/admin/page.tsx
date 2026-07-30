@@ -18,10 +18,11 @@ export default function AdminPage() {
   const [editorTagFilter, setEditorTagFilter] = useState<string>('all')
   const [health, setHealth] = useState<any[]>([])
   const [distOps, setDistOps] = useState<any>(null)
+  const [evolution, setEvolution] = useState<any>(null)
 
   useEffect(() => {
     const k = localStorage.getItem('nj_admin_key') || ''
-    if (k) { setSavedKey(k); loadStats(); loadEditorialStatus(); loadGateTopics(); loadEditors(); loadAutomationHealth(); loadDistributionOps() }
+    if (k) { setSavedKey(k); loadStats(); loadEditorialStatus(); loadGateTopics(); loadEditors(); loadAutomationHealth(); loadDistributionOps(); loadEvolution() }
   }, [])
 
   function addLog(type: string, msg: string) {
@@ -223,6 +224,35 @@ export default function AdminPage() {
     })
   }
 
+  // Evolution Engine(마스터 스펙 v1 Track 2) — 갭 감지 제안 큐 + 최신 주간 리포트.
+  // evolution_engine_migration.sql 적용 전에는 두 테이블 다 없어 조용히 빈 상태로 표시된다
+  // (CHANGELOG.md BLOCKED 참고).
+  async function loadEvolution() {
+    const headers = { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+    const [proposalsRes, reportRes] = await Promise.all([
+      fetch(`${SUPABASE_URL}/rest/v1/proposed_event_types?select=*&status=eq.proposed&order=detected_at.desc`, { headers }),
+      fetch(`${SUPABASE_URL}/rest/v1/weekly_reports?select=*&order=report_week_start.desc&limit=1`, { headers }),
+    ])
+    setEvolution({
+      migrationPending: !proposalsRes.ok || !reportRes.ok,
+      proposals: proposalsRes.ok ? await proposalsRes.json() : [],
+      latestReport: reportRes.ok ? (await reportRes.json())[0] || null : null,
+    })
+  }
+
+  async function approveProposal(proposalId: string) {
+    try {
+      const res = await fetch(`${SITE_URL}/.netlify/functions/approve-proposed-event-type`, {
+        method: 'POST',
+        headers: { 'x-admin-key': savedKey, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ proposal_id: proposalId }),
+      })
+      const data = await res.json()
+      if (res.ok) { addLog('success', `✅ event_type 승인: ${data.event_type}`); loadEvolution() }
+      else addLog('error', `❌ 승인 실패: ${data.error}`)
+    } catch (e: any) { addLog('error', `❌ 실패: ${e.message}`) }
+  }
+
   async function overrideGate(topicId: string, newStatus: string) {
     try {
       const res = await fetch(`${SITE_URL}/.netlify/functions/override-gate-status`, {
@@ -241,7 +271,7 @@ export default function AdminPage() {
     localStorage.setItem('nj_admin_key', adminKey)
     setSavedKey(adminKey)
     addLog('info', '로그인 완료')
-    loadStats(); loadEditorialStatus(); loadGateTopics(); loadEditors(); loadAutomationHealth(); loadDistributionOps()
+    loadStats(); loadEditorialStatus(); loadGateTopics(); loadEditors(); loadAutomationHealth(); loadDistributionOps(); loadEvolution()
   }
 
   async function callFn(fnName: string) {
@@ -498,6 +528,63 @@ export default function AdminPage() {
                 {distOps.recentThreadsPosts.length === 0 && <div>기록 없음</div>}
               </div>
             </div>
+          </>
+        )}
+      </div>
+
+      {/* Evolution Engine(마스터 스펙 v1 Track 2) — 갭 감지 제안 큐 + 최신 주간 리포트 */}
+      <div style={s.card}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+          <div style={{ fontSize: 13, fontWeight: 700 }}>🌱 Evolution Engine</div>
+          <button onClick={loadEvolution} style={{ fontSize: 10, padding: '3px 9px', background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 999, color: 'var(--muted)', cursor: 'pointer' }}>
+            ↻ 새로고침
+          </button>
+        </div>
+        {!evolution ? (
+          <div style={{ fontSize: 11, color: 'var(--muted)' }}>불러오는 중...</div>
+        ) : evolution.migrationPending ? (
+          <div style={{ fontSize: 11, color: 'var(--muted)' }}>
+            evolution_engine_migration.sql 미적용 — supabase/evolution_engine_migration.sql 실행 필요(CHANGELOG.md BLOCKED 참고)
+          </div>
+        ) : (
+          <>
+            <div style={{ fontSize: 11.5, fontWeight: 700, marginBottom: 6 }}>
+              🔔 제안된 새 카테고리({evolution.proposals.length}건)
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
+              {evolution.proposals.map((p: any) => (
+                <div key={p.id} style={{ padding: '8px 10px', background: 'var(--bg2)', borderRadius: 8, fontSize: 11.5 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <b>{p.event_type_name}</b>
+                    <button onClick={() => approveProposal(p.id)}
+                      style={{ fontSize: 10, padding: '3px 10px', background: 'var(--accent)', border: 'none', borderRadius: 999, color: '#000', cursor: 'pointer', fontWeight: 700 }}>
+                      승인
+                    </button>
+                  </div>
+                  <div style={{ color: 'var(--muted)', fontSize: 10.5, marginTop: 2 }}>{p.rationale}</div>
+                  <div style={{ color: 'var(--muted)', fontSize: 10, marginTop: 2 }}>
+                    관점 후보: {(p.suggested_perspective_candidates || []).join(', ') || '-'} · 감지된 기사 {p.detected_article_count}건
+                  </div>
+                </div>
+              ))}
+              {evolution.proposals.length === 0 && <div style={{ fontSize: 11, color: 'var(--muted)' }}>제안된 카테고리 없음</div>}
+            </div>
+
+            <div style={{ fontSize: 11.5, fontWeight: 700, marginBottom: 6 }}>
+              📊 최신 주간 리포트{evolution.latestReport ? ` (${evolution.latestReport.report_week_start}~)` : ''}
+            </div>
+            {evolution.latestReport ? (
+              <div style={{ fontSize: 10.5 }}>
+                <div style={{ color: 'var(--muted)', marginBottom: 4 }}>
+                  카테고리 분포: {Object.entries(evolution.latestReport.category_distribution?.byCategory || {}).map(([k, v]) => `${k} ${v}`).join(' · ') || '-'}
+                </div>
+                <div style={{ color: 'var(--muted)' }}>
+                  0회 배정 perspective({(evolution.latestReport.zero_assignment_perspectives || []).length}개): {(evolution.latestReport.zero_assignment_perspectives || []).join(', ') || '없음'}
+                </div>
+              </div>
+            ) : (
+              <div style={{ fontSize: 11, color: 'var(--muted)' }}>아직 생성된 리포트 없음(매주 월요일 자동 생성)</div>
+            )}
           </>
         )}
       </div>

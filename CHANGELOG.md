@@ -12,7 +12,20 @@
 
 ## BLOCKED
 
-(현재 없음)
+### DDL(CREATE TABLE) 실행 불가 — Track 2/3 신규 테이블 4종
+- **막힌 것**: `proposed_event_types`/`weekly_reports`(Track 2), `comment_auto_reply_log`/
+  `comment_auto_reply_settings`(Track 3) 4개 신규 테이블 생성.
+- **이유**: PostgREST(Supabase REST API)는 DML(insert/select/update)만 가능하고 DDL을 지원하지
+  않는다. Netlify와 별개로 Supabase 자체 로그인 자격(관리 토큰/DB 커넥션 문자열)이 이 세션에
+  없음 — `supabase login`은 비-TTY 환경이라 자동 진행 불가(`--token` 필요), Netlify 환경변수에도
+  Supabase 관리용 토큰 없음(REST용 anon/service key만 존재).
+- **준비된 것**: `supabase/evolution_engine_migration.sql`에 4개 테이블 전체 DDL + RLS 정책 작성
+  완료. **Supabase 대시보드 SQL Editor에 붙여넣고 실행만 하면 됨(30초 작업).**
+- **그 사이 처리**: 이 테이블들을 참조하는 Netlify 함수는 그대로 배포한다 — 기존 코드베이스의
+  `distribution_skip_log`/`distribution_run_log`(Threads 파이프라인, 아직 마이그레이션 전인데도
+  배포돼 있음)와 동일한 패턴으로, 테이블이 없으면 에러를 조용히 catch하고 로그만 남긴 뒤 계속
+  진행하도록 작성. SQL 실행 즉시(다음 주간 cron부터) 자동으로 정상 동작 시작.
+- **나머지 작업**: 이 블로커와 무관하게 계속 진행.
 
 ---
 
