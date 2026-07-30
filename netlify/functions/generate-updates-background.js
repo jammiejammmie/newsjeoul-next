@@ -1,7 +1,12 @@
-// generate-updates.js
+// generate-updates-background.js
 // 새로 생긴 topic_stories 연결마다 Timeline 이벤트 + Update 문장 생성
 // Step 7(품질 자동 검증) + Step 8(자동 수정 1회 재시도)까지 이 함수 안에서 처리한다.
 // Autonomy-First: 기준 미달이면 사람 큐에 쌓지 않고 is_published=false로 조용히 묻는다.
+//
+// 2026-07-31: generate-updates.js(동기 함수)에서 개명. BATCH_SIZE=8건 x 최대 4회 Claude 호출이
+// 누적되며 동기 함수 26초 하드캡(Inactivity Timeout, 504)에 거의 매 실행 걸려 파이프라인
+// 5단계가 계속 실패하던 것을 실제 GitHub Actions 로그로 확인 후 Background Function으로 전환
+// (process-stories/resolve-topics와 동일 패턴, 2026-07-14 선례).
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY;

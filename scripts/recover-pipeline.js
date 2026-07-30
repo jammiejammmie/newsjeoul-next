@@ -88,8 +88,8 @@ async function main() {
   await sleep(15000);
   await callFn('resolve-topics-background', { background: true });
   await sleep(30000);
-  await callFn('generate-updates');
-  await sleep(10000);
+  await callFn('generate-updates-background', { background: true });
+  await sleep(30000);
 
   // 2. Editorial Plan → Gate → Draft → Expansion → Relation Context → Weight
   //    (netlify.toml의 원래 3시간 주기 순서와 동일: 50→52→55→56→58→59)

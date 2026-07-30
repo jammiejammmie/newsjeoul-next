@@ -69,8 +69,9 @@
   timeout = 90 # 2026-07-14: BATCH_SIZE=5로도 27~40초가 걸려 동기 26초 캡을 자주
               # 넘기는 것을 실제 재현·확인 후 Background Function으로 전환
 
-[functions."generate-updates"]
-  timeout = 90
+[functions."generate-updates-background"]
+  timeout = 90 # 2026-07-31: BATCH_SIZE=8 x 최대 4회 Claude 호출이 동기 26초 캡을 거의 매번
+              # 넘기는 것을 실제 GitHub Actions 실패 로그로 확인 후 Background Function으로 전환
 
 [functions."post-threads-background"]
   # 2026-07-19: 자체 schedule 제거 — GitHub Actions(.github/workflows/post-threads.yml)만을

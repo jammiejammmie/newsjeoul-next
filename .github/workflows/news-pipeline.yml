@@ -72,13 +72,15 @@ jobs:
       - name: 대기 (Topic 매칭 완료 대기, 1분)
         run: sleep 60
 
-      - name: 5. Timeline/Update 생성 (generate-updates)
+      - name: 5. Timeline/Update 생성 (generate-updates-background)
+        # 2026-07-31: generate-updates.js(동기 함수)가 26초 하드캡을 넘겨 매 실행 504로 실패하던
+        # 것을 확인 — process-stories/resolve-topics와 동일하게 Background Function으로 전환.
         run: |
           RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
             -H "x-admin-key: ${{ secrets.NEWSJEOUL_ADMIN_KEY }}" \
-            "https://newsjeoul.co.kr/.netlify/functions/generate-updates")
+            "https://newsjeoul.co.kr/.netlify/functions/generate-updates-background")
           HTTP_CODE=$(echo "$RESPONSE" | tail -1)
           BODY=$(echo "$RESPONSE" | head -n -1)
-          echo "generate-updates → HTTP $HTTP_CODE"
+          echo "generate-updates-background → HTTP $HTTP_CODE"
           echo "$BODY"
-          [ "$HTTP_CODE" = "200" ] || exit 1
+          [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "202" ] || exit 1
