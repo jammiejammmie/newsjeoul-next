@@ -87,6 +87,47 @@ Actions), `update-comment-reply-settings.js`(admin 토글 전용), admin에 섀�
   원칙적으로 허용 범위 안에 있을 것으로 판단 — 단 라이브 전환 직전 Threads 전용 정책 문서를
   다시 한번 확인 필요.
 
+### 2026-07-30 — Track 4-0 완료: 성능 진단 및 수정(레이아웃 작업 선행조건)
+
+사용자가 세션 중간에 추가 지시 — 레이아웃 작업(4-1/4-2) 전에 반드시 먼저 처리하도록 순서 반영.
+
+**실측 결과(수정 전)**:
+- 홈(`/`): Cache-Status "Netlify Edge"; hit, Age 존재 — ISR 정상 동작(2026-07-29 커밋에서
+  적용된 revalidate=300이 실제로 작동 중). warm 요청 TTFB 0.25초 수준.
+- 토픽 상세(`/topic/[slug]`): `export const revalidate = 600`을 선언해뒀음에도 실측 결과
+  **매 요청이 100% cache miss**(`Cache-Status: fwd=miss`, `Cache-Control: private,no-cache,
+  no-store`) — 7/26에 발견됐던 "매 요청 Supabase 왕복" 문제가 토픽 상세에서는 사실상
+  해결되지 않은 채였다. TTFB 0.58~0.74초(레이어 하나뿐이라 7/26 당시의 2~5초보다는 낫지만
+  여전히 캐싱이 전혀 안 되고 있었음).
+
+**원인**: `generateStaticParams`가 없는 동적 세그먼트는 Netlify Next.js 런타임이 ISR 대상으로
+인식하지 못하고 완전 SSR(매 요청 서버 렌더링)로 빌드한다 — `revalidate` 값 자체는 죽은 코드였음.
+
+**조치**: `app/topic/[slug]/page.tsx`, `app/topic/[slug]/[angle]/page.tsx`에 빈 배열을
+반환하는 `generateStaticParams` 추가(커밋 `12eb05d`). 로컬 빌드 로그에서 라우트 표시가
+`ƒ Dynamic` → `● SSG(uses generateStaticParams)`로 바뀐 것 확인.
+
+**실측 결과(수정 후, 배포+캐시 워밍 후)**: `Cache-Status: "Netlify Edge"; hit`로 전환,
+warm 요청 TTFB 0.25~0.28초로 안정화(수정 전 0.58~0.74초 대비 개선, 홈페이지와 동일 수준
+도달).
+
+**추가로 발견했지만 이번엔 손대지 않은 것들(별도 판단 필요해 보류)**:
+- `entity/[slug]`, `compare/[slug]`, `guide/[slug]`, `review/[slug]`, `shop/[slug]`,
+  `story/[id]`, `category/[name]` 7개 라우트는 `revalidate`도 `generateStaticParams`도
+  전혀 없음 — 전부 완전 SSR로 매 요청 Supabase 왕복 중. 토픽 상세만 부분적으로 ISR
+  전환됐던 2026-07-29 작업 범위 밖. 트래픽이 적어 체감 영향은 낮을 수 있으나 동일한
+  구조적 문제 — 다음 성능 작업 때 일괄 검토 권장.
+- 폰트 로딩: Google Fonts(Instrument Serif)와 Pretendard(jsDelivr CDN)를 전부 render-blocking
+  `<link>` 태그로 로드 — `next/font`로 전환하면 외부 요청 자체가 제거되고 자체 호스팅된다.
+  다만 폰트/타이포그래피는 Track 4-1/4-2에서 "여백·폰트 크기 전수 점검"을 어차피 진행할
+  예정이라, 시각적 변경을 동반하는 이 작업은 그때 함께 검증하며 처리하는 게 중복 작업을
+  피할 수 있다고 판단해 지금은 보류.
+- 이미지 최적화: 확인 결과 현재 공개 페이지 어디에도 실제 이미지(og_image 등)가 렌더링되고
+  있지 않음(전부 텍스트/색상 기반 카드) — `next/image` 미사용이 성능 문제로 이어지고 있진
+  않음. 향후 이미지가 추가되면 그때 next/image로 시작하면 됨.
+
+Track4-1(editoy 벤치마킹+레이아웃)은 이 성능 수정이 배포·검증된 뒤이므로 이제 착수 가능.
+
 **1-3. Before/After 카테고리 분포**
 - Before(2026-07-23~30, 62건 published): Society 64.5% / Economy 21.0% / Science 6.5% /
   Technology 4.8% / Health 1.6% / Business 1.6% / Lifestyle·Entertainment·Crypto 0%.
