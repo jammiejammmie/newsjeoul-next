@@ -239,11 +239,15 @@ export async function getTodayOneCard() {
 
 // 홈 "오늘 가장 많이 연결되는 기업/인물/국가" TOP10 — entity_stories 집계, LLM 비용 없음
 // "왜 많이 연결됐는지"는 이미 생성된 ai_analysis(있으면)나 가장 강하게 연결된 Topic 이름으로 대신한다 (추가 LLM 호출 없음)
-export async function getTopEntitiesByType(type: string, limit = 10) {
+export async function getTopEntitiesByType(type: string, limit = 10, sinceDays?: number) {
   const supabase = client()
-  const { data } = await supabase
+  let query = supabase
     .from('entity_stories')
-    .select('entity_id, entities(id, slug, name, type, status, ai_analysis)')
+    .select('entity_id, created_at, entities(id, slug, name, type, status, ai_analysis)')
+  if (sinceDays) {
+    query = query.gte('created_at', new Date(Date.now() - sinceDays * 24 * 60 * 60 * 1000).toISOString())
+  }
+  const { data } = await query
   const counts = new Map<string, { id: string; name: string; slug: string; ai_analysis: string | null; count: number }>()
   for (const row of (data || []) as any[]) {
     const e = row.entities
@@ -386,19 +390,35 @@ export async function getMostCrossCategoryTopic() {
 }
 
 // "오늘의 발견: 겉보기엔 다르지만 실제로 연결된 두 사건" — 서로 다른 category의 Topic을 잇는 가장 강한 관계 (실데이터만)
+//
+// 2026-07-31: topic_relations는 refresh-relationships.js가 한 번 생성한 뒤 다시 건드리지 않는다
+// (strength_score/created_at 고정). strength_score만으로 정렬하면 예전에 만점(100)을 찍은 관계가
+// 영원히 1위를 유지해 "며칠째 같은 카드 고정" 문제가 생긴다(실사고: 트럼프 이란 장례식 발언 토픽).
+// 최근 N일 내 생성된 관계를 우선하고, 그 기간에 교차 카테고리 관계가 없을 때만 전체 기간으로 폴백한다.
 export async function getMostUnexpectedTopicPair() {
   const supabase = client()
-  const { data } = await supabase
-    .from('topic_relations')
-    .select('strength_score, explanation, source:topics!topic_relations_source_topic_id_fkey(id,slug,name,category), target:topics!topic_relations_target_topic_id_fkey(id,slug,name,category)')
-    .order('strength_score', { ascending: false })
-    .limit(30)
+  const selectCols = 'strength_score, explanation, created_at, source:topics!topic_relations_source_topic_id_fkey(id,slug,name,category), target:topics!topic_relations_target_topic_id_fkey(id,slug,name,category)'
 
-  const rows = (data || []) as any[]
-  const cross = rows.find((r) =>
+  const findCross = (rows: any[]) => rows.find((r) =>
     r.source && r.target && r.source.category && r.target.category && r.source.category !== r.target.category
   )
-  return cross || null
+
+  const since = new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString()
+  const { data: recentData } = await supabase
+    .from('topic_relations')
+    .select(selectCols)
+    .gte('created_at', since)
+    .order('strength_score', { ascending: false })
+    .limit(30)
+  const recentCross = findCross((recentData || []) as any[])
+  if (recentCross) return recentCross
+
+  const { data } = await supabase
+    .from('topic_relations')
+    .select(selectCols)
+    .order('strength_score', { ascending: false })
+    .limit(30)
+  return findCross((data || []) as any[]) || null
 }
 
 // 오른쪽 레일 "Trending / Interests" — 소비자 관심사 태그. 실데이터 매칭되면 링크, 아니면 조용한 placeholder.
@@ -420,12 +440,15 @@ const INTEREST_TAGS = [
 // 없는 지표를 지어내지 않는다는 원칙(콘텐츠 바이블)에 따라 그리드를 4카드로 재구성했다(§4카드가
 // 정확히 2열×2행 그리드를 채워 5카드였을 때와 시각적으로 빈틈없이 맞음).
 export async function getDiscoveryCards() {
-  const [pair, [latestUpdate], [topPerson], [topCountry]] = await Promise.all([
+  const [pair, [latestUpdate], recentPersons, recentCountries] = await Promise.all([
     getMostUnexpectedTopicPair(),
     getRecentTopicUpdates(1),
-    getTopEntitiesByType('person', 1),
-    getTopEntitiesByType('country', 1),
+    getTopEntitiesByType('person', 1, 4),
+    getTopEntitiesByType('country', 1, 4),
   ])
+  // 최근 4일 내 언급 없으면(비인기 카테고리라 사실적으로 있을 수 있음) 전체 기간으로 폴백
+  const [topPerson] = recentPersons.length ? recentPersons : await getTopEntitiesByType('person', 1)
+  const [topCountry] = recentCountries.length ? recentCountries : await getTopEntitiesByType('country', 1)
 
   const cards: {
     kicker: string; title: string; href: string
