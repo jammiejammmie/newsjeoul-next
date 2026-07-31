@@ -588,7 +588,8 @@ async function generateDeepPost(topic, url, activeTopicCount) {
   if (!match) throw new Error('포스팅 본문 파싱 실패: ' + rawText.slice(0, 200));
   const parsed = JSON.parse(match[0]);
   const closing = `오늘 이 외에도 ${activeTopicCount}개 이슈를 다루고 있습니다 →\n${url}`;
-  return { text: `${parsed.text}\n\n${closing}` };
+  const fullText = `${parsed.text}\n\n${closing}`;
+return { text: fullText.slice(0, 499) };
 }
 
 // ── Threads API(텍스트 전용 — 이미지 없어도 정상, 이미지 필드는 애초에 참조하지 않는다) ──────
