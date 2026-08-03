@@ -9,10 +9,13 @@ const BASE_URL = 'https://newsjeoul.co.kr'
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // /top10, /youtube, /media101, /story/* — 구브랜드(침묵지수·보수/진보 비교) 라우트.
   // 홈으로 redirect 처리됐으므로 sitemap에서 제외한다 (브랜드 Audit P1/P3).
+  // 2026-08-03: /election 제거 — PM 지시로 여론조사 갱신(update-elections 계열)을 중단했으므로
+  // 데이터가 고정됐다. 갱신되지 않는 페이지를 changeFrequency:'daily'로 계속 광고하면 크롤러에
+  // 잘못된 신호를 준다. 페이지 자체(app/election)와 polls_kr 데이터는 그대로 남겨뒀다 —
+  // 갱신을 재개하면 이 줄만 되살리면 된다.
   const staticRoutes: MetadataRoute.Sitemap = [
-    { url: `${BASE_URL}/`,         changeFrequency: 'daily',  priority: 1.0 },
-    { url: `${BASE_URL}/topic`,    changeFrequency: 'daily',  priority: 0.9 },
-    { url: `${BASE_URL}/election`, changeFrequency: 'daily',  priority: 0.7 },
+    { url: `${BASE_URL}/`,      changeFrequency: 'daily', priority: 1.0 },
+    { url: `${BASE_URL}/topic`, changeFrequency: 'daily', priority: 0.9 },
   ]
 
   try {
