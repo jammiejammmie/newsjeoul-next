@@ -1,6 +1,26 @@
-// generate-node-insights.js
+// generate-node-insights-background.js
 // Topic 페이지의 "향후 전망/반대 시각"(ai_outlook/ai_counter_view)과
 // Entity 페이지의 "AI 분석"(ai_analysis)을 채운다. BATCH_SIZE=5, story당 1회 호출.
+//
+// 2026-08-03: 두 가지를 함께 고쳤다(둘 다 실제 운영 로그/DB 실측으로 확인).
+//
+// (1) ai_context를 통째로 덮어쓰던 치명적 버그 — 이 파일이 이 저장소에서 유일하게
+//     `ai_context: context`로 교체 저장을 하고 있었다(다른 모든 writer는
+//     `ai_context: { ...(topic.ai_context || {}), 새필드 }` 형태로 병합한다).
+//     ai_context는 plan(에디터 배정)/draft(장문)/evidence(출처)/threads(게시 dedup)/
+//     engines(점수 기록)의 SSOT다. 이 함수는 `ai_outlook=is.null` 토픽을 고르는데,
+//     에디터 배정(plan)은 draft보다 먼저 기록되므로 "plan은 있고 ai_outlook은 아직 null"인
+//     구간이 정상적으로 존재한다 — 그 구간의 토픽을 집으면 plan이 그대로 사라졌다.
+//     실측(2026-08-03): 위험 구간에 191건이 대기 중이었고, ai_context에 insights 키만 남은
+//     피해 토픽 2건을 확인했다("국민의힘 전당대회 기탁금 논란", "경북 폭우 피해").
+//     같은 유형의 버그가 2026-07-11 generate-editorial-plan에서도 발생해 그 파일에는 이미
+//     경고 주석이 있다 — 이 파일만 누락돼 있었다.
+//
+// (2) 동기 함수 26초 하드캡 초과(504 Inactivity Timeout) — 최대 10회 Claude 호출
+//     (topic 5건 x 1200토큰 + entity 5건 x 400토큰)이 매번 캡을 넘겨 daily-insights-batch가
+//     계속 실패했다. netlify.toml의 timeout=90은 동기 함수에는 적용되지 않는다.
+//     저장소의 확립된 패턴(process-stories/resolve-topics/generate-updates)대로
+//     Background Function으로 전환했다 — 호출자는 즉시 202를 받고 결과는 함수 로그로 확인한다.
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY;
@@ -70,7 +90,8 @@ exports.handler = async function (event) {
   const isDry = event.queryStringParameters?.dry === 'true';
 
   try {
-    const topicsToFill = await supabaseGet('topics', `?status=eq.active&ai_outlook=is.null&select=id,name,summary,description,category&order=importance_score.desc&limit=${BATCH_SIZE}`);
+    // ai_context를 함께 읽어온다 — 저장할 때 병합해야 하므로 기존 값이 반드시 필요하다(위 (1) 참고).
+    const topicsToFill = await supabaseGet('topics', `?status=eq.active&ai_outlook=is.null&select=id,name,summary,description,category,ai_context&order=importance_score.desc&limit=${BATCH_SIZE}`);
     const entitiesToFill = await supabaseGet('entities', `?status=eq.active&ai_analysis=is.null&select=id,name,type,description&limit=${BATCH_SIZE}`);
 
     let topicsFilled = 0;
@@ -97,10 +118,13 @@ exports.handler = async function (event) {
       if (!parsed) continue;
       const { outlook, counter_view, ...context } = parsed;
       if (isDry) { dryResults.topics.push({ id: t.id, name: t.name, outlook, counter_view, context }); continue; }
+      // 반드시 병합 저장 — 교체하면 plan/draft/evidence/threads/engines가 전부 사라진다.
+      // (story 페이지가 aiContext.industry_impact / historical_comparison 등을 최상위에서
+      //  읽으므로 insights 키는 지금처럼 최상위에 둔다 — 위치는 바꾸지 않고 병합만 추가했다.)
       await supabasePatch('topics', `?id=eq.${t.id}`, {
         ai_outlook: outlook || null,
         ai_counter_view: counter_view || null,
-        ai_context: context,
+        ai_context: { ...(t.ai_context || {}), ...context },
       });
       topicsFilled++;
     }

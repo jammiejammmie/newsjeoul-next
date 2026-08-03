@@ -93,7 +93,7 @@ async function run(scenario) {
     }
     if (method === 'POST' && url.includes('anthropic.com')) {
       if (s.claudeFails) return { ok: false, text: async () => 'claude api error' };
-      return jsonRes({ content: [{ type: 'text', text: JSON.stringify({ text: '배경과 쟁점을 설명하는 문장입니다. '.repeat(4) }) }] });
+      return jsonRes({ content: [{ type: 'text', text: JSON.stringify({ text: s.claudeText || '배경과 쟁점을 설명하는 문장입니다. '.repeat(4) }) }] });
     }
     if (method === 'POST' && url.includes('/rest/v1/threads_posts')) {
       return { ok: true, text: async () => '' };
@@ -396,13 +396,80 @@ async function main() {
     );
   }
 
-  // 28) URL에 hook_type 접미사가 더 이상 붙지 않는지(2026-07-29 SEO/노출 정리)
+  // 28) UTM은 source/medium 최소 조합만 — utm_campaign/utm_content는 본문 예산만 잡아먹어 제거했다
+  //     (2026-08-03). hook_type 접미사가 없어야 한다는 기존 요구(2026-07-29)도 함께 유지 검증.
   {
-    const t = makeTopic('t-nohooksuffix', '글', '경제', 400);
+    const t = makeTopic('t-utm', '글', '경제', 400);
     const { first } = await run({ pool: [t] });
     check(
-      '28) utm_content가 topicId만 담고 hook_type 접미사가 없음',
-      first?.ok === true && first.url.includes(`utm_content=${first.topicId}`) && !/utm_content=[^&]+_/.test(first.url)
+      '28) UTM이 source/medium만 담고 utm_campaign/utm_content/hook_type 접미사가 없음',
+      first?.ok === true &&
+      first.url.includes('utm_source=threads') && first.url.includes('utm_medium=social') &&
+      !first.url.includes('utm_campaign') && !first.url.includes('utm_content')
+    );
+  }
+
+  // ── 2026-08-03 사고 회귀 테스트 ──────────────────────────────────────────
+  // 사고: 본문+마무리+링크를 이어붙인 뒤 통째로 slice(0,499)해서, 본문이 길면 링크가 잘려나갔다.
+  // 아래 3개는 "본문이 아무리 길어도 링크는 반드시 남는다"를 서로 다른 각도에서 고정한다.
+
+  // 29) 본문이 예산을 크게 넘겨도 링크가 살아있고 전체가 500자 이내인지(핵심 회귀 테스트)
+  {
+    const t = makeTopic('t-longbody', '글', '경제', 400);
+    const { first } = await run({ pool: [t], claudeText: '아주 긴 배경 설명 문장입니다. '.repeat(60) }); // 약 1000자
+    const ok = first?.ok === true && first.text.includes(first.url) && first.text.length <= 500;
+    check(
+      `29) 본문 1000자여도 링크 보존 + 500자 이내(실측 ${first?.text?.length}자)`,
+      ok
+    );
+    check(
+      '29b) 링크가 문구의 맨 끝에 온전히 붙어있음',
+      first?.ok === true && first.text.endsWith(first.url)
+    );
+  }
+
+  // 30) slug가 비정상적으로 길어도(예산 압박) 링크가 최우선으로 보존되는지
+  {
+    const t = makeTopic('t-longslug', '글', '경제', 400, { slug: 'a'.repeat(200) });
+    const { first } = await run({ pool: [t], claudeText: '긴 본문입니다. '.repeat(50) });
+    check(
+      `30) slug 200자 + 긴 본문에도 링크 보존 + 500자 이내(실측 ${first?.text?.length}자)`,
+      first?.ok === true && first.text.includes(first.url) && first.text.length <= 500
+    );
+  }
+
+  // 31) 짧은 본문은 잘리지 않고 마무리 문구까지 그대로 유지되는지(과잉 절단 방지)
+  {
+    const t = makeTopic('t-shortbody', '글', '경제', 400);
+    const short = '핵심만 담은 짧은 본문입니다. 두 번째 문장입니다.';
+    const { first } = await run({ pool: [t], claudeText: short, activeTopicCount: 41 });
+    check(
+      '31) 짧은 본문은 원문 그대로 + 마무리 문구 + 링크 유지(불필요한 절단 없음)',
+      first?.ok === true && first.text.startsWith(short) &&
+      first.text.includes('오늘 이 외에도 41개 이슈를 다루고 있습니다') && first.text.endsWith(first.url)
+    );
+  }
+
+  // 32) 문장 경계 절단 — 예산을 넘길 때 문장 중간에서 끊지 않는지(순수 함수 직접 검증)
+  {
+    const { truncateAtSentenceBoundary } = freshHandler()._testUtils;
+    const src = '첫 번째 문장입니다. 두 번째 문장입니다. 세 번째 문장입니다.';
+    const cut = truncateAtSentenceBoundary(src, 30);
+    check(
+      `32) 예산 초과 시 문장 종결부까지만 남김(결과: "${cut}")`,
+      cut === '첫 번째 문장입니다. 두 번째 문장입니다.' && cut.length <= 30
+    );
+    check(
+      '32b) 예산 이내면 원문 그대로 반환',
+      truncateAtSentenceBoundary(src, 500) === src
+    );
+    check(
+      '32c) 한 문장이 예산보다 길면 말줄임표로 마감(무한 확장 방지)',
+      (() => { const r = truncateAtSentenceBoundary('종결부가 아주 늦게 오는 매우 긴 한 문장입니다', 12); return r.length <= 13 && r.endsWith('…'); })()
+    );
+    check(
+      '32d) 소수점을 문장 종결부로 오인하지 않음',
+      !truncateAtSentenceBoundary('지지율은 49.6% 수준으로 나타났다. 다음 문장입니다.', 22).endsWith('49.')
     );
   }
 

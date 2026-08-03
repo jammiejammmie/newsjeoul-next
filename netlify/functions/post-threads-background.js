@@ -392,6 +392,20 @@ async function fetchTodayPostedStats() {
 // 데이터가 더 중요하다(PM 지시 2026-07-22). 실패해도 메인 흐름을 막지 않는다. distribution_skip_log
 // 테이블이 아직 마이그레이션 전이면(supabase/distribution_ops_logging_migration.sql 미적용) 조용히
 // 실패하고 넘어간다.
+//
+// 로그 적재 실패 사유를 사람이 읽을 수 있게 번역한다(2026-08-03 추가).
+// 실제 사고: 이 두 로그가 몇 주간 계속 실패하고 있었는데 원인은 코드가 아니라 "마이그레이션
+// 미적용"이었다 — PostgREST가 없는 테이블에 대해 PGRST205(404)를 돌려주는데, 원문 에러를 그대로
+// 찍고 있어서 "로그만 누락"이라는 문구에 묻혀 아무도 원인을 알 수 없었다. 이제 이 경우만 따로
+// 골라 적용해야 할 파일명을 로그에 직접 적는다.
+function describeLogFailure(detail) {
+  if (typeof detail === 'string' && detail.includes('PGRST205')) {
+    return '테이블이 DB에 없음 — supabase/distribution_ops_logging_migration.sql 미적용 상태다. ' +
+      '이 SQL을 Supabase SQL Editor에서 실행한 뒤 supabase/global_rls_policy.sql도 다시 실행해야 한다. 원문: ' + detail;
+  }
+  return detail;
+}
+
 async function logSkippedCandidates(rows) {
   if (!rows.length) return;
   try {
@@ -400,7 +414,7 @@ async function logSkippedCandidates(rows) {
       headers: { ...REQUEST_HEADERS, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
       body: JSON.stringify(rows),
     });
-    if (!res.ok) console.error(`DISTRIBUTION_SKIP_LOG_FAILED[${CHANNEL}](참고용 로그만 누락):`, await res.text());
+    if (!res.ok) console.error(`DISTRIBUTION_SKIP_LOG_FAILED[${CHANNEL}](참고용 로그만 누락):`, describeLogFailure(await res.text()));
   } catch (e) {
     console.error(`DISTRIBUTION_SKIP_LOG_FAILED[${CHANNEL}](참고용 로그만 누락):`, e.message);
   }
@@ -543,6 +557,41 @@ async function isStillUnposted(topicId) {
 // 새 파일에 이 영역만 새로 작성하고(문구 생성 프롬프트, API 포맷), 위 채널 독립 영역은 import해
 // 재사용하면 된다(지금은 한 파일에 같이 있지만 분리 준비가 된 상태다).
 //
+// ── 문구 길이 예산(2026-08-03 사고 수정) ─────────────────
+// 사고: 본문+마무리+링크를 이어붙인 뒤 통째로 slice(0, 499)했더니, 본문이 예산을 넘는 경우
+// 잘려나가는 쪽이 항상 "맨 뒤에 붙은 링크"였다 — 글이 문장 중간에서 끊기고 링크도 없이 게시됐다.
+// 실측(2026-08-03): slug 최대 64자 + UTM 4개(78자) + topic UUID(36자) 때문에 URL만 167~209자,
+// 마무리 문구 29자를 더하면 본문에 남는 예산이 261자뿐인데 프롬프트는 "3~5문장 + 관점"(400자+)을
+// 요구하고 있었다. 즉 구조적으로 거의 매번 링크가 잘려나가는 상태였다.
+//
+// 그래서 두 가지를 동시에 바꿨다:
+//   1) 링크를 먼저 확보하고 남은 예산에 본문을 맞춘다(잘리는 쪽이 본문이 되도록 순서를 뒤집음).
+//   2) URL에서 중복 UTM을 제거해 예산 자체를 늘렸다(아래 buildTopicUrl 주석 참고).
+// 자르더라도 문장 중간에서 끊지 않는다(truncateAtSentenceBoundary).
+const THREADS_MAX_CHARS = 500; // Threads API 텍스트 하드 리밋.
+const BODY_TARGET_CHARS = 280; // 프롬프트에 요구하는 목표 길이 — 실제 예산(약 340자)보다 낮게 잡아 잘림을 예외로 만든다.
+const MIN_BODY_BUDGET = 120; // 본문 예산이 이보다 작아지면 마무리 문구를 버리고 링크만 남긴다(링크 최우선).
+
+// 문장 경계에서 자른다 — 예산을 넘으면 예산 안의 마지막 문장 종결부까지만 남긴다. 종결부를
+// 못 찾거나 너무 앞이면(=한 문장이 예산보다 긴 경우) 예산에서 자르고 말줄임표를 붙인다.
+function truncateAtSentenceBoundary(text, budget) {
+  const t = (text || '').trim();
+  if (t.length <= budget) return t;
+  const slice = t.slice(0, budget);
+  const m = slice.match(/^[\s\S]*[.!?。…](?=\s|$)/); // 소수점("3.5%") 오인 방지를 위해 뒤가 공백/끝인 경우만 종결부로 본다.
+  if (m && m[0].trim().length >= budget * 0.5) return m[0].trim();
+  return slice.trim().replace(/[,、·\s]+$/, '') + '…';
+}
+
+// 게시용 Topic URL — utm_campaign/utm_content를 뺐다(2026-08-03).
+// utm_campaign='organic_threads'는 utm_source='threads'와 사실상 같은 정보고, utm_content는
+// topic UUID(36자)를 담았지만 URL 경로에 이미 slug가 있어 유입 분석에 새로 주는 정보가 없다.
+// 둘을 합쳐 114자를 잡아먹으면서 정작 본문 예산을 밀어내고 있었으므로 제거했다 —
+// GA 유입 귀속에 필요한 최소 조합(source/medium)은 그대로 유지한다.
+function buildTopicUrl(topic) {
+  return `${BASE_URL}/topic/${topic.slug}?utm_source=threads&utm_medium=social`;
+}
+
 // ── 심층형 포스팅 생성 ─────────────────
 // PM 지시(2026-07-29): 짧은 훅+링크유도 방식을 폐기하고, 링크를 누르지 않아도 그 자체로 읽을
 // 가치가 있는 완결된 글로 전면 개편. 마지막 유도는 CTA 문구가 아니라 "오늘 이 외에도 활성
@@ -557,9 +606,13 @@ async function generateDeepPost(topic, url, activeTopicCount) {
 목표: 링크를 누르지 않아도 그 자체로 읽을 가치가 있는 글. 저장하거나 공유하고 싶게 만드는 것 —
 짧은 훅으로 클릭만 유도하는 낚시글이 아니다.
 
+★ 길이 제한(가장 중요): 본문은 공백 포함 ${BODY_TARGET_CHARS}자 이내로 써라. 절대 ${BODY_TARGET_CHARS + 40}자를 넘기지 마라.
+Threads는 전체 500자 제한이 있고 뒤에 마무리 문장과 링크가 붙는다 — 본문이 길면 잘려나간다.
+길게 쓰고 싶은 욕심을 버리고, 가장 중요한 사실만 압축해서 밀도 높게 써라.
+
 글 구조(반드시 이 순서, 문단 사이는 줄바꿈 두 번으로 구분 — 마지막 유도 문장/링크는 별도로 붙이니 여기서 쓰지 마라):
-1. 이슈의 배경과 핵심 쟁점을 충분히 서술한다(3~5문장) — 무슨 일이 있었고 왜 중요한지 명확하게 설명.
-2. 이 사안을 보는 다양한 시각이나 흔히 놓치는 관점을 짧게 언급한다.
+1. 무슨 일이 있었고 왜 중요한지 2~3문장으로 압축해 서술한다.
+2. 이 사안을 보는 다른 시각이나 흔히 놓치는 관점을 1문장으로 덧붙인다.
 
 허용: 구체적인 숫자·인물·기업·정책명, 사실에 기반한 대비·맥락.
 금지: 사실과 다른 과장, 본문에 없는 결론 추가, 공포 조장, "충격"·"소름"·"난리 났다" 같은 저품질
@@ -573,7 +626,7 @@ async function generateDeepPost(topic, url, activeTopicCount) {
 
 설명 없이 아래 JSON만 반환해라(코드블록 없이):
 {
-  "text": "Threads에 올릴 본문(위 1~2번 구조, 문단 구분 포함, 마무리 문장/링크 제외)"
+  "text": "Threads에 올릴 본문(위 1~2번 구조, ${BODY_TARGET_CHARS}자 이내, 문단 구분 포함, 마무리 문장/링크 제외)"
 }`;
 
   const res = await fetch('https://api.anthropic.com/v1/messages', {
@@ -587,9 +640,27 @@ async function generateDeepPost(topic, url, activeTopicCount) {
   const match = rawText.match(/\{[\s\S]*\}/);
   if (!match) throw new Error('포스팅 본문 파싱 실패: ' + rawText.slice(0, 200));
   const parsed = JSON.parse(match[0]);
-  const closing = `오늘 이 외에도 ${activeTopicCount}개 이슈를 다루고 있습니다 →\n${url}`;
-  const fullText = `${parsed.text}\n\n${closing}`;
-return { text: fullText.slice(0, 499) };
+
+  // 링크를 먼저 확보한다 — 마무리 문구+링크의 길이를 재고, 남은 만큼만 본문에 배정한다.
+  // (이전 구현은 이어붙인 뒤 통째로 잘라서 링크가 사라졌다. 잘려야 하는 쪽은 항상 본문이다.)
+  let closing = `\n\n오늘 이 외에도 ${activeTopicCount}개 이슈를 다루고 있습니다 →\n${url}`;
+  if (THREADS_MAX_CHARS - closing.length < MIN_BODY_BUDGET) {
+    // slug가 비정상적으로 길어 본문 자리가 거의 없는 예외 상황 — 안내 문구를 버리고 링크만 남긴다.
+    closing = `\n\n${url}`;
+  }
+  const bodyBudget = THREADS_MAX_CHARS - closing.length;
+  const rawBody = (parsed.text || '').trim();
+  const body = truncateAtSentenceBoundary(rawBody, bodyBudget);
+  if (body.length < rawBody.length) {
+    // 프롬프트가 여전히 예산을 넘기고 있다는 신호 — 로그로 남겨 BODY_TARGET_CHARS 재조정 판단에 쓴다.
+    console.warn(`THREADS_BODY_TRUNCATED[${CHANNEL}]: ${rawBody.length}자 → ${body.length}자(예산 ${bodyBudget})`);
+  }
+
+  const text = `${body}${closing}`;
+  // 링크 보존은 이 어댑터의 계약이다 — 계산 실수로 깨지면 조용히 게시하지 말고 여기서 막는다.
+  if (!text.includes(url)) throw new Error(`문구 조립 실패: 링크가 누락됐다(len=${text.length})`);
+  if (text.length > THREADS_MAX_CHARS) throw new Error(`문구 조립 실패: ${text.length}자로 상한 초과`);
+  return { text };
 }
 
 // ── Threads API(텍스트 전용 — 이미지 없어도 정상, 이미지 필드는 애초에 참조하지 않는다) ──────
@@ -623,8 +694,7 @@ async function attemptOnePost() {
 
   const plan = topic.ai_context?.plan;
   const editors = (plan?.editors_assigned || []).map((e) => e.name);
-  const baseUrl = `${BASE_URL}/topic/${topic.slug}`;
-  const url = `${baseUrl}?utm_source=threads&utm_medium=social&utm_campaign=organic_threads&utm_content=${topic.id}`;
+  const url = buildTopicUrl(topic);
 
   // 2. Claude 문구 생성(여기부터 비용 발생)
   let text;
@@ -702,8 +772,7 @@ exports.handler = async function (event) {
     // dry 모드는 미리보기 1건만 — 실제 게시/루프 없음.
     const { topic, reason, detail } = await selectCandidate();
     if (!topic) return { statusCode: 200, headers, body: JSON.stringify({ dry: true, skipped: true, reason, detail }) };
-    const baseUrl = `${BASE_URL}/topic/${topic.slug}`;
-    const url = `${baseUrl}?utm_source=threads&utm_medium=social&utm_campaign=organic_threads&utm_content=${topic.id}`;
+    const url = buildTopicUrl(topic);
     const activeTopicCount = await fetchActiveTopicCount();
     const { text } = await generateDeepPost(topic, url, activeTopicCount);
     return { statusCode: 200, headers, body: JSON.stringify({ dry: true, reason: 'success', topicId: topic.id, title: topic.name, url, text, scoreDetail: detail }) };
@@ -747,7 +816,7 @@ exports.handler = async function (event) {
           posts_succeeded: successCount, posted_after_run: todaySuccessCount,
         }),
       });
-      if (!logRes.ok) console.error(`DISTRIBUTION_RUN_LOG_FAILED[${CHANNEL}](참고용 로그만 누락):`, await logRes.text());
+      if (!logRes.ok) console.error(`DISTRIBUTION_RUN_LOG_FAILED[${CHANNEL}](참고용 로그만 누락):`, describeLogFailure(await logRes.text()));
     } catch (e) {
       console.error(`DISTRIBUTION_RUN_LOG_FAILED[${CHANNEL}](참고용 로그만 누락):`, e.message);
     }
@@ -764,4 +833,7 @@ exports.handler = async function (event) {
 
 // 테스트 전용 — 순수 함수 몇 개를 직접 단위 테스트하기 위해 노출한다(mock fetch/실제 대기 없이
 // 공식만 검증). 프로덕션 코드 경로에서는 쓰이지 않는다.
-exports._testUtils = { computeDailyTarget, computePostsThisRun, computeAdaptiveMinDistributionScore };
+exports._testUtils = {
+  computeDailyTarget, computePostsThisRun, computeAdaptiveMinDistributionScore,
+  truncateAtSentenceBoundary, buildTopicUrl, THREADS_MAX_CHARS,
+};

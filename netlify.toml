@@ -129,5 +129,8 @@
 [functions."generate-insights"]
   timeout = 60
 
-[functions."generate-node-insights"]
-  timeout = 90
+[functions."generate-node-insights-background"]
+  # 2026-08-03: timeout=90이 설정돼 있었지만 동기 함수에는 적용되지 않는다 — 실제로는 26초
+  # 게이트웨이 캡에 걸려 504 Inactivity Timeout으로 daily-insights-batch가 계속 실패했다
+  # (2026-08-03 05:56 실패 로그 확인). Claude 호출이 최대 10회라 동기로는 구조적으로 불가능해
+  # Background Function으로 전환 — Background에서는 timeout 설정 없이 최대 15분이 보장된다.

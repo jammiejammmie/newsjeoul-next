@@ -40,13 +40,16 @@ jobs:
       - name: 대기 (15분)
         run: sleep 900
 
-      - name: 3. Generate Node Insights (generate-node-insights)
+      # 2026-08-03: 동기 함수 26초 캡 초과(504)로 계속 실패하던 것을 Background Function으로
+      # 전환했다. Background는 즉시 202를 반환하고 실제 처리는 백그라운드에서 계속되므로,
+      # 이 스텝은 "정상 접수"까지만 확인한다 — 실제 처리 결과는 Netlify 함수 로그로 확인해야 한다.
+      - name: 3. Generate Node Insights (generate-node-insights-background)
         run: |
           RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
             -H "x-admin-key: ${{ secrets.NEWSJEOUL_ADMIN_KEY }}" \
-            "https://newsjeoul.co.kr/.netlify/functions/generate-node-insights")
+            "https://newsjeoul.co.kr/.netlify/functions/generate-node-insights-background")
           HTTP_CODE=$(echo "$RESPONSE" | tail -1)
           BODY=$(echo "$RESPONSE" | head -n -1)
-          echo "generate-node-insights → HTTP $HTTP_CODE"
+          echo "generate-node-insights-background → HTTP $HTTP_CODE (202면 정상 접수)"
           echo "$BODY"
           [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "202" ] || exit 1
