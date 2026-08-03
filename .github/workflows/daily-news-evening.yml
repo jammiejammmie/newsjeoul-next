@@ -1,7 +1,13 @@
-name: Daily News/Election Update (저녁, 21:00 KST)
+name: Daily News Update (저녁, 21:00 KST)
 
 # 2026-07-26: Netlify 자체 schedule 제거(네이티브 cron 전체 장애, 7/22 22:44 KST 이후) —
 # GitHub Actions를 유일한 트리거로 전환.
+#
+# 2026-08-03: PM 지시로 여론조사 갱신 스텝(update-elections-evening) 제거 — "지금 시점에
+# 의미없는 작업". 워크플로우 자체는 그대로 살려둔다: 스텝 1(update-news-evening)은 실행당
+# Topic 5건을 만드는 실제 콘텐츠 생산 경로이고, 콘텐츠 생산량이 현재 최우선 순위이기 때문이다.
+# netlify/functions/update-elections-evening.js와 netlify.toml 항목은 삭제하지 않고 남겨뒀다 —
+# 다시 필요해지면 아래에 스텝만 되살리면 된다(같은 날 소수점 적재 버그도 이미 고쳐둔 상태다).
 on:
   schedule:
     - cron: '0 12 * * *'   # 12:00 UTC = 21:00 KST
@@ -19,16 +25,5 @@ jobs:
           HTTP_CODE=$(echo "$RESPONSE" | tail -1)
           BODY=$(echo "$RESPONSE" | head -n -1)
           echo "update-news-evening → HTTP $HTTP_CODE"
-          echo "$BODY"
-          [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "202" ] || exit 1
-
-      - name: 2. Update Elections Evening (update-elections-evening)
-        run: |
-          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
-            -H "x-admin-key: ${{ secrets.NEWSJEOUL_ADMIN_KEY }}" \
-            "https://newsjeoul.co.kr/.netlify/functions/update-elections-evening")
-          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
-          BODY=$(echo "$RESPONSE" | head -n -1)
-          echo "update-elections-evening → HTTP $HTTP_CODE"
           echo "$BODY"
           [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "202" ] || exit 1
