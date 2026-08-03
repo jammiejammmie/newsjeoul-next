@@ -463,10 +463,35 @@ async function main() {
       '32b) 예산 이내면 원문 그대로 반환',
       truncateAtSentenceBoundary(src, 500) === src
     );
+    // 2026-08-03: 이 테스트가 원래 `r.length <= 13`(budget+1)을 허용해서 off-by-one을 놓쳤다.
+    // 말줄임표도 예산에 포함되는 문자이므로 budget을 초과하면 안 된다 — 엄격하게 검사한다.
     check(
-      '32c) 한 문장이 예산보다 길면 말줄임표로 마감(무한 확장 방지)',
-      (() => { const r = truncateAtSentenceBoundary('종결부가 아주 늦게 오는 매우 긴 한 문장입니다', 12); return r.length <= 13 && r.endsWith('…'); })()
+      '32c) 한 문장이 예산보다 길면 말줄임표로 마감하되 예산을 넘지 않음',
+      (() => { const r = truncateAtSentenceBoundary('종결부가 아주 늦게 오는 매우 긴 한 문장입니다', 12); return r.length <= 12 && r.endsWith('…'); })()
     );
+    // 32e) 불변식 전수 검사 — 위 32c 같은 개별 케이스는 경계를 한 군데만 본다. 종결부 유무·
+    //      위치·공백 패턴을 섞은 입력을 모든 예산값에 대해 돌려 "절대 budget 초과 없음"을 고정한다.
+    //      실제 사고가 "말줄임표 분기에서만 +1"이었으므로 분기별 커버리지가 필요하다.
+    {
+      const samples = [
+        '종결부가 전혀 없는 아주 긴 한 문장 텍스트입니다만 마침표가 없습니다',
+        '짧다. 그리고 뒤가 아주 아주 길게 이어지는 두 번째 문장입니다',
+        '가나다라마바사아자차카타파하가나다라마바사아자차카타파하',
+        '끝에 공백이 오는 경우입니다.   그 다음 문장.   ',
+        '지지율은 49.6% 수준으로 나타났다. 다음 문장입니다.',
+        '쉼표로 끝나는 경우, 그리고 더 긴 내용, 계속 이어짐, 끝없이',
+      ];
+      let over = 0, empty = 0;
+      for (const s of samples) {
+        for (let budget = 1; budget <= 60; budget++) {
+          const r = truncateAtSentenceBoundary(s, budget);
+          if (r.length > budget) { over++; console.log(`   위반: budget=${budget} → ${r.length}자 "${r}" (원문: ${s.slice(0, 12)}…)`); }
+          if (s.trim().length > 0 && budget >= 3 && r.length === 0) empty++;
+        }
+      }
+      check(`32e) 불변식: 입력 ${samples.length}종 x 예산 1~60 전수(${samples.length * 60}건) 모두 budget 초과 없음`, over === 0);
+      check('32f) 예산이 3자 이상이면 빈 문자열을 반환하지 않음', empty === 0);
+    }
     check(
       '32d) 소수점을 문장 종결부로 오인하지 않음',
       !truncateAtSentenceBoundary('지지율은 49.6% 수준으로 나타났다. 다음 문장입니다.', 22).endsWith('49.')

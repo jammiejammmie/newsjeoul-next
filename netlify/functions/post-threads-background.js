@@ -568,19 +568,31 @@ async function isStillUnposted(topicId) {
 //   1) 링크를 먼저 확보하고 남은 예산에 본문을 맞춘다(잘리는 쪽이 본문이 되도록 순서를 뒤집음).
 //   2) URL에서 중복 UTM을 제거해 예산 자체를 늘렸다(아래 buildTopicUrl 주석 참고).
 // 자르더라도 문장 중간에서 끊지 않는다(truncateAtSentenceBoundary).
+// 문구 조립 자체의 실패(우리 코드 버그) — Claude API 실패와 구분해서 로그에 남기기 위한 전용 타입.
+class ComposeError extends Error {
+  constructor(message) { super(message); this.name = 'ComposeError'; }
+}
+
 const THREADS_MAX_CHARS = 500; // Threads API 텍스트 하드 리밋.
 const BODY_TARGET_CHARS = 280; // 프롬프트에 요구하는 목표 길이 — 실제 예산(약 340자)보다 낮게 잡아 잘림을 예외로 만든다.
 const MIN_BODY_BUDGET = 120; // 본문 예산이 이보다 작아지면 마무리 문구를 버리고 링크만 남긴다(링크 최우선).
 
 // 문장 경계에서 자른다 — 예산을 넘으면 예산 안의 마지막 문장 종결부까지만 남긴다. 종결부를
 // 못 찾거나 너무 앞이면(=한 문장이 예산보다 긴 경우) 예산에서 자르고 말줄임표를 붙인다.
+//
+// 계약: 반환값 길이는 어떤 입력에도 budget을 넘지 않는다.
+// 2026-08-03 재수정: 처음 구현에서 예산대로 자른 뒤 '…'를 덧붙여 budget+1자를 반환하는
+// off-by-one이 있었다. 그 1자 때문에 전체 문구가 501자가 되어 아래 상한 검사가 throw하고,
+// 게시가 claude_failed로 조용히 실패했다(17:47 실행 posts_succeeded=0으로 관측).
+// 말줄임표도 예산에 포함되는 문자라, 붙일 자리를 미리 빼고 잘라야 한다.
 function truncateAtSentenceBoundary(text, budget) {
   const t = (text || '').trim();
   if (t.length <= budget) return t;
   const slice = t.slice(0, budget);
   const m = slice.match(/^[\s\S]*[.!?。…](?=\s|$)/); // 소수점("3.5%") 오인 방지를 위해 뒤가 공백/끝인 경우만 종결부로 본다.
   if (m && m[0].trim().length >= budget * 0.5) return m[0].trim();
-  return slice.trim().replace(/[,、·\s]+$/, '') + '…';
+  // 말줄임표 1자를 예산 안에서 확보한다.
+  return t.slice(0, Math.max(0, budget - 1)).trim().replace(/[,、·\s]+$/, '') + '…';
 }
 
 // 게시용 Topic URL — utm_campaign/utm_content를 뺐다(2026-08-03).
@@ -658,8 +670,11 @@ Threads는 전체 500자 제한이 있고 뒤에 마무리 문장과 링크가 �
 
   const text = `${body}${closing}`;
   // 링크 보존은 이 어댑터의 계약이다 — 계산 실수로 깨지면 조용히 게시하지 말고 여기서 막는다.
-  if (!text.includes(url)) throw new Error(`문구 조립 실패: 링크가 누락됐다(len=${text.length})`);
-  if (text.length > THREADS_MAX_CHARS) throw new Error(`문구 조립 실패: ${text.length}자로 상한 초과`);
+  // 다만 이 실패는 Claude 탓이 아니라 우리 조립 로직 탓이므로 사유를 구분해서 던진다
+  // (2026-08-03: off-by-one으로 501자가 되어 throw했는데 로그에 claude_failed로 찍혀
+  //  원인을 Claude API에서 찾느라 진단이 늦어졌다 — 같은 혼동을 반복하지 않기 위함).
+  if (!text.includes(url)) throw new ComposeError(`링크가 누락됐다(len=${text.length})`);
+  if (text.length > THREADS_MAX_CHARS) throw new ComposeError(`${text.length}자로 상한 초과(본문 ${body.length} + 마무리 ${closing.length})`);
   return { text };
 }
 
@@ -701,9 +716,12 @@ async function attemptOnePost() {
   try {
     const activeTopicCount = await fetchActiveTopicCount();
     ({ text } = await generateDeepPost(topic, url, activeTopicCount));
-  } catch (claudeErr) {
-    console.error(`DISTRIBUTION_SKIP[${CHANNEL}](claude_failed):`, claudeErr.message);
-    return { ok: false, reason: 'claude_failed', error: claudeErr.message };
+  } catch (genErr) {
+    // 조립 실패(우리 버그)와 Claude API 실패(외부 요인)를 구분한다 — 사유가 섞이면
+    // "posts_succeeded=0"의 원인을 엉뚱한 곳에서 찾게 된다.
+    const reason = genErr instanceof ComposeError ? 'compose_failed' : 'claude_failed';
+    console.error(`DISTRIBUTION_SKIP[${CHANNEL}](${reason}):`, genErr.message);
+    return { ok: false, reason, error: genErr.message };
   }
   console.log('포스팅 내용:\n', text);
 
