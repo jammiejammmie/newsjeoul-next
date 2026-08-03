@@ -12,6 +12,41 @@
 
 ## BLOCKED
 
+### DDL 2건 대기 중 — 2026-08-03 (사용자 실행 필요)
+PostgREST는 DDL을 지원하지 않고 이 세션에는 Supabase 관리 자격이 없다(위 2026-07-30 항목과 동일한 제약).
+아래 2개를 Supabase 대시보드 → SQL Editor에서 순서대로 실행해야 완결된다.
+
+1. `supabase/distribution_ops_logging_migration.sql` → 이어서 `supabase/global_rls_policy.sql`
+   - **왜**: `DISTRIBUTION_RUN_LOG_FAILED`의 실제 원인. `distribution_run_log` /
+     `distribution_skip_log` / `hero_history` 3개 테이블이 실DB에 존재하지 않아 PostgREST가
+     `PGRST205`(404)를 반환하고 있었다(2026-08-03 anon key 조회로 확인). 코드는 정상이었다.
+   - 미적용 상태여도 Threads 게시 자체는 정상 동작한다(로그 3종만 계속 누락).
+2. `supabase/incident_2026_08_03_node_insights_repair.sql`
+   - **왜**: `generate-node-insights`의 ai_context 덮어쓰기로 정체된 Topic 28건을 되살린다.
+     STEP 1 SELECT로 대상을 눈으로 확인한 뒤 STEP 2를 실행하도록 구성했고, 대상이 40건을
+     넘으면 스스로 중단한다.
+
+### 2026-08-03 사고 기록 — generate-node-insights의 ai_context 통째 덮어쓰기
+가장 피해가 컸던 버그라 별도로 남긴다. 이 파일만 저장소에서 유일하게 병합 없이
+`ai_context: context`로 교체 저장하고 있었다(다른 8개 writer는 전부 spread 병합).
+`ai_context`는 plan(에디터 배정)/gate/draft/evidence/threads(게시 dedup)/engines의 SSOT다.
+
+- **왜 하필 이 함수인가**: 대상 선정이 `ai_outlook=is.null`인데, plan은 draft보다 먼저
+  기록되므로 "plan 있음 + ai_outlook null"인 구간이 **정상적으로** 존재한다. 그 구간의
+  Topic을 집으면 plan/gate/draft/evidence가 한 번에 사라졌다.
+- **왜 스스로 안 낫는가**: `generate-editorial-plan-background`는 `editorial_status=eq.pending`만
+  집는다. 피해 Topic은 상태값만 `planned`/`degraded`로 남아 다시 배정받을 기회가 영구히 사라진
+  좀비 상태가 됐다 — 발행까지 절대 도달하지 못한다.
+- **피해 실측**: plan 잃고 정체된 Topic 28건, 그 28건 **전부**에 node-insights 흔적
+  (`industry_impact`/`watchpoints` 등) 존재 — 상관관계 100%. published Topic 피해는 0건.
+- **왜 오래 안 보였나**: 이 함수가 동시에 504(동기 26초 캡 초과)로 죽고 있어서 매 실행마다
+  앞쪽 1~3건만 PATCH되고 중단됐다. 즉 피해가 하루 몇 건씩 조용히 누적됐다. 또 `update-topic-weight`가
+  매시간 `weight`를 병합해 넣어주는 바람에 "insights 키만 남은" 지문이 시간이 지나면 흐려져,
+  단순 조회로는 피해를 알아보기 어려웠다(그래서 28건 중 2건만 지문이 선명하게 남아 있었다).
+- **같은 유형의 재발**: 2026-07-11 `generate-editorial-plan`에서 동일한 버그가 있었고 그 파일에는
+  이미 경고 주석이 달려 있다 — 이 파일만 누락돼 있었다. 앞으로 `ai_context`를 쓰는 코드는
+  예외 없이 `{ ...(topic.ai_context || {}), 새필드 }` 형태여야 한다.
+
 ### ~~DDL(CREATE TABLE) 실행 불가~~ — 2026-07-30 해결됨
 사용자가 Supabase 대시보드 SQL Editor에서 `evolution_engine_migration.sql` 직접 실행,
 성공. 실행 중 `CREATE POLICY IF NOT EXISTS` 문법 오류(PostgreSQL 미지원, 42601) 발견돼
