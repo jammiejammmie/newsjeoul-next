@@ -29,6 +29,14 @@ const HERO_STALE_AFTER_HOURS = 6; // 상위권은 6시간 지나면 재계산 �
 const HERO_REFRESH_SLICE = 25; // 한 실행에서 Hero 우선분에 배정할 최대 건수(나머지는 커버리지)
 const HISTORY_CAP = 20;
 
+// ── 신선도 감쇠 파라미터 ─────────────────────────────────────────────────────
+// 보도가 끊긴 사안이 누적 점수만으로 상단에 남는 것을 막는다(2026-08-05 신설).
+// 값의 근거: 감쇠 없음 상태에서 상위 30건 중 24건이 48시간 넘게 기사가 없었고,
+// 신규 토픽(최고 516g)이 8위를 넘지 못했다.
+const DECAY_FREE_HOURS = 30;   // 하루 조금 넘게는 깎지 않는다(수집 공백·주말 방어)
+const DECAY_PER_DAY = 0.12;    // 이후 하루당 12%
+const MAX_DECAY_RATIO = 0.6;   // 최대 60% — 완전히 0으로 만들지 않는다(과거 사안도 검색 유입이 있다)
+
 // 사건유형별 기본 무게(0~1000 스케일의 절반 이하를 기본값으로 잡고, 나머지는 실제 신호로 채운다).
 // 근거: 즉각적 위해·안전 관련일수록 높게, 정보성·트렌드성일수록 낮게 — event_type_rules의
 // evidence_required/target_length로 이미 나타난 "긴급성·심각도" 서열을 그대로 반영.
@@ -107,7 +115,37 @@ function computeWeight(topic, stories, entities, plan) {
   components.recency_bonus = hoursSince === null ? 0 : hoursSince <= 24 ? 40 : hoursSince <= 48 ? 20 : 0;
   if (components.recency_bonus > 0) reasons.push(`최근 ${Math.round(hoursSince)}시간 내 기사 존재 (+${components.recency_bonus}g)`);
 
-  const raw = Object.values(components).reduce((a, b) => a + b, 0);
+  // ── 신선도 감쇠 ────────────────────────────────────────────────────────────
+  // 왜 필요한가(실측 2026-08-05): 위 7개 항목은 전부 "누적"이다. 기사·엔티티가 쌓일수록
+  // 오르고, 시간이 지나도 내려가지 않는다. recency_bonus만 시간을 보는데 그건 40g(전체의 7%)에
+  // 불과하고 감점이 아니라 가점이다.
+  //
+  // 그래서 홈 상위 30건 중 24건이 recency_bonus=0(48시간 넘게 기사 없음)인데도 상단을
+  // 점유했다. 15일 된 토픽이 507g으로 12위에 있었다. 신규 토픽 최고점 516g은 8위가 한계였다.
+  // 결과가 "홈 내용이 안 바뀐다"였다 — 랭킹이 바뀔 수 없는 산식이었기 때문이다.
+  //
+  // 감쇠 기준은 "토픽 나이"가 아니라 "마지막 기사 이후 경과 시간"이다. 계속 보도되는 사안은
+  // 오래돼도 무거운 게 맞다(구마모토 강진처럼). 보도가 끊긴 사안만 내려가야 한다.
+  const rawBeforeDecay = Object.values(components).reduce((a, b) => a + b, 0);
+
+  // 기사에 날짜가 하나도 없으면 staleness를 측정할 수 없다 → 토픽 생성 시점으로 폴백한다.
+  // 폴백이 없으면 날짜 없는 토픽만 감쇠를 피해가며 상단에 남는다.
+  const createdHours = topic.created_at ? (now - new Date(topic.created_at).getTime()) / 3600000 : 0;
+  const staleHours = hoursSince !== null ? hoursSince : createdHours;
+
+  // staleHours가 음수일 수 있다 — 수집원 시계가 앞서면 published_at이 미래로 들어온다(실측 가능).
+  // Math.max(0, ...)으로 막지 않으면 미래 날짜가 감쇠를 양수로 만들어 무게를 부풀린다.
+  const decayDays = Math.max(0, (Math.max(0, staleHours) - DECAY_FREE_HOURS) / 24);
+  const decayRatio = Math.min(MAX_DECAY_RATIO, decayDays * DECAY_PER_DAY);
+  // -Math.round(x * 0)은 -0이다. jsonb에 -0을 저장하지 않도록 0으로 정규화한다.
+  components.staleness_decay = decayRatio > 0 ? -Math.round(rawBeforeDecay * decayRatio) : 0;
+  if (components.staleness_decay < 0) {
+    reasons.push(
+      `마지막 보도 후 ${Math.round(staleHours)}시간 경과 — 신선도 감쇠 ${Math.round(decayRatio * 100)}% (${components.staleness_decay}g)`
+    );
+  }
+
+  const raw = rawBeforeDecay + components.staleness_decay;
   const grams = Math.max(1, Math.min(999, Math.round(raw)));
 
   return { grams, reasons, components };
@@ -277,3 +315,6 @@ exports.handler = async function (event) {
     return { statusCode: 500, headers, body: JSON.stringify({ error: e.message }) };
   }
 };
+
+// 산식만 따로 테스트할 수 있게 내보낸다(감쇠 도입 시 신설).
+exports._testUtils = { computeWeight, DECAY_FREE_HOURS, DECAY_PER_DAY, MAX_DECAY_RATIO, EVENT_TYPE_BASE };
