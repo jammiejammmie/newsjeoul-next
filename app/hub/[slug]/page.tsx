@@ -4,7 +4,9 @@ import { notFound } from 'next/navigation'
 import '../hub.css'
 import {
   getHubConfig, getHubMeta, getHubNews, getHubTopics, HUB_SLUGS,
+  resolveHubConfig, getDbHubSlugs, getHubDocuments, hubDocHref,
 } from '@/lib/hubs'
+import type { HubDocument } from '@/lib/hubs'
 import type { HubConfig, HubGuide } from '@/lib/hubs/types'
 
 const BASE = 'https://newsjeoul.co.kr'
@@ -14,8 +16,11 @@ export const revalidate = 1800
 
 // URL에 날짜·연도를 넣지 않는다(설계서 §6.1) — /hub/{slug} 고정.
 // 연도가 붙으면 해마다 새 URL이 되어 누적 링크·색인 자산이 리셋된다.
+// 레지스트리 허브 + 자동 생성 허브를 함께 프리렌더한다. 빌드 후에 생성된 허브는
+// dynamicParams(기본 true)로 요청 시 렌더되고 ISR로 캐시된다 — 새 허브가 배포를 기다리지 않는다.
 export async function generateStaticParams() {
-  return HUB_SLUGS.map((slug) => ({ slug }))
+  const dbSlugs = await getDbHubSlugs()
+  return [...HUB_SLUGS, ...dbSlugs].map((slug) => ({ slug }))
 }
 
 function fmtDate(iso: string | null | undefined) {
@@ -43,8 +48,9 @@ function timeAgo(iso: string | null | undefined) {
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params
-  const hub = getHubConfig(slug)
-  if (!hub) return {}
+  const resolved = await resolveHubConfig(slug)
+  if (!resolved) return {}
+  const hub = resolved.hub
   const url = `${BASE}/hub/${hub.slug}`
   const title = `${hub.title} — 가격·사용법·오류 해결 총정리 | 뉴스저울`
   return {
@@ -95,13 +101,16 @@ function EvergreenBlock({ label, items }: { label: string; items: HubGuide[] }) 
 
 export default async function HubPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
-  const hub = getHubConfig(slug)
-  if (!hub) notFound()
+  const resolved = await resolveHubConfig(slug)
+  if (!resolved) notFound()
+  const hub = resolved.hub
 
-  const [meta, news, topics] = await Promise.all([
+  const [meta, news, topics, docs] = await Promise.all([
     getHubMeta(hub),
     getHubNews(hub, 6),
     getHubTopics(hub, 4),
+    // 에버그린 문서 — 제목만 있던 항목이 실제 문서로 연결된다.
+    getHubDocuments(hub.slug),
   ])
 
   const trend = hub.trend
@@ -323,10 +332,16 @@ export default async function HubPage({ params }: { params: Promise<{ slug: stri
               <h2>직접 써보고 쓴 가이드 <span className="sub">에디터 실사용 기록 · 계속 갱신</span></h2>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', gap: '14px 20px' }}>
-              <EvergreenBlock label={hub.evergreen.howto.label} items={hub.evergreen.howto.items} />
-              <EvergreenBlock label={hub.evergreen.troubleshoot.label} items={hub.evergreen.troubleshoot.items} />
-              <EvergreenBlock label={hub.evergreen.compare.label} items={hub.evergreen.compare.items} />
-              <EvergreenBlock label={hub.evergreen.buying.label} items={hub.evergreen.buying.items} />
+              {(['howto', 'troubleshoot', 'compare', 'buying'] as const).map((key) => (
+                <EvergreenBlock
+                  key={key}
+                  label={hub.evergreen[key].label}
+                  // 설정의 href가 있으면 그대로, 없으면 생성된 문서가 있을 때만 링크가 붙는다.
+                  items={hub.evergreen[key].items.map((i) => ({
+                    ...i, href: i.href ?? hubDocHref(hub.slug, docs, i.title),
+                  }))}
+                />
+              ))}
             </div>
           </section>
 

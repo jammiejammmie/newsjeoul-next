@@ -29,15 +29,28 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
       )
-      const { data } = await supabase.from('hubs').select('slug, updated_at')
+      const [{ data }, { data: docs }] = await Promise.all([
+        supabase.from('hubs').select('slug, updated_at'),
+        supabase.from('hub_documents').select('hub_slug, slug, updated_at').eq('status', 'published'),
+      ])
       const bySlug = new Map((data || []).map((h: any) => [h.slug, h.updated_at]))
-      // hubs 테이블이 아직 없어도(마이그레이션 전) 코드 레지스트리로 사이트맵을 만든다.
-      return ALL_HUBS.map((h) => ({
-        url: `${BASE_URL}/hub/${h.slug}`,
-        lastModified: bySlug.get(h.slug) ? new Date(bySlug.get(h.slug) as string) : new Date(),
+      // ★ ALL_HUBS만 돌면 자동 생성 허브가 사이트맵에 영원히 안 들어간다(2026-08-05 수정).
+      //   DB에만 있는 허브도 실제로 렌더되는 페이지이므로 합집합을 쓴다.
+      const slugs = [...new Set([...ALL_HUBS.map((h) => h.slug), ...bySlug.keys()])]
+      const hubUrls = slugs.map((slug) => ({
+        url: `${BASE_URL}/hub/${slug}`,
+        lastModified: bySlug.get(slug) ? new Date(bySlug.get(slug) as string) : new Date(),
         changeFrequency: 'daily' as const,
         priority: 0.9,
       }))
+      // 에버그린 문서 — 검색 착륙지의 실제 본체다. 허브보다 덜 바뀌므로 weekly.
+      const docUrls = (docs || []).map((d: any) => ({
+        url: `${BASE_URL}/hub/${d.hub_slug}/${d.slug}`,
+        lastModified: d.updated_at ? new Date(d.updated_at) : new Date(),
+        changeFrequency: 'weekly' as const,
+        priority: 0.7,
+      }))
+      return [...hubUrls, ...docUrls]
     } catch {
       return ALL_HUBS.map((h) => ({
         url: `${BASE_URL}/hub/${h.slug}`,
