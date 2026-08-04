@@ -420,6 +420,23 @@ async function logSkippedCandidates(rows) {
   }
 }
 
+// 하드 실패(후보는 선정됐는데 그 뒤 단계에서 깨진 경우)를 distribution_skip_log에 남긴다.
+// 2026-08-03에 추가: 이 로그가 없어서 "posts_attempted=1 posts_succeeded=0"인 실행 3건의
+// 원인을 DB만으로는 특정할 수 없었다(사유가 Netlify 함수 로그에만 있었고, 함수 로그는 세션에서
+// 접근할 수 없다). distribution_run_log는 건수만 기록하므로 "왜 실패했는가"를 담을 자리가 없다.
+// skip_log는 이미 "왜 게시하지 않았는가"를 담는 테이블이니 하드 실패도 여기 모은다 —
+// 새 컬럼/마이그레이션이 필요 없고, reason으로 필터하면 실패 유형별 빈도를 바로 볼 수 있다.
+async function logHardFailure(topic, reason, errorMessage, extra) {
+  await logSkippedCandidates([{
+    channel: CHANNEL,
+    topic_id: topic?.id ?? null,
+    topic_name: topic?.name ?? null,
+    category: topic?.category ?? null,
+    reason,
+    detail: { error: String(errorMessage || '').slice(0, 500), ...(extra || {}) },
+  }]);
+}
+
 async function selectCandidate() {
   const [pool, recentCategories, producedStats, postedStats, articleCount] = await Promise.all([
     fetchCandidatePool(),
@@ -721,6 +738,7 @@ async function attemptOnePost() {
     // "posts_succeeded=0"의 원인을 엉뚱한 곳에서 찾게 된다.
     const reason = genErr instanceof ComposeError ? 'compose_failed' : 'claude_failed';
     console.error(`DISTRIBUTION_SKIP[${CHANNEL}](${reason}):`, genErr.message);
+    await logHardFailure(topic, reason, genErr.message);
     return { ok: false, reason, error: genErr.message };
   }
   console.log('포스팅 내용:\n', text);
@@ -740,6 +758,7 @@ async function attemptOnePost() {
     postId = await publishPost(containerId);
   } catch (postErr) {
     console.error(`DISTRIBUTION_SKIP[${CHANNEL}](threads_api_failed, Claude 비용은 이미 발생):`, postErr.message);
+    await logHardFailure(topic, 'threads_api_failed', postErr.message);
     return { ok: false, reason: 'threads_api_failed', error: postErr.message };
   }
 
@@ -748,6 +767,7 @@ async function attemptOnePost() {
     await markTopicPosted(topic, postId, detail);
   } catch (dedupErr) {
     console.error(`DISTRIBUTION_SKIP[${CHANNEL}](dedup_save_failed, 게시는 이미 성공, Post ID 보존):`, postId, dedupErr.message);
+    await logHardFailure(topic, 'dedup_save_failed', dedupErr.message, { postId });
     return { ok: false, reason: 'dedup_save_failed', error: dedupErr.message, postId, topicId: topic.id };
   }
 

@@ -498,6 +498,36 @@ async function main() {
     );
   }
 
+  // 33) 하드 실패도 distribution_skip_log에 사유가 남는지(2026-08-03 추가)
+  //     이 로그가 없어서 posts_succeeded=0인 실행 3건의 원인을 DB로 특정할 수 없었다.
+  {
+    const t = makeTopic('t-claudefail', '글', '경제', 400);
+    const { skipLogRows, first } = await run({ pool: [t], claudeFails: true });
+    const row = skipLogRows.find((r) => r.reason === 'claude_failed');
+    check(
+      '33) Claude 실패 시 skip_log에 reason=claude_failed + 에러 메시지 기록',
+      first?.reason === 'claude_failed' && !!row && row.topic_name === '글' && typeof row.detail?.error === 'string' && row.detail.error.length > 0
+    );
+  }
+  {
+    const t = makeTopic('t-threadsfail', '글', '경제', 400);
+    const { skipLogRows, first } = await run({ pool: [t], threadsApiFails: true });
+    const row = skipLogRows.find((r) => r.reason === 'threads_api_failed');
+    check(
+      '33b) Threads API 실패 시 skip_log에 reason=threads_api_failed 기록',
+      first?.reason === 'threads_api_failed' && !!row && typeof row.detail?.error === 'string'
+    );
+  }
+  {
+    const t = makeTopic('t-dedupfail', '글', '경제', 400);
+    const { skipLogRows, first } = await run({ pool: [t], dedupSaveFails: true });
+    const row = skipLogRows.find((r) => r.reason === 'dedup_save_failed');
+    check(
+      '33c) dedup 저장 실패 시 skip_log에 기록 + 게시된 Post ID 보존',
+      first?.reason === 'dedup_save_failed' && !!row && !!row.detail?.postId
+    );
+  }
+
   const failCount = results.filter((r) => !r.pass).length;
   console.log(failCount === 0 ? `\n전체 통과(${results.length}개)` : `\n일부 실패(${failCount}/${results.length})`);
   process.exit(failCount === 0 ? 0 : 1);
