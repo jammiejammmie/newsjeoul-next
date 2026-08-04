@@ -1,38 +1,54 @@
 @import "tailwindcss";
 
-/* 뉴스저울 브랜드 토큰 (v5 확정, 2026-07-08) — 값 변경 시 lib/design-tokens.ts도 함께 수정할 것 */
+/* 뉴스저울 브랜드 토큰 (v6 리디자인, 2026-08-05) — 값 변경 시 lib/design-tokens.ts도 함께 수정할 것
+ *
+ * v5(다크 Ink Black) → v6(라이트 종이 톤) 전환. 근거: 노차장 개편 설계서의 확정 홈 시안 2a와
+ * 토픽 허브 4a가 모두 밝은 종이 톤(#fbfaf7)이다. 검색 착륙 페이지 중심으로 전환하면서
+ * 본문 가독성을 우선한 결정이다.
+ *
+ * 색은 시안(뉴스저울 홈.dc.html)에서 그대로 추출했다 — 임의로 만들지 않았다:
+ *   ink #14171c · paper #fbfaf7 · rail #f7f4ee · tab #f5f2eb · card #fff
+ *   line #ddd8cd · line2 #e8e4dc · muted #7b7568 · muted2 #9a9385
+ *   accent #c8102e(강조·경고) · link #1b4ba0
+ *
+ * 토큰 이름(--bg/--card/--accent 등)은 그대로 유지했다. 이름을 바꾸면 전 페이지를 동시에
+ * 고쳐야 하고, 그건 리디자인과 무관한 위험을 만든다. 값만 바꿔 기존 var() 참조가 전부 살아있다.
+ */
 :root {
-  --bg: #0B0B0D;      /* Ink Black */
-  --bg2: #131316;
-  --card: #141417;
-  --card2: #1a1a1e;
-  --border: rgba(243, 239, 230, .08);
-  --border2: rgba(243, 239, 230, .14);
+  --bg: #FBFAF7;      /* Paper */
+  --bg2: #F7F4EE;     /* Rail */
+  --card: #FFFFFF;
+  --card2: #F5F2EB;   /* Tab bar */
+  --border: #DDD8CD;
+  --border2: #E8E4DC;
 
-  /* Single brand accent — Weight Amber */
-  --accent: #D9A441;
-  --accent-soft: rgba(217, 164, 65, .08);
+  /* 강조색 — 시안의 뉴스 레드. v5의 Weight Amber는 밝은 배경에서 대비가 부족하다. */
+  --accent: #C8102E;
+  --accent-soft: rgba(200, 16, 46, .07);
+  /* 링크 파랑 — 시안이 본문 링크에 쓰는 색. 강조색과 역할을 분리한다. */
+  --link: #1B4BA0;
 
-  /* Palette (뉴스저울 브랜드 키트 8색) */
-  --blue: #7C8CFF;     /* World Blue */
-  --violet: #B98CFF;   /* Connection Violet */
-  --teal: #7CC2B8;     /* Rising Teal */
-  --rose: #E0777A;     /* Falling Rose */
-  --stone: #8B887E;    /* Muted Stone */
+  /* Palette — 밝은 배경에서 읽히도록 채도·명도를 낮춘 값 */
+  --blue: #3F5BD9;
+  --violet: #7A4FD6;
+  --teal: #2E8B7F;
+  --rose: #C8102E;
+  --stone: #7B7568;
 
-  /* Semantic colors for data viz (kept for election/chart pages) */
-  --data-warm: #a07060;
-  --data-cool: #607090;
-  --gold: #D9A441;
-  --green: #7CC2B8;
-  --purple: #B98CFF;
+  /* Semantic colors for data viz (election/chart 페이지용) */
+  --data-warm: #B4603F;
+  --data-cool: #3F5B8B;
+  --gold: #A8791F;
+  --green: #2E8B7F;
+  --purple: #7A4FD6;
 
-  --text: #F3EFE6;     /* Bone White */
-  --text2: #D5D1C6;
-  --muted: #8B887E;    /* Muted Stone */
+  --text: #14171C;     /* Ink */
+  --text2: #3D4148;
+  --muted: #7B7568;
 }
 
-/* 라이트 테마는 v5 디자인에 존재하지 않아 비활성화함 (다크 전용 브랜드) — Nav.tsx의 테마 토글도 제거됨 */
+/* 다크 테마는 v6 리디자인에서 제거됐다. data-theme 속성은 layout.tsx가 여전히 넘기지만
+ * 값에 따라 갈리는 규칙은 없다 — 전환이 끝나면 그 속성도 정리한다. */
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 

@@ -27,9 +27,9 @@ export default function BriefBadge({ size = 'md' }: { size?: 'sm' | 'md' }) {
         lineHeight: 1,
         padding: compact ? '3px 5px' : '3px 6px',
         borderRadius: 4,
-        color: '#B8B3A8',
-        background: 'rgba(243,239,230,.08)',
-        border: '1px solid rgba(243,239,230,.16)',
+        color: 'var(--muted)',
+        background: 'var(--card2)',
+        border: '1px solid var(--border)',
         textTransform: 'uppercase',
       }}
     >

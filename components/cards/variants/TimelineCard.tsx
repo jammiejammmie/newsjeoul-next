@@ -14,8 +14,8 @@ export default function TimelineCard({ events, colSpan = 6, rowSpan = 2 }: Timel
     <CardShell
       colSpan={colSpan}
       rowSpan={rowSpan}
-      bg="rgba(243,239,230,0.02)"
-      border="rgba(243,239,230,0.08)"
+      bg="var(--bg2)"
+      border="var(--border)"
       padding="22px"
       justify="flex-start"
     >
@@ -25,7 +25,7 @@ export default function TimelineCard({ events, colSpan = 6, rowSpan = 2 }: Timel
       <div style={{ display: 'flex', gap: 0, overflowX: 'auto', paddingBottom: 4 }}>
         {events.map((ev, i) => (
           <div key={i} style={{
-            flex: '0 0 auto', padding: '0 18px', borderRight: '1px solid rgba(243,239,230,0.08)',
+            flex: '0 0 auto', padding: '0 18px', borderRight: '1px solid var(--border)',
             display: 'flex', flexDirection: 'column', gap: 4, minWidth: 130,
           }}>
             <span style={{ fontFamily: "'Instrument Serif', serif", fontStyle: 'italic', fontSize: 14, color: 'var(--accent)' }}>

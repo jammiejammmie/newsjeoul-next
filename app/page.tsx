@@ -5,6 +5,7 @@ import {
   pickHeroTopic, pickSideTopics, diversifyForIndex, isBriefTopic,
 } from '@/lib/topics'
 import { domainColors } from '@/lib/design-tokens'
+import { ALL_HUBS } from '@/lib/hubs'
 import BriefBadge from '@/components/BriefBadge'
 
 export const revalidate = 300
@@ -17,14 +18,31 @@ const TAGLINE = '뉴스저울 — 3분이면 오늘 세상을 이해합니다'
 // generateMetadata()와 Home()이 같은 값을 써야 OG 제목과 화면 헤드가 갈리지 않는다.
 const HOME_CANDIDATE_POOL = 300
 
+// 2a 카테고리 네비 — 설계서 §1.3의 재편 기준("사람이 검색창에 치는가")을 반영해 기존
+// 정치·경제·사회 대신 실제 카테고리 값과 허브 분야를 섞어 노출한다.
+// 링크는 실재하는 라우트만 쓴다 — 없는 페이지로 보내면 404가 쌓인다.
+const HOME_CATEGORY_NAV = [
+  { label: 'IT·기술', href: '/category/Technology' },
+  { label: '경제', href: '/category/Economy' },
+  { label: '사회', href: '/category/Society' },
+  { label: '과학', href: '/category/Science' },
+  { label: '비즈니스', href: '/category/Business' },
+  { label: '건강', href: '/category/Health' },
+  { label: '문화', href: '/category/Entertainment' },
+  { label: '전체 이슈', href: '/topic' },
+]
+
 // 도메인(카테고리)별 그라디언트 배경 — Cover Rotation 카드용. domainColors에 없는 카테고리는
 // 중립 스톤 톤으로 폴백(색이 없다고 카드가 비어 보이지 않게).
+// v6 라이트 전환: 카드 배경을 카테고리 색의 아주 옅은 틴트로 바꿨다.
+// v5는 다크 잉크(rgba(11,11,13,.75))로 어둡게 깔고 흰 텍스트를 올렸는데, 밝은 배경에서는
+// 카드만 검게 떠서 페이지와 분리돼 보인다. 종이 톤에서는 옅은 틴트 + 잉크 텍스트가 맞다.
 function topicGradient(category: string | null) {
   const c = category ? domainColors[category] : undefined
   const base = c || '#8B887E'
   return {
-    bg: `linear-gradient(155deg, ${base}29, rgba(11,11,13,.75))`,
-    border: `${base}4D`,
+    bg: `linear-gradient(155deg, ${base}14, #FFFFFF 70%)`,
+    border: `${base}55`,
   }
 }
 
@@ -121,11 +139,45 @@ export default async function Home() {
 
   return (
     <div style={{ fontFamily: "'Pretendard',-apple-system,sans-serif" }}>
-      {/* 상단 라이브 표시줄 */}
-      <div style={{ maxWidth: 1240, margin: '0 auto', padding: '14px 32px 0', display: 'flex', justifyContent: 'flex-end' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11.5, fontWeight: 600, color: 'var(--muted)' }}>
+      {/* 2a 유틸리티 바 — 시안의 다크 상단 띠. 라이트 본문과 대비를 만드는 요소다.
+          시안엔 "오늘 색인 12,481건"이 있지만 색인 수 집계가 없어 넣지 않는다 —
+          근거 없는 숫자를 만들지 않는다는 원칙을 여기서도 지킨다. */}
+      <div style={{ background: 'var(--text)', color: 'var(--bg)' }}>
+        <div style={{ maxWidth: 1240, margin: '0 auto', padding: '0 32px', height: 32, display: 'flex', alignItems: 'center', gap: 12, fontSize: 11.5, fontWeight: 500 }}>
           <span className="nj-live-dot" />
-          오늘 {activeTopicCount}개의 세계가 열려 있습니다
+          <span>추적 중인 이슈 <b style={{ fontWeight: 800 }}>{activeTopicCount}</b>건</span>
+          <span style={{ opacity: .4 }}>|</span>
+          <Link href="/topic" style={{ color: 'inherit', opacity: .85 }}>전체 이슈</Link>
+          <span style={{ opacity: .4 }}>|</span>
+          <Link href="/hub/galaxy-z-fold8" style={{ color: 'inherit', opacity: .85 }}>토픽 허브</Link>
+        </div>
+      </div>
+
+      {/* 2a 마스트헤드 + 카테고리 네비 */}
+      <div style={{ borderBottom: '1px solid var(--text)' }}>
+        <div style={{ maxWidth: 1240, margin: '0 auto', padding: '18px 32px 12px', display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+          <Link href="/" style={{ fontSize: 30, fontWeight: 800, letterSpacing: '-.03em', color: 'var(--text)' }}>뉴스저울</Link>
+          <span style={{ fontSize: 12, color: 'var(--muted)' }}>검색해서 찾는 것들을 한 페이지에 모읍니다</span>
+        </div>
+        <nav style={{ maxWidth: 1240, margin: '0 auto', padding: '0 32px', display: 'flex', gap: 0, flexWrap: 'wrap' }}>
+          {HOME_CATEGORY_NAV.map((c) => (
+            <Link key={c.label} href={c.href} style={{ fontSize: 13, fontWeight: 600, padding: '10px 14px 12px', color: 'var(--text)' }}>{c.label}</Link>
+          ))}
+        </nav>
+      </div>
+
+      {/* 2a 급상승 스트립 — 시안은 ▲6 ▼1 NEW 같은 순위 변동을 보여주지만, 그건
+          importance_score 시계열이 필요하고 아직 없다. 변동 대신 현재 무게 순으로만 띠를
+          만든다(거짓 델타를 만들지 않는다). 시계열이 붙으면 여기에 델타를 넣는다. */}
+      <div style={{ background: 'var(--card2)', borderBottom: '1px solid var(--border)', overflowX: 'auto' }}>
+        <div style={{ maxWidth: 1240, margin: '0 auto', padding: '9px 32px', display: 'flex', gap: 18, alignItems: 'center', whiteSpace: 'nowrap' }}>
+          <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--accent)', letterSpacing: '.06em', flexShrink: 0 }}>지금 무거운 이슈</span>
+          {rankedAll.slice(0, 8).map((t, i) => (
+            <Link key={t.slug} href={`/topic/${t.slug}`} style={{ fontSize: 12.5, fontWeight: 600, display: 'flex', gap: 6, alignItems: 'baseline', flexShrink: 0 }}>
+              <b style={{ fontSize: 11, fontWeight: 800, color: 'var(--muted)' }}>{i + 1}</b>
+              <span>{t.name.length > 18 ? t.name.slice(0, 18) + '…' : t.name}</span>
+            </Link>
+          ))}
         </div>
       </div>
 
@@ -153,7 +205,7 @@ export default async function Home() {
             {keywordsOf(heroTopic).length > 0 && (
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2px 12px', marginBottom: 14 }}>
                 {keywordsOf(heroTopic).slice(0, 3).map((kw, i) => (
-                  <span key={kw} style={{ fontSize: i === 0 ? 'clamp(22px,3vw,30px)' : 'clamp(16px,2.2vw,20px)', fontWeight: 800, color: i === 0 ? 'var(--accent)' : '#fff', lineHeight: 1.3 }}>
+                  <span key={kw} style={{ fontSize: i === 0 ? 'clamp(22px,3vw,30px)' : 'clamp(16px,2.2vw,20px)', fontWeight: 800, color: i === 0 ? 'var(--accent)' : 'var(--text)', lineHeight: 1.3 }}>
                     {kw}
                   </span>
                 ))}
@@ -163,7 +215,7 @@ export default async function Home() {
               {heroTopic.name}
             </div>
             {summaryOf(heroTopic) && (
-              <p style={{ fontSize: 15.5, color: 'var(--text2, #cfcac0)', lineHeight: 1.7, marginBottom: 12, maxWidth: 620 }}>
+              <p style={{ fontSize: 15.5, color: 'var(--text2)', lineHeight: 1.7, marginBottom: 12, maxWidth: 620 }}>
                 {summaryOf(heroTopic)}
               </p>
             )}
@@ -197,7 +249,7 @@ export default async function Home() {
                 {keywordsOf(t).length > 0 && (
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2px 8px', marginBottom: 6 }}>
                     {keywordsOf(t).slice(0, 2).map((kw, i) => (
-                      <span key={kw} style={{ fontSize: i === 0 ? 'clamp(15px,2vw,18px)' : 13, fontWeight: 800, color: i === 0 ? 'var(--accent)' : '#fff', lineHeight: 1.3 }}>
+                      <span key={kw} style={{ fontSize: i === 0 ? 'clamp(15px,2vw,18px)' : 13, fontWeight: 800, color: i === 0 ? 'var(--accent)' : 'var(--text)', lineHeight: 1.3 }}>
                         {kw}
                       </span>
                     ))}
@@ -205,7 +257,7 @@ export default async function Home() {
                 )}
                 <div style={{ fontSize: 15.5, fontWeight: 800, lineHeight: 1.4, marginBottom: 8 }}>{t.name}</div>
                 {summaryOf(t) && (
-                  <p style={{ fontSize: 12.5, color: 'var(--text2, #cfcac0)', lineHeight: 1.6, marginBottom: whyItMattersOf(t) ? 6 : 0 }}>
+                  <p style={{ fontSize: 12.5, color: 'var(--text2)', lineHeight: 1.6, marginBottom: whyItMattersOf(t) ? 6 : 0 }}>
                     {summaryOf(t).slice(0, 70)}{summaryOf(t).length > 70 ? '…' : ''}
                   </p>
                 )}
@@ -231,7 +283,7 @@ export default async function Home() {
               className="nj-index-row"
               style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                padding: '13px 20px', borderBottom: i < rankedAll.length - 1 ? '1px solid rgba(243,239,230,.06)' : 'none',
+                padding: '13px 20px', borderBottom: i < rankedAll.length - 1 ? '1px solid var(--border2)' : 'none',
                 fontFamily: "'JetBrains Mono',monospace", fontSize: 12.5,
               }}
             >
@@ -267,7 +319,7 @@ export default async function Home() {
                 className="nj-discovery-card"
                 style={{
                   gridColumn: `span ${d.colSpan}`, gridRow: `span ${d.rowSpan}`,
-                  border: '1px solid rgba(243,239,230,.08)', background: 'rgba(243,239,230,.03)',
+                  border: '1px solid var(--border)', background: 'var(--bg2)',
                   borderRadius: 16, padding: 18, flexDirection: 'column', justifyContent: 'flex-end', gap: 8,
                 }}
               >
@@ -282,6 +334,36 @@ export default async function Home() {
           </div>
         </section>
       )}
+      {/* 2a 하단 SEO 색인 블록 — 홈의 역할 중 하나가 "내부링크 허브"다(설계서 §2 표).
+          검색엔진과 독자 모두에게 이 사이트가 무엇을 다루는지 한눈에 보여준다. */}
+      <section style={{ borderTop: '1px solid var(--text)', background: 'var(--bg2)', marginTop: 56 }}>
+        <div style={{ maxWidth: 1240, margin: '0 auto', padding: '28px 32px 64px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: 28 }}>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 800, borderBottom: '2px solid var(--text)', paddingBottom: 6, marginBottom: 8 }}>토픽 허브</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+              {ALL_HUBS.map((h) => (
+                <Link key={h.slug} href={`/hub/${h.slug}`} style={{ fontSize: 12.5, fontWeight: 500 }}>{h.title}</Link>
+              ))}
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 800, borderBottom: '2px solid var(--text)', paddingBottom: 6, marginBottom: 8 }}>분야별 이슈</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px 10px' }}>
+              {HOME_CATEGORY_NAV.map((c) => (
+                <Link key={c.label} href={c.href} style={{ fontSize: 12.5, fontWeight: 500 }}>{c.label}</Link>
+              ))}
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 800, borderBottom: '2px solid var(--text)', paddingBottom: 6, marginBottom: 8 }}>지금 추적 중인 이슈</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+              {rankedAll.slice(0, 10).map((t) => (
+                <Link key={t.slug} href={`/topic/${t.slug}`} style={{ fontSize: 12.5, fontWeight: 500 }}>{t.name}</Link>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
     </div>
   )
 }

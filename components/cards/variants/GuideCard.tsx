@@ -20,11 +20,11 @@ export default function GuideCard({
       href={href}
       colSpan={colSpan}
       rowSpan={rowSpan}
-      bg="rgba(243,239,230,0.035)"
-      border="rgba(243,239,230,0.09)"
+      bg="var(--card)"
+      border="var(--border)"
       padding="18px"
       justify="space-between"
-      hoverBg="rgba(243,239,230,0.07)"
+      hoverBg="var(--card2)"
       hoverBorder="rgba(217,164,65,0.3)"
       hoverTransform="translateY(-3px)"
       editorPersona={editorPersona}
