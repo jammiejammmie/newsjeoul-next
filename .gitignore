@@ -43,3 +43,4 @@ next-env.d.ts
 # Local Netlify folder
 .netlify
 scripts/.node-insights-baseline.json
+.design-ref/

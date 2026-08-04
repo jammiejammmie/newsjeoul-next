@@ -1,0 +1,435 @@
+import type { Metadata } from 'next'
+import Link from 'next/link'
+import { notFound } from 'next/navigation'
+import '../hub.css'
+import {
+  getHubConfig, getHubMeta, getHubNews, getHubTopics, HUB_SLUGS,
+} from '@/lib/hubs'
+import type { HubConfig, HubGuide } from '@/lib/hubs/types'
+
+const BASE = 'https://newsjeoul.co.kr'
+
+// 뉴스는 계속 들어오지만 허브 본문은 자주 바뀌지 않는다. 30분 ISR로 신선도와 부하를 맞춘다.
+export const revalidate = 1800
+
+// URL에 날짜·연도를 넣지 않는다(설계서 §6.1) — /hub/{slug} 고정.
+// 연도가 붙으면 해마다 새 URL이 되어 누적 링크·색인 자산이 리셋된다.
+export async function generateStaticParams() {
+  return HUB_SLUGS.map((slug) => ({ slug }))
+}
+
+function fmtDate(iso: string | null | undefined) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`
+}
+function fmtShort(iso: string | null | undefined) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  return `${d.getMonth() + 1}/${String(d.getDate()).padStart(2, '0')}`
+}
+function timeAgo(iso: string | null | undefined) {
+  if (!iso) return ''
+  const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000)
+  if (!Number.isFinite(mins) || mins < 0) return ''
+  if (mins < 60) return `${mins}분 전`
+  const h = Math.round(mins / 60)
+  if (h < 24) return `${h}시간 전`
+  const d = Math.round(h / 24)
+  return d === 1 ? '어제' : `${d}일 전`
+}
+
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug } = await params
+  const hub = getHubConfig(slug)
+  if (!hub) return {}
+  const url = `${BASE}/hub/${hub.slug}`
+  const title = `${hub.title} — 가격·사용법·오류 해결 총정리 | 뉴스저울`
+  return {
+    title,
+    description: hub.definition,
+    alternates: { canonical: url },
+    openGraph: {
+      title, description: hub.definition, url, siteName: '뉴스저울', locale: 'ko_KR', type: 'website',
+      images: [{ url: `${BASE}/og?type=weight&title=${encodeURIComponent(hub.title)}`, width: 1200, height: 630 }],
+    },
+    twitter: { card: 'summary_large_image', title, description: hub.definition },
+  }
+}
+
+/** 에버그린 4포맷 한 칸 */
+function EvergreenBlock({ label, items }: { label: string; items: HubGuide[] }) {
+  return (
+    <div className="nj-hub-card" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <span style={{ font: '700 11px/1 Pretendard', color: 'var(--hot)', letterSpacing: '.06em' }}>{label}</span>
+      {items.map((g, i) => {
+        const inner = (
+          <>
+            {g.title}
+            {g.badge && (
+              <span style={{ font: '700 10.5px/1 Pretendard', color: 'var(--paper)', background: g.badge === '계산' ? 'var(--hot)' : 'var(--ink)', padding: '2px 5px', marginLeft: 6 }}>
+                {g.badge}
+              </span>
+            )}
+            {g.updatedAt && (
+              <span style={{ font: '500 11px/1 Pretendard', color: 'var(--mute2)', marginLeft: 6 }}>· {fmtShort(g.updatedAt)} 갱신</span>
+            )}
+          </>
+        )
+        const style: React.CSSProperties = {
+          display: 'block', font: '600 14.5px/1.45 Pretendard',
+          paddingBottom: i < items.length - 1 ? 7 : 0,
+          borderBottom: i < items.length - 1 ? '1px dotted var(--line)' : 'none',
+        }
+        // href가 없으면 링크로 만들지 않는다 — 아직 쓰지 않은 문서로 보내면 404가 쌓이고
+        // 색인 품질이 떨어진다(설계서 §10.3 방어선).
+        return g.href
+          ? <Link key={g.title} href={g.href} style={style}>{inner}</Link>
+          : <span key={g.title} style={{ ...style, color: 'var(--body2)' }}>{inner}</span>
+      })}
+    </div>
+  )
+}
+
+export default async function HubPage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params
+  const hub = getHubConfig(slug)
+  if (!hub) notFound()
+
+  const [meta, news, topics] = await Promise.all([
+    getHubMeta(hub),
+    getHubNews(hub, 6),
+    getHubTopics(hub, 4),
+  ])
+
+  const maxPrice = Math.max(...hub.price.points.map((p) => p.price))
+  const liveSlots = hub.affiliate.filter((a) => a.targetUrl)
+  const hasAffiliate = liveSlots.length > 0
+
+  // ── 구조화 데이터 (설계서 §10.5: 허브 = Product/FAQPage, 저자 = Person) ──
+  const personSchema = {
+    '@type': 'Person',
+    '@id': `${BASE}/hub/${hub.slug}#editor`,
+    name: hub.editor.name,
+    jobTitle: `${hub.editor.beat} 에디터${hub.editor.years ? ` · ${hub.editor.years}` : ''}`,
+    description: hub.editor.statement,
+    worksFor: { '@type': 'Organization', name: '뉴스저울', url: BASE },
+  }
+  const productSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'Product',
+    '@id': `${BASE}/hub/${hub.slug}#product`,
+    name: hub.title,
+    description: hub.definition,
+    category: hub.category,
+    brand: { '@type': 'Brand', name: hub.product.brand },
+    ...(hub.product.releaseDate ? { releaseDate: hub.product.releaseDate } : {}),
+    offers: {
+      '@type': 'Offer',
+      price: hub.product.price,
+      priceCurrency: hub.product.currency,
+      availability: 'https://schema.org/InStock',
+      url: `${BASE}/hub/${hub.slug}`,
+    },
+    additionalProperty: hub.specs.map((s) => ({ '@type': 'PropertyValue', name: s.label, value: s.value })),
+  }
+  const faqSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    '@id': `${BASE}/hub/${hub.slug}#faq`,
+    mainEntity: hub.faq.map((f) => ({
+      '@type': 'Question', name: f.q,
+      acceptedAnswer: { '@type': 'Answer', text: f.a },
+    })),
+  }
+  // dateModified 정확성은 설계서 §10.5가 명시한 요건이다 — hubs 테이블 값을 그대로 쓴다.
+  const webPageSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'WebPage',
+    '@id': `${BASE}/hub/${hub.slug}`,
+    name: hub.title,
+    description: hub.definition,
+    datePublished: meta.createdAt,
+    dateModified: meta.updatedAt,
+    author: personSchema,
+    breadcrumb: {
+      '@type': 'BreadcrumbList',
+      itemListElement: [
+        { '@type': 'ListItem', position: 1, name: '홈', item: BASE },
+        ...hub.breadcrumb.map((b, i) => ({ '@type': 'ListItem', position: i + 2, name: b })),
+        { '@type': 'ListItem', position: hub.breadcrumb.length + 2, name: hub.title, item: `${BASE}/hub/${hub.slug}` },
+      ],
+    },
+  }
+
+  const TOC = [
+    { id: 'news', label: '최신 소식' },
+    { id: 'price', label: '가격 추이' },
+    { id: 'guides', label: '가이드' },
+    { id: 'specs', label: '스펙' },
+    { id: 'timeline', label: '타임라인' },
+    { id: 'faq', label: '자주 묻는 질문' },
+  ]
+
+  return (
+    <div className="nj-hub">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(productSchema) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(webPageSchema) }} />
+
+      {/* 브레드크럼 */}
+      <div style={{ maxWidth: 1120, margin: '0 auto', padding: '11px 24px', borderBottom: '1px solid var(--line)', display: 'flex', gap: 7, alignItems: 'center', font: '500 12px/1 Pretendard', color: 'var(--mute)', flexWrap: 'wrap' }}>
+        <Link href="/" style={{ color: 'var(--mute)' }}>홈</Link>
+        {hub.breadcrumb.map((b) => (<span key={b} style={{ display: 'contents' }}><span>›</span><span>{b}</span></span>))}
+        <span>›</span>
+        <span style={{ color: 'var(--ink)', fontWeight: 600 }}>{hub.title}</span>
+      </div>
+
+      {/* 허브 헤더 */}
+      <header style={{ maxWidth: 1120, margin: '0 auto', padding: '20px 24px', borderBottom: '1px solid var(--ink)' }}>
+        <span style={{ font: '700 11px/1 Pretendard', color: 'var(--hot)', letterSpacing: '.1em' }}>{hub.trackingNote}</span>
+        <h1 style={{ margin: '10px 0 0', font: '800 clamp(28px,4vw,38px)/1.15 Pretendard', letterSpacing: '-.04em' }}>{hub.title}</h1>
+        <p style={{ margin: '10px 0 0', font: '400 15px/1.7 Pretendard', color: 'var(--body)', maxWidth: 640 }}>{hub.definition}</p>
+
+        <div className="nj-hub-stats" style={{ marginTop: 14 }}>
+          {hub.stats.map((s) => (
+            <div className="nj-hub-stat" key={s.label}>
+              <span style={{ font: '500 11px/1 Pretendard', color: 'var(--mute)' }}>{s.label}</span>
+              <b style={{ font: '800 18px/1.1 Pretendard', color: s.emphasis ? 'var(--hot)' : 'var(--ink)' }}>{s.value}</b>
+              {s.note && <span style={{ font: `500 11px/1 Pretendard`, color: s.emphasis ? 'var(--hot)' : 'var(--mute2)' }}>{s.note}</span>}
+            </div>
+          ))}
+        </div>
+
+        {/* 갱신 메타 — 최초/최종/횟수 */}
+        <div style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap', font: '500 12px/1.6 Pretendard', color: 'var(--mute)', marginTop: 12 }}>
+          <span>최초 작성 {fmtDate(meta.createdAt)}</span>
+          <time dateTime={meta.updatedAt} style={{ color: 'var(--ink)', fontWeight: 700 }}>최종 갱신 {fmtDate(meta.updatedAt)}</time>
+          <span>갱신 {meta.updateCount}회</span>
+        </div>
+      </header>
+
+      {/* 목차 탭 */}
+      <nav style={{ maxWidth: 1120, margin: '0 auto', background: 'var(--tabbar)', borderBottom: '1px solid var(--ink)', display: 'flex', flexWrap: 'wrap', padding: '0 12px' }}>
+        {TOC.map((t, i) => (
+          <a key={t.id} href={`#${t.id}`} style={{ font: `${i === 0 ? 700 : 500} 13px/1 Pretendard`, padding: '11px 12px', color: i === 0 ? 'var(--hot)' : 'var(--ink)' }}>{t.label}</a>
+        ))}
+      </nav>
+
+      <div className="nj-hub-grid">
+        <div className="nj-hub-main" style={{ display: 'flex', flexDirection: 'column', gap: 26 }}>
+
+          {/* 최신 소식 — articles 실연동 */}
+          <section id="news" style={{ scrollMarginTop: 12 }}>
+            <div className="nj-hub-h2">
+              <h2>최신 소식 <span className="sub">이 제품 관련 보도 {news.length}건</span></h2>
+            </div>
+            {news.length === 0 ? (
+              <p style={{ margin: 0, font: '400 13.5px/1.7 Pretendard', color: 'var(--body2)' }}>
+                아직 수집된 관련 보도가 없습니다. 기사가 들어오면 이 자리에 자동으로 채워집니다.
+              </p>
+            ) : (
+              news.map((n, i) => (
+                <a
+                  key={n.id}
+                  href={n.url || undefined}
+                  target={n.url ? '_blank' : undefined}
+                  rel={n.url ? 'noopener nofollow' : undefined}
+                  style={{
+                    display: 'grid', gridTemplateColumns: '1fr auto', gap: 10, alignItems: 'baseline',
+                    padding: '9px 0', borderBottom: i < news.length - 1 ? '1px solid var(--line2)' : 'none',
+                  }}
+                >
+                  <span style={{ font: `${i === 0 ? '700 16px' : '600 14.5px'}/1.45 Pretendard` }}>{n.title}</span>
+                  <span style={{ font: '500 11px/1 Pretendard', color: 'var(--mute2)', whiteSpace: 'nowrap' }}>
+                    {n.source ? `${n.source} · ` : ''}{timeAgo(n.publishedAt)}
+                  </span>
+                </a>
+              ))
+            )}
+            {topics.length > 0 && (
+              <div style={{ marginTop: 12, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                <span style={{ font: '700 11px/1 Pretendard', color: 'var(--mute)' }}>관련 이슈</span>
+                {topics.map((t: any) => (
+                  <Link key={t.slug} href={`/topic/${t.slug}`} className="nj-hub-tag">{t.name}</Link>
+                ))}
+              </div>
+            )}
+          </section>
+
+          {/* 가격 추이 + 에디터 판단 1문장 */}
+          <section id="price" style={{ scrollMarginTop: 12 }}>
+            <div className="nj-hub-h2">
+              <h2>가격 추이 <span className="sub">{hub.price.label} · 최근 {hub.price.points.length}주</span></h2>
+              <span className="sub">매일 09:00 수집 예정</span>
+            </div>
+            <div className="nj-hub-bars">
+              {hub.price.points.map((p, i) => {
+                const last = i === hub.price.points.length - 1
+                return (
+                  <div className="nj-hub-bar-col" key={p.date}>
+                    <span style={{ font: '700 11px/1 Pretendard', color: last ? 'var(--hot)' : 'var(--mute)' }}>{p.price}{hub.price.unit}</span>
+                    <div className={`nj-hub-bar${last ? ' is-last' : ''}`} style={{ height: Math.round((p.price / maxPrice) * 96) }} />
+                  </div>
+                )
+              })}
+            </div>
+            <div style={{ display: 'flex', gap: 10, padding: '6px 0 0' }}>
+              {hub.price.points.map((p, i) => (
+                <span key={p.date} style={{ flex: 1, textAlign: 'center', font: `${i === hub.price.points.length - 1 ? 700 : 500} 11px/1 Pretendard`, color: i === hub.price.points.length - 1 ? 'var(--ink)' : 'var(--mute2)' }}>
+                  {fmtShort(p.date)}
+                </span>
+              ))}
+            </div>
+            <p style={{ margin: '12px 0 0', font: '400 13.5px/1.65 Pretendard', color: 'var(--body)' }}>
+              {hub.price.verdict} <b style={{ fontWeight: 700 }}>— {hub.editor.name} 에디터</b>
+            </p>
+          </section>
+
+          {/* 에버그린 4포맷 */}
+          <section id="guides" style={{ scrollMarginTop: 12 }}>
+            <div className="nj-hub-h2">
+              <h2>직접 써보고 쓴 가이드 <span className="sub">에디터 실사용 기록 · 계속 갱신</span></h2>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', gap: '14px 20px' }}>
+              <EvergreenBlock label={hub.evergreen.howto.label} items={hub.evergreen.howto.items} />
+              <EvergreenBlock label={hub.evergreen.troubleshoot.label} items={hub.evergreen.troubleshoot.items} />
+              <EvergreenBlock label={hub.evergreen.compare.label} items={hub.evergreen.compare.items} />
+              <EvergreenBlock label={hub.evergreen.buying.label} items={hub.evergreen.buying.items} />
+            </div>
+          </section>
+
+          {/* 스펙 */}
+          <section id="specs" style={{ scrollMarginTop: 12 }}>
+            <div className="nj-hub-h2"><h2>스펙 <span className="sub">공식 발표 기준</span></h2></div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))', gap: '0 24px' }}>
+              {hub.specs.map((s) => (
+                <div key={s.label} style={{ display: 'grid', gridTemplateColumns: '96px 1fr', gap: 10, font: '500 13.5px/1.5 Pretendard', padding: '7px 0', borderBottom: '1px dotted var(--line)' }}>
+                  <span style={{ color: 'var(--mute)' }}>{s.label}</span>
+                  <span>{s.value}</span>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {/* 타임라인 */}
+          <section id="timeline" style={{ scrollMarginTop: 12 }}>
+            <div className="nj-hub-h2"><h2>이 제품이 지나온 일 <span className="sub">출시부터 지금까지</span></h2></div>
+            {hub.timeline.map((t) => (
+              <div key={t.date} style={{ display: 'grid', gridTemplateColumns: '88px 1fr', gap: 12, font: '400 13.5px/1.6 Pretendard', padding: '7px 0', borderBottom: '1px dotted var(--line)' }}>
+                <b style={{ fontWeight: 700 }}>{fmtShort(t.date)}</b>
+                <span>{t.text}</span>
+              </div>
+            ))}
+          </section>
+
+          {/* FAQ */}
+          <section id="faq" style={{ scrollMarginTop: 12 }}>
+            <div className="nj-hub-h2"><h2>자주 묻는 질문 <span className="sub">검색으로 들어온 질문을 모아 답합니다</span></h2></div>
+            {hub.faq.map((f, i) => (
+              <div key={f.q} style={{ padding: '11px 0', borderBottom: i < hub.faq.length - 1 ? '1px solid var(--line2)' : 'none', display: 'flex', flexDirection: 'column', gap: 5 }}>
+                <span style={{ font: '700 15px/1.4 Pretendard' }}>{f.q}</span>
+                <span style={{ font: '400 13.5px/1.65 Pretendard', color: 'var(--body)' }}>{f.a}</span>
+              </div>
+            ))}
+          </section>
+        </div>
+
+        {/* 우측 sticky 레일 */}
+        <aside className="nj-hub-rail">
+          {/* 담당 에디터 */}
+          <div className="nj-hub-card" style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+            <span style={{ font: '700 11px/1 Pretendard', color: 'var(--mute)', letterSpacing: '.06em' }}>이 페이지를 담당합니다</span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <span style={{ font: '700 14.5px/1.2 Pretendard' }}>{hub.editor.name}</span>
+              <span style={{ font: '500 11.5px/1.3 Pretendard', color: 'var(--mute)' }}>
+                {hub.editor.beat}{hub.editor.years ? ` · ${hub.editor.years}` : ''}
+              </span>
+            </div>
+            <span style={{ font: '400 12.5px/1.6 Pretendard', color: 'var(--body)' }}>{hub.editor.statement}</span>
+            <div style={{ display: 'flex', gap: 14, font: '500 11.5px/1 Pretendard', color: 'var(--mute)' }}>
+              {hub.editor.hubCount != null && <span>담당 허브 {hub.editor.hubCount}개</span>}
+              {hub.editor.articleCount != null && <span>기사 {hub.editor.articleCount}건</span>}
+            </div>
+          </div>
+
+          {/* 지금 사기 — 쿠팡 파트너스 (/go/{slot}) */}
+          <div>
+            <div className="nj-hub-rail-h" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+              <span>지금 사기</span>
+              <span style={{ font: '500 10px/1 Pretendard', color: 'var(--mute)' }}>광고</span>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+              {hub.affiliate.map((a) => {
+                const inner = (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <span style={{ font: '600 12px/1.3 Pretendard' }}>{a.label}</span>
+                    <b style={{ font: '800 12px/1 Pretendard', color: a.targetUrl ? 'var(--hot)' : 'var(--mute2)' }}>
+                      {a.targetUrl ? '최저가 확인 →' : '링크 준비 중'}
+                    </b>
+                  </div>
+                )
+                // 제휴 링크는 rel="sponsored nofollow" 필수(설계서 §8.1 — 누락 시 페널티 사유).
+                // targetUrl이 없는 슬롯은 링크로 만들지 않는다(빈 목적지로 보내지 않는다).
+                return a.targetUrl ? (
+                  <a
+                    key={a.slot}
+                    href={`/go/${a.slot}`}
+                    rel="sponsored nofollow"
+                    target="_blank"
+                    className="nj-hub-card"
+                    style={{ padding: '8px 9px' }}
+                  >
+                    {inner}
+                  </a>
+                ) : (
+                  <div key={a.slot} className="nj-hub-card" style={{ padding: '8px 9px', opacity: 0.6 }}>{inner}</div>
+                )
+              })}
+            </div>
+            <span style={{ display: 'block', font: '500 10px/1.5 Pretendard', color: 'var(--mute2)', marginTop: 7 }}>
+              {hasAffiliate
+                ? '이 페이지는 쿠팡 파트너스 활동의 일환으로, 구매 시 일정액의 수수료를 제공받습니다.'
+                : '제휴 링크가 연결되면 쿠팡 파트너스 고지 문구가 함께 표시됩니다.'}
+            </span>
+          </div>
+
+          {/* 함께 보는 허브 */}
+          <div>
+            <div className="nj-hub-rail-h">함께 보는 허브</div>
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              {hub.related.map((r, i) => {
+                const exists = HUB_SLUGS.includes(r.slug)
+                const row = (
+                  <>
+                    <span style={{ font: '600 13px/1.4 Pretendard', color: exists ? 'var(--ink)' : 'var(--mute)' }}>{r.title}</span>
+                    <span style={{ font: '500 11px/1 Pretendard', color: 'var(--mute2)' }}>
+                      {exists ? `가이드 ${r.guideCount ?? 0}` : '준비 중'}
+                    </span>
+                  </>
+                )
+                const style: React.CSSProperties = {
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
+                  padding: '6px 0', borderBottom: i < hub.related.length - 1 ? '1px dotted var(--line)' : 'none',
+                }
+                // 아직 만들지 않은 허브로는 링크하지 않는다 — 404를 쌓지 않는다.
+                return exists
+                  ? <Link key={r.slug} href={`/hub/${r.slug}`} style={style}>{row}</Link>
+                  : <div key={r.slug} style={style}>{row}</div>
+              })}
+            </div>
+          </div>
+
+          {/* 태그 */}
+          <div style={{ borderTop: '1px solid var(--line)', paddingTop: 14, display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+            {hub.tags.map((t) => (
+              <Link key={t} href={`/search?q=${encodeURIComponent(t)}`} className="nj-hub-tag">#{t}</Link>
+            ))}
+          </div>
+        </aside>
+      </div>
+    </div>
+  )
+}

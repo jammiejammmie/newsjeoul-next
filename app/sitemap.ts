@@ -1,6 +1,7 @@
 import type { MetadataRoute } from 'next'
 import { createClient } from '@supabase/supabase-js'
 import { ROUTABLE_CONTENT_TYPES } from '@/lib/content-types'
+import { ALL_HUBS } from '@/lib/hubs'
 
 export const revalidate = 1800  // 30분마다 재생성 (pipeline이 3시간 주기이므로 충분)
 
@@ -17,6 +18,34 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${BASE_URL}/`,      changeFrequency: 'daily', priority: 1.0 },
     { url: `${BASE_URL}/topic`, changeFrequency: 'daily', priority: 0.9 },
   ]
+
+  // 토픽 허브(설계서 §10.5) — 검색 착륙지이자 권위 누적 단위이므로 우선순위를 높게 둔다.
+  // lastmod는 hubs 테이블의 updated_at을 쓴다(§10.5 "갱신 시 lastmod 반영").
+  // 설계서는 사이트맵 분리(뉴스/허브/문서/추천)도 요구하는데, 허브가 1개인 지금은 분리 이득이
+  // 없어 단일 사이트맵에 넣는다. 허브가 수십 개로 늘면 그때 분리한다.
+  const hubRoutes: MetadataRoute.Sitemap = await (async () => {
+    try {
+      const supabase = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      )
+      const { data } = await supabase.from('hubs').select('slug, updated_at')
+      const bySlug = new Map((data || []).map((h: any) => [h.slug, h.updated_at]))
+      // hubs 테이블이 아직 없어도(마이그레이션 전) 코드 레지스트리로 사이트맵을 만든다.
+      return ALL_HUBS.map((h) => ({
+        url: `${BASE_URL}/hub/${h.slug}`,
+        lastModified: bySlug.get(h.slug) ? new Date(bySlug.get(h.slug) as string) : new Date(),
+        changeFrequency: 'daily' as const,
+        priority: 0.9,
+      }))
+    } catch {
+      return ALL_HUBS.map((h) => ({
+        url: `${BASE_URL}/hub/${h.slug}`,
+        changeFrequency: 'daily' as const,
+        priority: 0.9,
+      }))
+    }
+  })()
 
   try {
     const supabase = createClient(
@@ -76,8 +105,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       )
     ).flat()
 
-    return [...staticRoutes, ...topicRoutes, ...expansionRoutes, ...categoryRoutes, ...entityRoutes, ...genericContentRoutes]
+    return [...staticRoutes, ...hubRoutes, ...topicRoutes, ...expansionRoutes, ...categoryRoutes, ...entityRoutes, ...genericContentRoutes]
   } catch {
-    return staticRoutes
+    return [...staticRoutes, ...hubRoutes]
   }
 }

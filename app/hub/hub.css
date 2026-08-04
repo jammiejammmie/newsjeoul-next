@@ -1,0 +1,87 @@
+/* 토픽 허브 전용 스타일 — 노차장 시안(뉴스저울 홈.dc.html §4a) 팔레트.
+ *
+ * 왜 전역 토큰을 쓰지 않고 별도 파일인가:
+ * 현재 사이트는 다크(--bg #0B0B0D)인데 시안의 리디자인 방향은 밝은 종이 톤이다
+ * (확정 홈 2a도 #fbfaf7 + 다크 상단바). 전역 토큰을 지금 바꾸면 기존 전 페이지가 한꺼번에
+ * 깨지므로, 리디자인이 홈까지 확장될 때까지 허브 라우트에만 스코프한다.
+ * .nj-hub 아래에서만 적용되므로 다른 페이지에 영향이 없다.
+ *
+ * 색은 시안에서 그대로 추출했다(임의로 만들지 않음):
+ *   ink #14171c · paper #fbfaf7 · rail #f7f4ee · tab #f5f2eb · card #fff
+ *   line #ddd8cd · line2 #e8e4dc · muted #7b7568 · muted2 #9a9385
+ *   accent #c8102e(강조·경고) · link #1b4ba0
+ */
+
+.nj-hub {
+  --ink: #14171c;
+  --paper: #fbfaf7;
+  --rail: #f7f4ee;
+  --tabbar: #f5f2eb;
+  --card: #fff;
+  --line: #ddd8cd;
+  --line2: #e8e4dc;
+  --body: #3d4148;
+  --body2: #5a5f68;
+  --mute: #7b7568;
+  --mute2: #9a9385;
+  --hot: #c8102e;
+  --link: #1b4ba0;
+
+  background: var(--paper);
+  color: var(--ink);
+  font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  min-height: 100vh;
+}
+
+.nj-hub a { color: inherit; text-decoration: none; }
+.nj-hub a:hover { text-decoration: underline; text-underline-offset: 2px; }
+
+/* 본문 2단 — 좌측 콘텐츠 + 우측 sticky 레일 */
+.nj-hub-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 288px;
+  max-width: 1120px;
+  margin: 0 auto;
+}
+.nj-hub-main { border-right: 1px solid var(--line); padding: 18px 24px 48px; min-width: 0; }
+.nj-hub-rail {
+  align-self: start; position: sticky; top: 0;
+  background: var(--rail); padding: 18px 16px 40px;
+  display: flex; flex-direction: column; gap: 20px;
+}
+
+/* 섹션 제목 — 시안의 2px 하단선 규칙 */
+.nj-hub-h2 {
+  display: flex; justify-content: space-between; align-items: baseline;
+  border-bottom: 2px solid var(--ink); padding-bottom: 7px; margin: 0 0 12px;
+}
+.nj-hub-h2 h2 { margin: 0; font-size: 17px; font-weight: 800; letter-spacing: -0.01em; }
+.nj-hub-h2 .sub { font-size: 12px; font-weight: 500; color: var(--mute2); }
+
+.nj-hub-rail-h { font-size: 14px; font-weight: 800; border-bottom: 2px solid var(--ink); padding-bottom: 7px; margin-bottom: 8px; }
+
+/* 핵심 수치 4칸 — 1px 배경으로 칸 사이 선을 만든다(시안 방식) */
+.nj-hub-stats {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px;
+  background: var(--line); border: 1px solid var(--line);
+}
+.nj-hub-stat { background: var(--card); padding: 10px 12px; display: flex; flex-direction: column; gap: 3px; }
+
+/* 가격 추이 막대 */
+.nj-hub-bars { display: flex; align-items: flex-end; gap: 10px; height: 120px; border-bottom: 1px solid var(--line); }
+.nj-hub-bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 5px; }
+.nj-hub-bar { width: 100%; background: var(--line); }
+.nj-hub-bar.is-last { background: var(--hot); }
+
+.nj-hub-card { border: 1px solid var(--line); background: var(--card); padding: 13px; }
+
+/* 태그 칩 */
+.nj-hub-tag { font-size: 11.5px; font-weight: 600; color: var(--link); background: #eef1f8; padding: 5px 7px; }
+
+/* 모바일 — 레일을 본문 아래로 내린다 */
+@media (max-width: 900px) {
+  .nj-hub-grid { grid-template-columns: 1fr; }
+  .nj-hub-main { border-right: none; padding: 16px 16px 32px; }
+  .nj-hub-rail { position: static; border-top: 1px solid var(--line); }
+  .nj-hub-stats { grid-template-columns: repeat(2, 1fr); }
+}
