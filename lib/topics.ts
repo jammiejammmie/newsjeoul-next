@@ -40,8 +40,97 @@ export function isBriefTopic(topic: any): boolean {
 // (커밋 이력 참고), 지금 그 화이트리스트를 남겨두면 오히려 실제로 더 무겁고 더 최신인 Topic이
 // 있어도 키워드 매칭된 옛 Topic이 계속 우선돼 "새 중요 Topic이 나와도 상단이 안 바뀌는" 정반대
 // 문제를 만든다(PM 지시 2026-07-22 — 상단 대표 기사는 새 중요 Topic이 나오면 자동 교체돼야 함).
-export function pickHeroTopic<T>(topics: T[]): T | null {
-  return topics[0] ?? null
+// ── Hero(홈 헤드) 선정 ───────────────────────────────────────────────────────
+// 2026-08-04 전면 재작성. 이전 구현은 `topics[0]`(importance_score 최고값) 하나였고, 그래서
+// 홈 헤드가 며칠씩 같은 토픽에 고정됐다. 실측한 원인이 두 겹이었다:
+//
+//  1) 점수가 갱신되지 않았다 — update-topic-weight-background가 정렬 없이 `limit=300`으로
+//     후보를 가져온 뒤 그 안에서만 "오래된 순" 정렬을 했다. active 642건 중 임의의 300건만
+//     대상이 되므로, 당시 Hero였던 토픽은 그 밖에 있어서 80시간 동안 재계산되지 않았다.
+//     (그 함수 쪽에서 DB 정렬로 고쳤다.)
+//  2) 선정에 유효기간이 없었다 — 무게 산식의 recency_bonus는 "+40g 가산점"일 뿐 만료가 아니다.
+//     80시간 전에 받은 +40이 그대로 남아 최고점을 유지하면 Hero가 영구히 고정된다.
+//
+// 그래서 선정 단계에 세 가지를 넣었다(PM 지시 2026-08-04):
+//  · 신선도 게이트: 점수가 24시간 안에 재계산됐고 최근 기사 활동이 있는 토픽만 Hero 자격
+//  · 회전: 4시간 단위로 후보 안에서 순환 — 같은 토픽이 4시간 넘게 헤드에 머물지 않는다
+//  · 카테고리 다양성: 후보를 카테고리당 1개로 제한. IT/소비재처럼 사건유형 기본 무게가 낮아
+//    (신제품·모델출시 150 vs 분쟁·외교·전쟁 300) 총점 1위가 되기 어려운 도메인도 헤드에 오른다.
+//
+// 왜 importance_score 산식을 건드리지 않았나: 그 점수는 Threads 배급 우선순위·목록 정렬·
+// Hero에 모두 쓰인다. 헤드 다양성을 위해 점수를 부풀리면 배급 판단까지 함께 왜곡된다.
+// 헤드 다양성은 표현(presentation) 문제이므로 선정 단계에서 푸는 것이 맞다.
+// (화제성 신호로 popularity_score를 쓰려 했으나 642건 전부 50 고정값인 죽은 필드였다 —
+//  실제 신호가 생기면 이 함수에 후보 가중치로 추가하면 된다.)
+
+const HERO_ROTATION_HOURS = 4 // PM 지시 "3~6시간" 범위 중간값. 하루 6바퀴 = 후보 6개를 한 번씩.
+const HERO_POOL_SIZE = 6 // 회전 후보 수. HERO_ROTATION_HOURS와 곱해 24시간이 되도록 맞췄다.
+const HERO_MAX_WEIGHT_AGE_HOURS = 24 // 이보다 오래된 점수는 "지금의 무게"로 신뢰하지 않는다.
+// 회전 후보의 점수 하한(1위 대비 비율). 다양성을 위해 후보를 넓히더라도 1위와 격차가 너무 큰
+// 토픽이 헤드에 오르면 안 된다. 0.5는 "1위의 절반 이상 무게"라는 뜻 — 현재 사건유형 기본 무게
+// 격차(150~320)를 감안하면 IT/소비재 상위 토픽이 들어올 수 있는 최소선이다.
+const HERO_MIN_SCORE_RATIO = 0.5
+
+// Hero 자격 — 점수가 최근에 재계산됐고(신선한 값) 최근 기사 활동이 있는가.
+// recency_bonus는 무게 엔진이 "48시간 내 기사 존재"일 때만 0보다 크게 넣는 값이라 그대로 쓴다.
+function isHeroEligible(topic: any, now: number): boolean {
+  const weight = topic?.ai_context?.weight
+  const computedAt = weight?.computed_at ? Date.parse(weight.computed_at) : NaN
+  if (!Number.isFinite(computedAt)) return false
+  if ((now - computedAt) / 3600000 > HERO_MAX_WEIGHT_AGE_HOURS) return false
+  return (weight?.components?.recency_bonus ?? 0) > 0
+}
+
+// topics는 importance_score 내림차순으로 들어온다는 전제(getActiveTopics가 그렇게 정렬한다).
+// now를 인자로 받는 이유는 테스트에서 회전 경계를 결정론적으로 검증하기 위해서다.
+export function pickHeroTopic<T>(topics: T[], now: number = Date.now()): T | null {
+  if (!topics.length) return null
+
+  // 신선한 후보가 하나도 없으면(무게 엔진이 밀린 경우 등) 홈이 비지 않도록 전체로 폴백한다.
+  const fresh = topics.filter((t) => isHeroEligible(t, now))
+  const base = fresh.length ? fresh : topics
+
+  const topScore = (base[0] as any)?.importance_score || 0
+  const floor = topScore * HERO_MIN_SCORE_RATIO
+
+  // 카테고리당 1개씩만 담아 도메인이 겹치지 않는 회전 후보를 만든다.
+  const seenCategories = new Set<string>()
+  const pool: T[] = []
+  for (const t of base) {
+    if (((t as any).importance_score || 0) < floor) break // 내림차순이므로 하한을 만나면 종료
+    const category = (t as any).category || '(없음)'
+    if (seenCategories.has(category)) continue
+    seenCategories.add(category)
+    pool.push(t)
+    if (pool.length >= HERO_POOL_SIZE) break
+  }
+  if (!pool.length) return base[0] ?? null
+
+  const bucket = Math.floor(now / (HERO_ROTATION_HOURS * 3600000))
+  return pool[bucket % pool.length]
+}
+
+// 테스트/운영 점검용 — 지금 회전 후보가 무엇인지 그대로 확인할 수 있게 노출한다.
+export function heroRotationPool<T>(topics: T[], now: number = Date.now()): T[] {
+  const fresh = topics.filter((t) => isHeroEligible(t, now))
+  const base = fresh.length ? fresh : topics
+  const topScore = (base[0] as any)?.importance_score || 0
+  const floor = topScore * HERO_MIN_SCORE_RATIO
+  const seen = new Set<string>()
+  const pool: T[] = []
+  for (const t of base) {
+    if (((t as any).importance_score || 0) < floor) break
+    const c = (t as any).category || '(없음)'
+    if (seen.has(c)) continue
+    seen.add(c)
+    pool.push(t)
+    if (pool.length >= HERO_POOL_SIZE) break
+  }
+  return pool
+}
+
+export const HERO_TUNING = {
+  HERO_ROTATION_HOURS, HERO_POOL_SIZE, HERO_MAX_WEIGHT_AGE_HOURS, HERO_MIN_SCORE_RATIO,
 }
 
 // Topic의 대표 실사 이미지 — 연결된 Story 중 relevance 상위 5개의 기사들에서

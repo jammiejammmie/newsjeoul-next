@@ -15,7 +15,18 @@
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY;
-const BATCH_SIZE = 25;
+// 2026-08-04: 25 → 80 상향. 이 함수는 AI를 호출하지 않고 DB 조회·계산·PATCH만 하므로 건당
+// 비용이 매우 낮다(1회 실행 = 조회 3회 + PATCH N회). 상향 근거는 커버리지 산술이다:
+// active Topic이 642건인데 GitHub Actions 스케줄 throttling으로 실제 실행이 하루 약 10회다
+// (설정 1시간, 실측 147분). 25건씩이면 하루 250건 = 전체를 한 바퀴 도는 데 2.6일이 걸려,
+// 홈 Hero로 쓰이는 점수가 며칠씩 낡은 값으로 남는다. 80건이면 하루 800건으로 전체를
+// 매일 한 바퀴 이상 갱신할 수 있다.
+const BATCH_SIZE = 80;
+// Hero 후보 신선도 유지용(아래 대상 선정 주석 참고). 홈 헤드는 lib/topics.ts의 pickHeroTopic이
+// "24시간 안에 재계산된 점수"만 신뢰하므로, 상위 점수권은 그보다 짧은 주기로 갱신해줘야 한다.
+const HERO_SCOPE_SIZE = 60; // 상위 몇 건을 Hero 관련 범위로 볼지(홈 후보 풀 41건보다 여유 있게)
+const HERO_STALE_AFTER_HOURS = 6; // 상위권은 6시간 지나면 재계산 대상(24시간 요건에 충분한 여유)
+const HERO_REFRESH_SLICE = 25; // 한 실행에서 Hero 우선분에 배정할 최대 건수(나머지는 커버리지)
 const HISTORY_CAP = 20;
 
 // 사건유형별 기본 무게(0~1000 스케일의 절반 이하를 기본값으로 잡고, 나머지는 실제 신호로 채운다).
@@ -152,19 +163,52 @@ exports.handler = async function (event) {
   }
 
   try {
-    const pool = await supabaseGet('topics', '?status=eq.active&select=id,name,category,importance_score,ai_context&limit=300');
-    if (!pool.length) {
+    // 아직 계산된 적 없거나(computed_at null) 가장 오래전에 계산된 Topic부터 처리 —
+    // 이렇게 해야 반복 실행 시 전체 Topic이 골고루 갱신된다(특정 Topic만 계속 재계산되는 편중 방지).
+    //
+    // 2026-08-04 수정(Hero 고정 사고): 이전 구현은 `limit=300`으로 정렬 없이 먼저 가져온 뒤
+    // 그 300건 안에서만 client-side로 오래된 순 정렬을 했다. active Topic이 642건으로 늘어난
+    // 지금, PostgREST가 정렬 없이 돌려주는 300건은 물리적 순서에 가까운 임의 집합이라
+    // 나머지 342건은 아예 재계산 대상에 들어오지 못한다 — 실제로 홈 Hero였던
+    // "트럼프 하마스 무장해제 합의"가 그 300건 밖에 있어서 80시간 동안 점수가 갱신되지 않았고,
+    // 그래서 홈 헤드가 며칠째 고정돼 있었다. 정렬을 DB로 내려 전체 테이블에서 오래된 순으로
+    // 뽑는다(이러면 "가장 오래된 것부터"가 전체 기준으로 보장된다).
+    // 다만 "가장 오래된 것부터"만으로는 홈 Hero 문제가 안 풀린다. 오래된 순으로만 돌면 한 번도
+    // 계산되지 않은 하위권 Topic부터 처리하게 되고, 정작 Hero 후보인 상위 점수권은 순서가 돌아올
+    // 때까지 낡은 값으로 남는다(실측: 상위 41건 중 신선도 요건을 통과한 것이 2건뿐이었다).
+    // 그래서 대상을 두 갈래로 나눈다:
+    //   (1) Hero 관련성 — 상위 점수권에서 6시간 이상 갱신되지 않은 Topic을 우선 재계산
+    //   (2) 커버리지 — 전체에서 가장 오래된(또는 미계산) Topic
+    // 이렇게 하면 홈 헤드에 쓰이는 점수는 항상 신선하게 유지되면서 전체 순회도 계속 진행된다.
+    const SELECT = 'select=id,name,category,importance_score,ai_context';
+    const [topScored, stalest] = await Promise.all([
+      supabaseGet('topics', `?status=eq.active&${SELECT}&order=importance_score.desc&limit=${HERO_SCOPE_SIZE}`),
+      supabaseGet('topics', `?status=eq.active&${SELECT}&order=ai_context->weight->>computed_at.asc.nullsfirst&limit=${BATCH_SIZE}`),
+    ]);
+
+    const heroCutoff = Date.now() - HERO_STALE_AFTER_HOURS * 3600000;
+    const heroTargets = topScored
+      .filter((t) => {
+        const computedAt = t.ai_context?.weight?.computed_at;
+        return !computedAt || Date.parse(computedAt) < heroCutoff;
+      })
+      .slice(0, HERO_REFRESH_SLICE);
+
+    // Hero 우선분을 앞에 두고 합친 뒤 중복 제거 — 배치 예산을 넘지 않게 자른다.
+    const seenIds = new Set();
+    const targets = [];
+    for (const t of [...heroTargets, ...stalest]) {
+      if (seenIds.has(t.id)) continue;
+      seenIds.add(t.id);
+      targets.push(t);
+      if (targets.length >= BATCH_SIZE) break;
+    }
+    if (!targets.length) {
       return { statusCode: 200, headers, body: JSON.stringify({ ok: true, processed: 0 }) };
     }
-
-    // 아직 계산된 적 없거나(weight.computed_at 없음) 가장 오래전에 계산된 Topic부터 처리 —
-    // 이렇게 해야 반복 실행 시 전체 Topic이 골고루 갱신된다(특정 Topic만 계속 재계산되는 편중 방지).
-    const sorted = [...pool].sort((a, b) => {
-      const aT = a.ai_context?.weight?.computed_at || '';
-      const bT = b.ai_context?.weight?.computed_at || '';
-      return aT < bT ? -1 : aT > bT ? 1 : 0;
-    });
-    const targets = sorted.slice(0, BATCH_SIZE);
+    console.log(
+      `WEIGHT_TARGETS: 총 ${targets.length}건(Hero 우선 ${heroTargets.length}건 + 오래된순 ${targets.length - heroTargets.length}건)`
+    );
     const ids = targets.map((t) => t.id);
 
     const [storyLinks, entityLinks] = await Promise.all([
@@ -226,7 +270,7 @@ exports.handler = async function (event) {
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({ ok: true, poolSize: pool.length, targetedThisRun: targets.length, updated, failed, results }),
+      body: JSON.stringify({ ok: true, targetedThisRun: targets.length, updated, failed, results }),
     };
   } catch (e) {
     console.error('update-topic-weight 에러:', e.message);

@@ -8,6 +8,8 @@ export const revalidate = 300
 
 const BASE = 'https://newsjeoul.co.kr'
 const TAGLINE = '뉴스저울 — 3분이면 오늘 세상을 이해합니다'
+// generateMetadata()와 Home()이 같은 후보 풀을 보게 하는 상수(Hero 회전 결과가 갈리지 않도록).
+const HOME_TOPIC_POOL = 41
 
 // 도메인(카테고리)별 그라디언트 배경 — Cover Rotation 카드용. domainColors에 없는 카테고리는
 // 중립 스톤 톤으로 폴백(색이 없다고 카드가 비어 보이지 않게).
@@ -21,7 +23,9 @@ function topicGradient(category: string | null) {
 }
 
 export async function generateMetadata(): Promise<Metadata> {
-  const topics = await getActiveTopics(30)
+  // 아래 Home()과 반드시 같은 limit을 써야 한다 — Hero가 4시간 단위 회전 + 카테고리 다양성으로
+  // 선정되므로, 후보 풀이 다르면 OG 제목과 화면에 보이는 헤드가 서로 달라질 수 있다.
+  const topics = await getActiveTopics(HOME_TOPIC_POOL)
   const top = pickHeroTopic(topics)
   const desc = top
     ? `오늘 세상은 "${top.name}" 쪽으로 기울어 있습니다.`
@@ -42,7 +46,10 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function Home() {
   const [activeTopics, discoveryCards] = await Promise.all([
-    getActiveTopics(41), // 지금 규모(active 약 41개)에서는 사실상 전체 풀
+    // 주의: 이 41은 오래된 주석("active 약 41개")이 근거였지만 지금 active는 642건이다.
+    // Hero 회전 후보(카테고리당 1개, 상위 6개)를 뽑기에는 상위 41건으로 충분해서 값은 유지한다.
+    // generateMetadata()와 같은 값을 써야 헤드가 갈리지 않는다(HOME_TOPIC_POOL).
+    getActiveTopics(HOME_TOPIC_POOL),
     getDiscoveryCards(),
   ])
 
