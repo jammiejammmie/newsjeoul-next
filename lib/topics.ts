@@ -30,8 +30,11 @@ export async function getActiveTopics(limit = 10) {
 //      기록한 값이다. gate_status는 발행 이후에도 재분류로 바뀔 수 있지만 이 값은 발행 경로를
 //      가리키므로, 화면에 보이는 글의 실제 형태(단문)와 어긋나지 않는다.
 //   3) 장문(DEEP_DIVE) 경로는 이 필드를 쓰지 않으므로 오탐이 구조적으로 불가능하다.
+// 두 위치를 보는 이유: 전체 조회(getActiveTopics)는 ai_context 통째로 담아 ai_context.draft에
+// 있고, 경량 조회(getHomeCandidates)는 promoted_from만 별칭으로 뽑아온다. 두 형태에서 판정이
+// 갈리면 같은 토픽이 목록에선 Brief로, 인덱스에선 아닌 것으로 보인다.
 export function isBriefTopic(topic: any): boolean {
-  return Boolean(topic?.ai_context?.draft?.promoted_from)
+  return Boolean(topic?.ai_context?.draft?.promoted_from ?? topic?.promoted)
 }
 
 // Hero(메인 헤드라인) 선정 — Weight Engine(update-topic-weight-background.js, 2026-07-17
@@ -137,21 +140,216 @@ export const HERO_TUNING = {
   HERO_ROTATION_HOURS, HERO_POOL_SIZE, HERO_MAX_WEIGHT_AGE_HOURS, HERO_MIN_SCORE_RATIO,
 }
 
-// Hero 후보 조회(경량) — 자격 판정에 필요한 필드만 가져온다.
+// ── 홈 다양성(주제 클러스터 · 카테고리 · 회전) ────────────────────────────────
+// PM 지시 2026-08-04: (1) 사이드 카드 2·3번째가 고정돼 있다 (2) 오늘의 무게 인덱스에
+// 이란/트럼프 관련이 9개나 겹친다 (3) 오늘의 발견도 트럼프가 계속 나온다.
 //
-// 왜 별도 쿼리인가: 신선도 요건을 통과하는 Topic이 상위권에 드물다(실측 2026-08-04 — 자격자
-// 61건 중 상위 41건 안에 든 것이 1건뿐이었다. 점수는 기사·엔티티 누적으로 오르는데, 오래
-// 다뤄진 이슈가 높은 점수를 유지하고 정작 최근 기사가 붙은 Topic은 점수가 낮기 때문이다).
-// 그래서 Hero 후보는 목록 표시용(41건)보다 훨씬 넓게 봐야 한다.
+// 실측(상위 41건): [이란] 10건 / [브라질] 5건 / [폭염] 3건 / [정상회담] 2건 / [검찰] 2건.
+// importance_score만으로 나열하면 같은 사안의 파편이 상단을 도배한다 — 점수는 기사·엔티티
+// 누적으로 오르니 큰 사안일수록 여러 Topic으로 쪼개져 전부 높은 점수를 갖기 때문이다.
 //
-// 그런데 ai_context를 통째로 담아 300건을 가져오면 응답이 약 2MB가 된다(41건만도 366KB).
-// jsonb 하위 경로만 뽑으면 300건이 151KB로 줄어들므로(실측), 판정에 필요한 weight만 가져와
-// 우승자를 고르고 본문 렌더링용 전체 데이터는 그 1건만 따로 조회한다.
-export async function getHeroCandidates(limit = 300) {
+// ── 클러스터 판별 방식과 그 선택 이유 ──
+// 처음엔 "토큰이 하나라도 겹치면 같은 클러스터"로 병합하는 그리디 방식을 썼는데, 실데이터에서
+// 41건 중 26건이 한 덩어리가 됐다(협력→브라질→이란→사망→폭염으로 전이 연쇄). 누적 토큰에
+// 계속 합치면 클러스터가 커질수록 무엇이든 흡수한다.
+//
+// 그래서 병합하지 않고, 각 Topic에 **키 하나**를 부여한다: 후보 집합 안에서 문서빈도(DF)가
+// 가장 높은 자기 토큰. "트럼프 이란 공격 취소"는 이란(DF 10) > 트럼프(DF 5)이므로 키가 '이란'이다.
+// 전이가 원리적으로 불가능하고, 결과가 결정론적이며, 왜 묶였는지 키만 보면 설명된다.
+const CLUSTER_MIN_TOKEN_LEN = 2
+// 역할어·사건어처럼 주제를 구분하지 못하는 일반 명사. 이걸 빼지 않으면 "인도네시아 대통령
+// 한국 방문"과 "이재명 대통령 브라질 방문"이 '대통령/방문'으로 묶여 서로 다른 사안이 합쳐진다.
+const CLUSTER_STOPWORDS = new Set(
+  ('대통령 정부 장관 의원 총리 대사 국민 여당 야당 방문 순방 논의 발언 사건 사고 피해 상황 정세 ' +
+   '우려 계획 협상 문제 관련 추진 확대 감소 증가 논란 위험 개편 개정 폐지 지속 기록 경신 대응 ' +
+   '조사 회의 발표 공개 결정 검토 요구 촉구 비판 반발 전망 예고 가능성 여부 위한 대한 이후 최초 ' +
+   '최대 사상 전국 올해 내년 오늘 어제 관측 분석 보도 소식 현황 이슈 협력 사망 공격 공습 전쟁 ' +
+   // 아래는 실측으로 추가(2026-08-04): 연결어·범용어가 클러스터 키를 가로채는 것을 확인했다.
+   // "폭염으로 인한 사망 사고 증가"가 '인한'을 키로 잡아 폭염 클러스터에서 빠졌고, "바둑 AI 대결"이
+   // '대결'을 잡아 AI 클러스터에서 빠졌다. 그 결과 상한(2)을 넘겨 3건씩 노출됐다.
+   '갈등 긴장 인한 따른 관한 대비 대결 이번 이날 당시 각각 모두 일부 등장 시작 종료 완료 예정 ' +
+   '방안 대책 조치 방침 입장 의혹 혐의 관계 영향 효과 규모 수준 비용 가격 시장 산업 기업 정책').split(/\s+/)
+)
+
+function rawTokens(name: string): string[] {
+  return [...new Set(
+    (name || '')
+      .split(/[^가-힣A-Za-z0-9]+/)
+      .filter((w) => w.length >= CLUSTER_MIN_TOKEN_LEN && !CLUSTER_STOPWORDS.has(w))
+  )]
+}
+
+
+// 목록을 주제 클러스터로 묶는다(진단·검증용). diversifyForIndex와 같은 판정(sharesTopic)을
+// 쓰므로, 이 함수로 센 결과와 실제 노출 결과가 어긋나지 않는다 — 예전엔 검증이 다른 기준
+// (문서빈도 기반 키)을 써서 "상한을 지켰는지"를 잘못 판정했다.
+export function groupByTopicCluster<T extends { name?: string }>(list: T[]): { label: string; items: T[] }[] {
+  const groups: { tokens: string[]; label: string; items: T[] }[] = []
+  for (const item of list) {
+    const tokens = rawTokens(item.name || '')
+    const hit = groups.find((g) => sharesTopic(g.tokens, tokens))
+    if (hit) hit.items.push(item)
+    else groups.push({ tokens, label: tokens[0] || '(무토큰)', items: [item] })
+  }
+  return groups.map(({ label, items }) => ({ label, items }))
+}
+
+const INDEX_MAX_PER_CLUSTER = 2 // PM 지시 "같은 주제 클러스터는 1~2개로"
+const INDEX_MAX_PER_CATEGORY = 5 // 한 분야가 목록을 도배하지 않게(Society가 전체의 절반이라 필요)
+const INDEX_SIZE = 24 // 화면에 보여줄 행 수
+
+// 두 토픽이 같은 주제인지 — 이름 토큰이 하나라도 겹치면 같다고 본다.
+// 조사 때문에 "폭염"과 "폭염으로"가 갈리므로 접두사 관계도 같은 것으로 취급한다.
+function sharesTopic(aTokens: string[], bTokens: string[]): boolean {
+  return aTokens.some((a) => bTokens.some((b) => a === b || (a.length >= 2 && b.startsWith(a)) || (b.length >= 2 && a.startsWith(b))))
+}
+
+// 점수 순서를 유지하면서 클러스터·카테고리 상한을 적용해 골라낸다.
+//
+// 판정 기준을 "이미 고른 것들"로 한 이유(2026-08-04 재설계):
+// 처음엔 후보 집합 전체의 문서빈도(DF)로 각 토픽에 클러스터 키를 부여했다. 그런데 실측에서
+// '인한'·'대결'처럼 흔한 연결어가 '폭염'·'AI'보다 DF가 높아 키를 가로챘고, 그 결과 같은 주제가
+// 다른 키를 받아 상한을 우회해 3건씩 노출됐다("폭염으로 인한 사망 사고 증가", "바둑 AI 대결").
+// DF는 후보 집합(300건) 기준인데 사용자가 보는 건 24행이라, 애초에 기준이 어긋나 있었다.
+//
+// 그래서 이미 고른 항목과 직접 비교한다. 화면에 실제로 보이는 것들끼리만 비교하므로 기준이
+// 사용자 시야와 일치하고, 누적 토큰으로 병합하지 않으니 예전의 전이 연쇄(41건 중 26건이 한
+// 덩어리가 됐던 문제)도 생기지 않는다.
+//
+// 상한을 못 채워도 걸러낸 항목을 다시 채워 넣지 않는다.
+// 처음엔 "목록이 짧아지는 것도 손실"이라고 보고 걸러진 것들을 뒤에 이어 붙였는데, 그러면
+// 방금 상한으로 제외한 같은 주제가 그대로 되돌아와 상한이 무력화된다(테스트에서 이란 파편이
+// 2건 제한인데 3건 노출되는 것을 확인했다). PM 지시가 "클러스터당 1~2개 제한"으로 명시적이므로
+// 상한을 우선한다 — 후보 300건 기준으로는 24행이 상한을 지키면서 다 채워지는 것을 실측했다.
+export function diversifyForIndex<T extends { name?: string; slug?: string; category?: string | null }>(
+  list: T[],
+  {
+    maxPerCluster = INDEX_MAX_PER_CLUSTER,
+    maxPerCategory = INDEX_MAX_PER_CATEGORY,
+    size = INDEX_SIZE,
+    // 이미 화면에 확정된 항목(Hero 등). 이걸 넘기지 않으면 Hero와 같은 주제·같은 분야가
+    // 상한에 계산되지 않아, Hero 포함 3건이 같은 클러스터로 보일 수 있다.
+    seed = [] as T[],
+  } = {}
+): T[] {
+  const categoryCount = new Map<string, number>()
+  const picked: { item: T; tokens: string[] }[] = []
+  const clusters: { tokens: string[]; count: number }[] = []
+
+  for (const s of seed) {
+    const tokens = rawTokens(s.name || '')
+    clusters.push({ tokens, count: 1 })
+    const cat = s.category || '(없음)'
+    categoryCount.set(cat, (categoryCount.get(cat) || 0) + 1)
+  }
+
+  for (const item of list) {
+    const tokens = rawTokens(item.name || '')
+    const cat = item.category || '(없음)'
+
+    const cluster = clusters.find((c) => sharesTopic(c.tokens, tokens))
+    if ((cluster && cluster.count >= maxPerCluster) || (categoryCount.get(cat) || 0) >= maxPerCategory) {
+      continue
+    }
+    if (cluster) {
+      cluster.count++
+      // 클러스터 토큰은 늘리지 않는다 — 늘리면 클러스터가 커질수록 무엇이든 흡수해 전이 연쇄가 된다.
+    } else {
+      clusters.push({ tokens, count: 1 })
+    }
+    categoryCount.set(cat, (categoryCount.get(cat) || 0) + 1)
+    picked.push({ item, tokens })
+    if (picked.length >= size) break
+  }
+
+  return picked.map((p) => p.item)
+}
+
+const SIDE_CARD_COUNT = 2
+
+// 사이드 카드(홈 2·3번째) 선정 — Hero와 같은 4시간 회전을 적용하고, Hero와 같은 클러스터·
+// 같은 카테고리는 피한다. 예전엔 rest.slice(0, 2)로 점수 2·3등을 그대로 써서, Hero가 바뀌어도
+// 이 두 칸은 계속 같은 토픽이었다(PM 지시 (1)의 원인).
+export function pickSideTopics<T extends { name?: string; slug?: string; category?: string | null }>(
+  candidates: T[],
+  hero: T | null,
+  now: number = Date.now()
+): T[] {
+  const heroTokens = hero ? rawTokens(hero.name || '') : []
+  const heroCat = hero?.category
+  const heroSlug = (hero as any)?.slug
+
+  // Hero와 다른 주제·다른 분야만 후보로 남기고, 후보들끼리도 주제·분야가 겹치지 않게 한다.
+  const takenTokens: string[][] = []
+  const seenCategory = new Set<string>()
+  const pool: T[] = []
+  for (const item of candidates) {
+    if ((item as any).slug === heroSlug) continue
+    const tokens = rawTokens(item.name || '')
+    if (heroTokens.length && sharesTopic(heroTokens, tokens)) continue
+    const cat = item.category || '(없음)'
+    if (cat === heroCat || seenCategory.has(cat)) continue
+    if (takenTokens.some((t) => sharesTopic(t, tokens))) continue
+    takenTokens.push(tokens)
+    seenCategory.add(cat)
+    pool.push(item)
+  }
+  // 조건이 너무 엄격해 후보가 부족하면(분야 수가 적은 시기) 카테고리 제약만 풀어 채운다.
+  if (pool.length < SIDE_CARD_COUNT) {
+    for (const item of candidates) {
+      if (pool.length >= SIDE_CARD_COUNT * 3) break
+      if ((item as any).slug === heroSlug) continue
+      const tokens = rawTokens(item.name || '')
+      if (heroTokens.length && sharesTopic(heroTokens, tokens)) continue
+      if (pool.some((p) => (p as any).slug === (item as any).slug)) continue
+      pool.push(item)
+    }
+  }
+  if (!pool.length) return []
+
+  // Hero와 같은 4시간 버킷을 쓰되 오프셋을 줘서, Hero가 교체될 때 사이드도 함께 바뀐다.
+  const bucket = Math.floor(now / (HERO_ROTATION_HOURS * 3600000))
+  const out: T[] = []
+  for (let i = 0; i < Math.min(SIDE_CARD_COUNT, pool.length); i++) {
+    out.push(pool[(bucket + i) % pool.length])
+  }
+  return out
+}
+
+export const HOME_DIVERSITY_TUNING = {
+  INDEX_MAX_PER_CLUSTER, INDEX_MAX_PER_CATEGORY, INDEX_SIZE, SIDE_CARD_COUNT,
+}
+
+// 홈 후보 조회(경량) — Hero 선정 · 사이드 카드 선정 · 오늘의 무게 인덱스가 모두 이걸 쓴다.
+//
+// 왜 넓게(300건) 그리고 왜 경량인가:
+//  · Hero 신선도 요건을 통과하는 Topic이 상위권에 드물다(실측 2026-08-04 — 자격자 61건 중
+//    상위 41건 안에 1건뿐). 점수는 기사·엔티티 누적으로 오르니 오래 다뤄진 이슈가 높은 점수를
+//    유지하고, 정작 최근 기사가 붙은 Topic은 점수가 낮다.
+//  · 인덱스 다양성(클러스터당 2건·카테고리당 5건)을 적용하면 후보가 크게 줄어든다. 41건에
+//    적용하니 11건만 남았다 — 목록이 눈에 띄게 짧아진다. 넓은 풀에서 골라야 한다.
+//  · 그런데 ai_context를 통째로 담아 300건을 가져오면 응답이 약 2MB다(41건만도 366KB).
+//    jsonb 하위 경로만 뽑으면 300건이 약 190KB다(실측). 그래서 판정·표시에 필요한 최소 필드만
+//    가져오고, 본문 렌더링이 필요한 Hero·사이드 카드만 따로 전체 조회한다.
+//
+// promoted: 인덱스 행의 Brief 배지 판별용(isBriefTopic). weight: Hero 신선도 판정과 "N g" 표시용.
+// 활성 Topic 실제 개수 — 홈 상단 "오늘 N개의 세계가 열려 있습니다"에 쓴다.
+// 예전엔 getActiveTopics(41).length를 그대로 썼는데, 그건 조회 상한이라 active가 642건인
+// 지금도 화면엔 41로 고정돼 있었다(실제 수치가 아니라 limit을 보여주던 셈). count로 바꾼다.
+export async function getActiveTopicCount() {
+  const supabase = client()
+  const { count } = await supabase
+    .from('topics')
+    .select('id', { count: 'exact', head: true })
+    .eq('status', 'active')
+  return count ?? 0
+}
+
+export async function getHomeCandidates(limit = 300) {
   const supabase = client()
   const { data } = await supabase
     .from('topics')
-    .select('slug, name, category, importance_score, weight:ai_context->weight')
+    .select('slug, name, category, importance_score, weight:ai_context->weight, promoted:ai_context->draft->promoted_from')
     .eq('status', 'active')
     .order('importance_score', { ascending: false })
     .order('popularity_score', { ascending: false })
@@ -159,17 +357,19 @@ export async function getHeroCandidates(limit = 300) {
   return data || []
 }
 
-// Hero로 선정된 Topic 1건을 화면 렌더링에 필요한 전체 형태로 가져온다.
+// Hero·사이드 카드로 선정된 Topic들을 화면 렌더링에 필요한 전체 형태로 가져온다(한 번의 쿼리).
 // getActiveTopics와 같은 select를 쓰는 이유: 홈이 topic_stories(count)로 "보도 N건"을 표시하므로
-// 형태가 다르면 그 숫자가 0으로 보인다.
-export async function getTopicForHero(slug: string) {
+// 형태가 다르면 그 숫자가 0으로 보인다. 반환 순서는 넘긴 slug 순서를 그대로 유지한다
+// (Hero/사이드 순서가 뒤바뀌면 화면 배치가 어긋난다).
+export async function getTopicsBySlugs(slugs: string[]) {
+  if (!slugs.length) return []
   const supabase = client()
   const { data } = await supabase
     .from('topics')
     .select('id, slug, name, summary, status, lifecycle_stage, importance_score, popularity_score, updated_at, category, ai_context, topic_stories(count)')
-    .eq('slug', slug)
-    .limit(1)
-  return data?.[0] ?? null
+    .in('slug', slugs)
+  const bySlug = new Map((data || []).map((t: any) => [t.slug, t]))
+  return slugs.map((s) => bySlug.get(s)).filter(Boolean) as any[]
 }
 
 
@@ -539,13 +739,27 @@ export async function getMostCrossCategoryTopic() {
 // (strength_score/created_at 고정). strength_score만으로 정렬하면 예전에 만점(100)을 찍은 관계가
 // 영원히 1위를 유지해 "며칠째 같은 카드 고정" 문제가 생긴다(실사고: 트럼프 이란 장례식 발언 토픽).
 // 최근 N일 내 생성된 관계를 우선하고, 그 기간에 교차 카테고리 관계가 없을 때만 전체 기간으로 폴백한다.
-export async function getMostUnexpectedTopicPair() {
+// 서로 다른 분야를 잇는 관계쌍을 여러 개 돌려준다(예전엔 1개만 반환해서, 오늘의 발견의
+// "의외의 연결" 카드가 항상 같은 쌍이었다 — 회전할 재료 자체가 없었다).
+// 같은 소스 토픽이 여러 쌍에 걸치면 첫 것만 남긴다: 같은 토픽이 회전 후보를 다 차지하면
+// 회전을 넣어도 화면은 그대로이기 때문이다(트럼프 반복의 직접 원인 중 하나).
+export async function getUnexpectedTopicPairs(limit = 4) {
   const supabase = client()
   const selectCols = 'strength_score, explanation, created_at, source:topics!topic_relations_source_topic_id_fkey(id,slug,name,category), target:topics!topic_relations_target_topic_id_fkey(id,slug,name,category)'
 
-  const findCross = (rows: any[]) => rows.find((r) =>
-    r.source && r.target && r.source.category && r.target.category && r.source.category !== r.target.category
-  )
+  const crossPairs = (rows: any[]) => {
+    const seenSource = new Set<string>()
+    const out: any[] = []
+    for (const r of rows) {
+      if (!r.source?.category || !r.target?.category) continue
+      if (r.source.category === r.target.category) continue
+      if (seenSource.has(r.source.slug)) continue
+      seenSource.add(r.source.slug)
+      out.push(r)
+      if (out.length >= limit) break
+    }
+    return out
+  }
 
   const since = new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString()
   const { data: recentData } = await supabase
@@ -553,16 +767,16 @@ export async function getMostUnexpectedTopicPair() {
     .select(selectCols)
     .gte('created_at', since)
     .order('strength_score', { ascending: false })
-    .limit(30)
-  const recentCross = findCross((recentData || []) as any[])
-  if (recentCross) return recentCross
+    .limit(60)
+  const recent = crossPairs((recentData || []) as any[])
+  if (recent.length) return recent
 
   const { data } = await supabase
     .from('topic_relations')
     .select(selectCols)
     .order('strength_score', { ascending: false })
-    .limit(30)
-  return findCross((data || []) as any[]) || null
+    .limit(60)
+  return crossPairs((data || []) as any[])
 }
 
 // 오른쪽 레일 "Trending / Interests" — 소비자 관심사 태그. 실데이터 매칭되면 링크, 아니면 조용한 placeholder.
@@ -583,16 +797,51 @@ const INTEREST_TAGS = [
 // "🔥 가장 많이 눌린 질문"(클릭수 집계 데이터 없음), "💬 스몰톡" 카드는 실데이터가 없어 뺐다 —
 // 없는 지표를 지어내지 않는다는 원칙(콘텐츠 바이블)에 따라 그리드를 4카드로 재구성했다(§4카드가
 // 정확히 2열×2행 그리드를 채워 5카드였을 때와 시각적으로 빈틈없이 맞음).
-export async function getDiscoveryCards() {
-  const [pair, [latestUpdate], recentPersons, recentCountries] = await Promise.all([
-    getMostUnexpectedTopicPair(),
-    getRecentTopicUpdates(1),
-    getTopEntitiesByType('person', 1, 4),
-    getTopEntitiesByType('country', 1, 4),
+// PM 지시 2026-08-04(3): "오늘의 발견에 트럼프가 계속 나온다. 최근 4일 우선 + 다양성 로직이
+// 제대로 동작하는지 확인하고 고쳐라."
+//
+// 확인 결과 — 최근 4일 필터는 원래도 동작하고 있었다. 문제는 다양성 쪽이었고 원인이 두 개였다:
+//  1) 상위 N건을 가져온 뒤 **항상 [0]번만** 썼다. 4일 내 최다 언급 인물은 계속 트럼프이므로
+//     필터가 정상이어도 카드는 매번 같았다.
+//  2) Hero·사이드 카드에 이미 나온 토픽/인물과 겹치는지 보지 않았다. 같은 화면에서 트럼프가
+//     두세 번 반복될 수 있었다.
+//
+// 그래서 (a) 상위 4건 안에서 Hero와 같은 4시간 버킷으로 회전시키고, (b) 화면에 이미 쓰인
+// slug를 넘겨받아 제외한다. 회전은 점수를 버리는 게 아니라 "상위권 안에서 번갈아 보여주는" 것이다.
+const DISCOVERY_ROTATION_POOL = 4
+
+function rotatePick<T>(list: T[], now: number, offset = 0): T | null {
+  if (!list.length) return null
+  const bucket = Math.floor(now / (HERO_ROTATION_HOURS * 3600000))
+  return list[(bucket + offset) % list.length]
+}
+
+export async function getDiscoveryCards(
+  { excludeTopicSlugs = [], now = Date.now() }: { excludeTopicSlugs?: string[]; now?: number } = {}
+) {
+  const exclude = new Set(excludeTopicSlugs)
+  const [pairs, updates, recentPersons, recentCountries] = await Promise.all([
+    getUnexpectedTopicPairs(DISCOVERY_ROTATION_POOL),
+    getRecentTopicUpdates(DISCOVERY_ROTATION_POOL * 2),
+    getTopEntitiesByType('person', DISCOVERY_ROTATION_POOL, 4),
+    getTopEntitiesByType('country', DISCOVERY_ROTATION_POOL, 4),
   ])
   // 최근 4일 내 언급 없으면(비인기 카테고리라 사실적으로 있을 수 있음) 전체 기간으로 폴백
-  const [topPerson] = recentPersons.length ? recentPersons : await getTopEntitiesByType('person', 1)
-  const [topCountry] = recentCountries.length ? recentCountries : await getTopEntitiesByType('country', 1)
+  const persons = recentPersons.length ? recentPersons : await getTopEntitiesByType('person', DISCOVERY_ROTATION_POOL)
+  const countries = recentCountries.length ? recentCountries : await getTopEntitiesByType('country', DISCOVERY_ROTATION_POOL)
+
+  // 이미 화면에 있는 토픽은 뺀다. 전부 빠지면(작은 데이터셋) 원본으로 되돌려 카드가 사라지지 않게 한다.
+  const keepOrFallback = <T,>(filtered: T[], original: T[]) => (filtered.length ? filtered : original)
+  const pair = rotatePick(
+    keepOrFallback(pairs.filter((p: any) => !exclude.has(p.source?.slug) && !exclude.has(p.target?.slug)), pairs),
+    now
+  )
+  const latestUpdate = rotatePick(
+    keepOrFallback(updates.filter((u: any) => !exclude.has(u.topics?.slug)), updates),
+    now, 1
+  )
+  const topPerson = rotatePick(persons, now, 2)
+  const topCountry = rotatePick(countries, now, 3)
 
   const cards: {
     kicker: string; title: string; href: string

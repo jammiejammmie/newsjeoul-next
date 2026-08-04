@@ -1,6 +1,9 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { getActiveTopics, getHeroCandidates, getTopicForHero, getDiscoveryCards, pickHeroTopic, isBriefTopic } from '@/lib/topics'
+import {
+  getHomeCandidates, getTopicsBySlugs, getDiscoveryCards, getActiveTopicCount,
+  pickHeroTopic, pickSideTopics, diversifyForIndex, isBriefTopic,
+} from '@/lib/topics'
 import { domainColors } from '@/lib/design-tokens'
 import BriefBadge from '@/components/BriefBadge'
 
@@ -8,13 +11,11 @@ export const revalidate = 300
 
 const BASE = 'https://newsjeoul.co.kr'
 const TAGLINE = '뉴스저울 — 3분이면 오늘 세상을 이해합니다'
-// 목록(사이드 카드 + LIVING INDEX)에 보여줄 Topic 수. 기존 값을 유지한다.
-const HOME_DISPLAY_COUNT = 41
-// Hero 후보를 보는 범위. 표시용보다 훨씬 넓은 이유는 lib/topics.ts getHeroCandidates 주석 참고 —
-// 신선도 요건을 통과하는 Topic이 상위권에 드물어서(실측: 자격자 61건 중 상위 41건 안에 1건)
-// 41건만 보면 회전 후보가 1개로 쪼그라들어 헤드가 사실상 고정된다.
+// Hero·사이드 카드·인덱스가 모두 이 후보 풀에서 나온다. 300건인 이유는 lib/topics.ts
+// getHomeCandidates 주석 참고 — Hero 신선도 요건과 인덱스 다양성 상한을 적용하면 후보가 크게
+// 줄어들어서(41건에 적용하니 11건만 남았다) 넓은 풀이 필요하다. 경량 조회라 약 190KB다.
 // generateMetadata()와 Home()이 같은 값을 써야 OG 제목과 화면 헤드가 갈리지 않는다.
-const HERO_CANDIDATE_POOL = 300
+const HOME_CANDIDATE_POOL = 300
 
 // 도메인(카테고리)별 그라디언트 배경 — Cover Rotation 카드용. domainColors에 없는 카테고리는
 // 중립 스톤 톤으로 폴백(색이 없다고 카드가 비어 보이지 않게).
@@ -31,7 +32,7 @@ export async function generateMetadata(): Promise<Metadata> {
   // 아래 Home()과 반드시 같은 후보 풀·같은 함수를 써야 한다 — Hero가 4시간 단위 회전 +
   // 카테고리 다양성으로 선정되므로, 풀이 다르면 OG 제목과 화면 헤드가 서로 달라진다.
   // 여기서는 제목만 필요하므로 경량 조회로 충분하다(전체 ai_context를 받지 않는다).
-  const topics = await getHeroCandidates(HERO_CANDIDATE_POOL)
+  const topics = await getHomeCandidates(HOME_CANDIDATE_POOL)
   const top = pickHeroTopic(topics)
   const desc = top
     ? `오늘 세상은 "${top.name}" 쪽으로 기울어 있습니다.`
@@ -51,13 +52,12 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function Home() {
-  const [activeTopics, heroCandidates, discoveryCards] = await Promise.all([
-    getActiveTopics(HOME_DISPLAY_COUNT),
-    getHeroCandidates(HERO_CANDIDATE_POOL),
-    getDiscoveryCards(),
+  const [candidates, activeTopicCount] = await Promise.all([
+    getHomeCandidates(HOME_CANDIDATE_POOL),
+    getActiveTopicCount(),
   ])
 
-  if (activeTopics.length === 0) {
+  if (candidates.length === 0) {
     return (
       <div style={{ padding: '120px 32px', textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>
         오늘의 이슈를 정리하는 중입니다.
@@ -65,34 +65,51 @@ export default async function Home() {
     )
   }
 
-  // Hero는 넓은 후보 풀(경량 조회)에서 신선도·회전·카테고리 다양성을 적용해 고른다.
-  // 고른 Topic이 표시용 41건 안에 있으면 그 객체를 그대로 쓰고, 밖에 있으면 그 1건만 전체
-  // 조회한다(전체 ai_context를 300건 받으면 응답이 2MB가 되므로 이 분리가 필요하다).
-  const heroPick = pickHeroTopic(heroCandidates)
-  const heroFromDisplay = heroPick ? activeTopics.find((t) => t.slug === heroPick.slug) : undefined
-  const heroTopic =
-    heroFromDisplay ??
-    (heroPick ? await getTopicForHero(heroPick.slug) : null) ??
-    activeTopics[0]
+  // Hero와 사이드 카드(2·3번째)를 경량 후보 풀에서 고른다.
+  // 사이드 카드는 예전에 rest.slice(0, 2) — 점수 2·3등 고정이었다. 그래서 Hero가 4시간마다
+  // 바뀌어도 이 두 칸은 계속 같은 토픽이었다(PM 지시 (1)). 이제 Hero와 같은 4시간 버킷으로
+  // 회전하고, Hero와 같은 주제 클러스터·같은 분야는 피한다.
+  const heroPick = pickHeroTopic(candidates)
+  const sidePicks = pickSideTopics(candidates, heroPick)
 
-  const rest = activeTopics.filter((t) => t.slug !== heroTopic.slug)
-  const sideTopics = rest.slice(0, 2)
+  // 본문 렌더링에 필요한 전체 데이터는 이 3건만 따로 조회한다(경량 풀에는 요약·키워드·보도수가 없다).
+  const fullSlugs = [heroPick?.slug, ...sidePicks.map((t: any) => t.slug)].filter(Boolean) as string[]
+  const fullTopics = await getTopicsBySlugs(fullSlugs)
+  const heroTopic = fullTopics[0]
+  const sideTopics = fullTopics.slice(1)
 
-  // Living Index는 목업과 동일하게 히어로/사이드 포함 전체를 순위대로 다시 나열한다.
-  // Hero가 표시용 41건 밖에서 선정된 경우에도 목록 맨 앞에 보이도록 앞에 붙인다.
-  const rankedAll = [heroTopic, ...rest]
+  if (!heroTopic) {
+    return (
+      <div style={{ padding: '120px 32px', textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>
+        오늘의 이슈를 정리하는 중입니다.
+      </div>
+    )
+  }
 
-  const weightOf = (t: (typeof activeTopics)[number]) => Math.round(t.importance_score ?? 0)
+  // 오늘의 무게 인덱스 — 예전엔 점수순 나열이라 같은 사안의 파편이 상단을 도배했다
+  // (실측: 상위 41건 중 이란 관련 10건, PM 지시 (2)). 주제 클러스터당 최대 2건,
+  // 카테고리당 최대 5건으로 제한해 고른다. Hero는 목록 맨 앞에 고정한다.
+  // Hero를 seed로 넘겨 Hero의 주제·분야도 상한에 계산되게 한다 — 안 넘기면 Hero 포함 3건이
+  // 같은 클러스터로 보일 수 있다.
+  const indexPool = candidates.filter((t: any) => t.slug !== heroTopic.slug)
+  const rankedAll = [heroTopic, ...diversifyForIndex(indexPool, { seed: [heroTopic] })]
+
+  // 오늘의 발견 — 화면에 이미 나온 토픽은 제외해 같은 인물/사안이 반복되지 않게 한다(PM 지시 (3)).
+  const discoveryCards = await getDiscoveryCards({
+    excludeTopicSlugs: [heroTopic.slug, ...sideTopics.map((t: any) => t.slug)],
+  })
+
+  const weightOf = (t: any) => Math.round(t.importance_score ?? 0)
   // PM 지시(2026-07-17) — 제목을 다 읽기 전에 3초 안에 파악하게 하는 강조 키워드.
   // 아직 display_keywords를 만든 적 없는(장문 미발행) Topic은 빈 배열 — 카드 레이아웃은 그대로 유지.
-  const keywordsOf = (t: (typeof activeTopics)[number]) => (t.ai_context?.draft?.display_keywords || []) as string[]
+  const keywordsOf = (t: any) => (t.ai_context?.draft?.display_keywords || []) as string[]
 
   // 이미지 제거·텍스트 중심 개편(PM 지시 2026-07-19) — 카드를 채울 실제 정보.
-  const storyCountOf = (t: (typeof activeTopics)[number]) => (t as any).topic_stories?.[0]?.count ?? 0
-  const summaryOf = (t: (typeof activeTopics)[number]) => t.ai_context?.draft?.lead || t.summary || ''
+  const storyCountOf = (t: any) => (t as any).topic_stories?.[0]?.count ?? 0
+  const summaryOf = (t: any) => t.ai_context?.draft?.lead || t.summary || ''
   // "왜 중요한가"는 임의 문구가 아니라 Weight Engine이 실제로 계산한 근거(ai_context.weight.reasons)를
   // 그대로 쓴다 — 근거 없는 숫자를 만들지 않는다는 원칙과 동일하게 적용.
-  const whyItMattersOf = (t: (typeof activeTopics)[number]) => ((t.ai_context?.weight?.reasons || []) as string[]).slice(0, 2).join(' · ')
+  const whyItMattersOf = (t: any) => ((t.ai_context?.weight?.reasons || []) as string[]).slice(0, 2).join(' · ')
   function timeAgo(iso: string | null) {
     if (!iso) return ''
     const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000))
@@ -108,7 +125,7 @@ export default async function Home() {
       <div style={{ maxWidth: 1240, margin: '0 auto', padding: '14px 32px 0', display: 'flex', justifyContent: 'flex-end' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11.5, fontWeight: 600, color: 'var(--muted)' }}>
           <span className="nj-live-dot" />
-          오늘 {activeTopics.length}개의 세계가 열려 있습니다
+          오늘 {activeTopicCount}개의 세계가 열려 있습니다
         </div>
       </div>
 

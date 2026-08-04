@@ -5,44 +5,12 @@
 //   2) 선정에 유효기간·회전이 없어 최고점이 유지되면 영구 고정이었다 → 4시간 회전
 // 추가 요구(PM): IT/소비재처럼 사건유형 기본 무게가 낮은 도메인도 헤드에 오를 수 있게 → 카테고리 다양성
 //
-// lib/topics.ts는 TS라 node로 직접 require할 수 없으므로, 순수 함수 부분만 떼어 같은 로직을
-// 검증하는 대신 tsx/ts-node 없이도 돌도록 esbuild 없이 간단히 트랜스파일해서 불러온다.
-const fs = require('fs');
-const path = require('path');
-const ts = fs.readFileSync(path.resolve(__dirname, '../lib/topics.ts'), 'utf8');
-
-// 순수 함수 3개(+상수)만 추출해 평가한다 — supabase 클라이언트 등 런타임 의존성을 피하기 위함.
-// 타입 표기만 지우면 그대로 유효한 JS다.
-const start = ts.indexOf('const HERO_ROTATION_HOURS');
-const end = ts.indexOf('export const HERO_TUNING');
-const endBlock = ts.indexOf('}', ts.indexOf('{', end)) + 1;
-let src = ts.slice(start, endBlock)
-  .replace(/export function/g, 'function')
-  .replace(/export const/g, 'const')
-  .replace(/: any\b/g, '')
-  .replace(/: number\b/g, '')
-  .replace(/: boolean\b/g, '')
-  .replace(/: string\b/g, '')
-  .replace(/<T>/g, '')
-  .replace(/: T\[\]/g, '')
-  .replace(/: T \| null/g, '')
-  .replace(/const pool: T\[\] = \[\]/g, 'const pool = []')
-  .replace(/const seenCategories = new Set<string>\(\)/g, 'const seenCategories = new Set()')
-  .replace(/const seen = new Set<string>\(\)/g, 'const seen = new Set()')
-  .replace(/\(t as any\)/g, 't')
-  .replace(/\(base\[0\] as any\)/g, 'base[0]');
-// 추출 범위에 DB 조회 함수가 끼어들면(과거에 실제로 발생) 원인이 불분명한 런타임 크래시가 난다.
-// 그런 경우 여기서 명확한 메시지로 먼저 실패시킨다 — 순수 로직 구간을 연속으로 유지해야 한다.
-if (/supabase|client\(\)|from\('topics'\)/.test(src)) {
-  console.error('FAIL - 추출 범위에 DB 조회 코드가 포함됐다. lib/topics.ts에서 Hero 순수 로직'
-    + '(HERO_ROTATION_HOURS ~ HERO_TUNING) 사이에 DB 함수를 두지 말고 그 뒤로 옮겨야 한다.');
-  process.exit(1);
-}
-src += '\n;module.exports={pickHeroTopic,heroRotationPool,HERO_TUNING};';
-
-const mod = { exports: {} };
-new Function('module', 'exports', src)(mod, mod.exports);
-const { pickHeroTopic, heroRotationPool, HERO_TUNING } = mod.exports;
+// 2026-08-04: 모듈 로딩 방식을 교체했다. 예전엔 lib/topics.ts에서 순수 함수 구간을 정규식으로
+// 잘라내 평가했는데 두 번 깨졌다 — (1) 추출 범위에 DB 조회 함수를 새로 넣었을 때 원인 불명
+// 크래시, (2) 타입 표기 제거 정규식이 `: string[]`을 지우다 구문 오류를 만들었을 때.
+// 이제 TypeScript 컴파일러로 정식 트랜스파일한다(scripts/lib/load-topics-module.js).
+const { loadTopicsModule } = require('./lib/load-topics-module');
+const { pickHeroTopic, heroRotationPool, HERO_TUNING } = loadTopicsModule();
 
 const results = [];
 const check = (label, pass) => { results.push({ label, pass }); console.log((pass ? 'PASS' : 'FAIL') + ' - ' + label); };
