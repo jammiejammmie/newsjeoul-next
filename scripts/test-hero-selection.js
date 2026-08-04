@@ -31,6 +31,13 @@ let src = ts.slice(start, endBlock)
   .replace(/const seen = new Set<string>\(\)/g, 'const seen = new Set()')
   .replace(/\(t as any\)/g, 't')
   .replace(/\(base\[0\] as any\)/g, 'base[0]');
+// 추출 범위에 DB 조회 함수가 끼어들면(과거에 실제로 발생) 원인이 불분명한 런타임 크래시가 난다.
+// 그런 경우 여기서 명확한 메시지로 먼저 실패시킨다 — 순수 로직 구간을 연속으로 유지해야 한다.
+if (/supabase|client\(\)|from\('topics'\)/.test(src)) {
+  console.error('FAIL - 추출 범위에 DB 조회 코드가 포함됐다. lib/topics.ts에서 Hero 순수 로직'
+    + '(HERO_ROTATION_HOURS ~ HERO_TUNING) 사이에 DB 함수를 두지 말고 그 뒤로 옮겨야 한다.');
+  process.exit(1);
+}
 src += '\n;module.exports={pickHeroTopic,heroRotationPool,HERO_TUNING};';
 
 const mod = { exports: {} };
@@ -129,6 +136,22 @@ function topic(name, category, score, { weightAgeH = 1, recencyBonus = 40 } = {}
   const pool = heroRotationPool(list, NOW).map((t) => t.name);
   check(`4) 1위 대비 ${HERO_TUNING.HERO_MIN_SCORE_RATIO * 100}% 미만 토픽은 후보에서 제외`, !pool.includes('너무낮음') && pool.includes('압도적1위'));
   check('4b) 후보가 1개뿐이면 그 토픽이 계속 헤드(억지 회전 없음)', pickHeroTopic(list, NOW).name === '압도적1위' && pickHeroTopic(list, NOW + 8 * 3600000).name === '압도적1위');
+}
+
+// ── 4c. 경량 조회 형태(weight가 최상위)도 같은 판정을 받는지 ──
+//      홈은 경량 조회(getHeroCandidates: weight 별칭)로 Hero를 고르고, 목록은 전체 조회
+//      (getActiveTopics: ai_context.weight)를 쓴다. 두 형태의 판정이 갈리면 화면 헤드와
+//      운영 점검 결과가 서로 달라지므로 같은 결과가 나와야 한다.
+{
+  const nested = { name: 'N', category: 'Society', importance_score: 500, ai_context: { weight: { computed_at: hoursAgo(2), components: { recency_bonus: 40 } } } };
+  const flat = { name: 'F', category: 'Society', importance_score: 500, weight: { computed_at: hoursAgo(2), components: { recency_bonus: 40 } } };
+  check('4c) ai_context.weight 형태와 최상위 weight 형태가 모두 Hero 자격으로 인정',
+    pickHeroTopic([nested], NOW)?.name === 'N' && pickHeroTopic([flat], NOW)?.name === 'F');
+
+  const staleFlat = { name: 'SF', category: 'Society', importance_score: 900, weight: { computed_at: hoursAgo(80), components: { recency_bonus: 40 } } };
+  const freshFlat = { name: 'FF', category: 'Economy', importance_score: 400, weight: { computed_at: hoursAgo(2), components: { recency_bonus: 40 } } };
+  check('4d) 최상위 weight 형태에서도 80시간 전 계산은 탈락',
+    pickHeroTopic([staleFlat, freshFlat], NOW)?.name === 'FF');
 }
 
 // ── 5. 카테고리 없는 데이터 방어 ──

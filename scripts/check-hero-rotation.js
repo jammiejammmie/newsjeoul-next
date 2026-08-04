@@ -8,8 +8,10 @@ const H = { apikey: K, Authorization: 'Bearer ' + K };
 
 // lib/topics.ts의 Hero 로직과 동일한 상수/규칙(운영 점검 전용 사본 — 값이 갈리면 여기도 갱신)
 const ROT_H = 4, POOL = 6, MAX_AGE_H = 24, MIN_RATIO = 0.5;
+// app/page.tsx의 HERO_CANDIDATE_POOL과 같은 값이어야 점검 결과가 실제 화면과 일치한다.
+const CANDIDATE_POOL = 300;
 const eligible = (t, now) => {
-  const w = t.ai_context?.weight, c = w?.computed_at ? Date.parse(w.computed_at) : NaN;
+  const w = t.ai_context?.weight ?? t.weight, c = w?.computed_at ? Date.parse(w.computed_at) : NaN;
   if (!Number.isFinite(c)) return false;
   if ((now - c) / 3600000 > MAX_AGE_H) return false;
   return (w?.components?.recency_bonus ?? 0) > 0;
@@ -31,19 +33,19 @@ function poolOf(topics, now) {
 
 (async () => {
   const topics = await fetch(
-    `${U}/rest/v1/topics?select=name,slug,category,importance_score,ai_context&status=eq.active&order=importance_score.desc,popularity_score.desc&limit=41`,
+    `${U}/rest/v1/topics?select=slug,name,category,importance_score,weight:ai_context->weight&status=eq.active&order=importance_score.desc,popularity_score.desc&limit=${CANDIDATE_POOL}`,
     { headers: H }
   ).then((r) => r.json());
   const now = Date.now();
   const fresh = topics.filter((t) => eligible(t, now));
-  console.log(`상위 41건 중 Hero 자격(24h 내 재계산 + 최근 기사): ${fresh.length}건`);
+  console.log(`상위 ${CANDIDATE_POOL}건 중 Hero 자격(24h 내 재계산 + 최근 기사): ${fresh.length}건`);
   if (!fresh.length) console.log('  ※ 0건 — 무게 엔진이 아직 못 따라잡은 상태(폴백으로 최고점 사용)');
 
   const pool = poolOf(topics, now);
   console.log(`\n=== 현재 회전 후보 ${pool.length}개(카테고리당 1개) ===`);
   pool.forEach((t, i) => {
-    const ageH = t.ai_context?.weight?.computed_at
-      ? Math.round((now - Date.parse(t.ai_context.weight.computed_at)) / 3600000) : null;
+    const wc = (t.ai_context?.weight ?? t.weight)?.computed_at;
+    const ageH = wc ? Math.round((now - Date.parse(wc)) / 3600000) : null;
     console.log(` ${i + 1}. ${String(t.importance_score).padStart(4)} | ${(t.category || '-').padEnd(13)} | 무게 ${ageH === null ? '미계산' : ageH + 'h 전'} | ${t.name.slice(0, 34)}`);
   });
 

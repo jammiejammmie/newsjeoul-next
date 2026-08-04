@@ -73,8 +73,12 @@ const HERO_MIN_SCORE_RATIO = 0.5
 
 // Hero 자격 — 점수가 최근에 재계산됐고(신선한 값) 최근 기사 활동이 있는가.
 // recency_bonus는 무게 엔진이 "48시간 내 기사 존재"일 때만 0보다 크게 넣는 값이라 그대로 쓴다.
+//
+// weight를 두 위치에서 찾는 이유: 목록 조회(getActiveTopics)는 ai_context 전체를 담아
+// ai_context.weight에 있고, 경량 조회(getHeroCandidates)는 최상위 weight로 별칭해 가져온다.
+// 두 형태 모두 같은 함수로 판정할 수 있어야 화면과 운영 점검 결과가 갈리지 않는다.
 function isHeroEligible(topic: any, now: number): boolean {
-  const weight = topic?.ai_context?.weight
+  const weight = topic?.ai_context?.weight ?? topic?.weight
   const computedAt = weight?.computed_at ? Date.parse(weight.computed_at) : NaN
   if (!Number.isFinite(computedAt)) return false
   if ((now - computedAt) / 3600000 > HERO_MAX_WEIGHT_AGE_HOURS) return false
@@ -132,6 +136,42 @@ export function heroRotationPool<T>(topics: T[], now: number = Date.now()): T[] 
 export const HERO_TUNING = {
   HERO_ROTATION_HOURS, HERO_POOL_SIZE, HERO_MAX_WEIGHT_AGE_HOURS, HERO_MIN_SCORE_RATIO,
 }
+
+// Hero 후보 조회(경량) — 자격 판정에 필요한 필드만 가져온다.
+//
+// 왜 별도 쿼리인가: 신선도 요건을 통과하는 Topic이 상위권에 드물다(실측 2026-08-04 — 자격자
+// 61건 중 상위 41건 안에 든 것이 1건뿐이었다. 점수는 기사·엔티티 누적으로 오르는데, 오래
+// 다뤄진 이슈가 높은 점수를 유지하고 정작 최근 기사가 붙은 Topic은 점수가 낮기 때문이다).
+// 그래서 Hero 후보는 목록 표시용(41건)보다 훨씬 넓게 봐야 한다.
+//
+// 그런데 ai_context를 통째로 담아 300건을 가져오면 응답이 약 2MB가 된다(41건만도 366KB).
+// jsonb 하위 경로만 뽑으면 300건이 151KB로 줄어들므로(실측), 판정에 필요한 weight만 가져와
+// 우승자를 고르고 본문 렌더링용 전체 데이터는 그 1건만 따로 조회한다.
+export async function getHeroCandidates(limit = 300) {
+  const supabase = client()
+  const { data } = await supabase
+    .from('topics')
+    .select('slug, name, category, importance_score, weight:ai_context->weight')
+    .eq('status', 'active')
+    .order('importance_score', { ascending: false })
+    .order('popularity_score', { ascending: false })
+    .limit(limit)
+  return data || []
+}
+
+// Hero로 선정된 Topic 1건을 화면 렌더링에 필요한 전체 형태로 가져온다.
+// getActiveTopics와 같은 select를 쓰는 이유: 홈이 topic_stories(count)로 "보도 N건"을 표시하므로
+// 형태가 다르면 그 숫자가 0으로 보인다.
+export async function getTopicForHero(slug: string) {
+  const supabase = client()
+  const { data } = await supabase
+    .from('topics')
+    .select('id, slug, name, summary, status, lifecycle_stage, importance_score, popularity_score, updated_at, category, ai_context, topic_stories(count)')
+    .eq('slug', slug)
+    .limit(1)
+  return data?.[0] ?? null
+}
+
 
 // Topic의 대표 실사 이미지 — 연결된 Story 중 relevance 상위 5개의 기사들에서
 // og_image_url이 있는 가장 최근 것을 고른다(2026-07-10, CTR 우선 결정 §1).

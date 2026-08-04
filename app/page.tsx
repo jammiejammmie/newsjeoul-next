@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { getActiveTopics, getDiscoveryCards, pickHeroTopic, isBriefTopic } from '@/lib/topics'
+import { getActiveTopics, getHeroCandidates, getTopicForHero, getDiscoveryCards, pickHeroTopic, isBriefTopic } from '@/lib/topics'
 import { domainColors } from '@/lib/design-tokens'
 import BriefBadge from '@/components/BriefBadge'
 
@@ -8,8 +8,13 @@ export const revalidate = 300
 
 const BASE = 'https://newsjeoul.co.kr'
 const TAGLINE = '뉴스저울 — 3분이면 오늘 세상을 이해합니다'
-// generateMetadata()와 Home()이 같은 후보 풀을 보게 하는 상수(Hero 회전 결과가 갈리지 않도록).
-const HOME_TOPIC_POOL = 41
+// 목록(사이드 카드 + LIVING INDEX)에 보여줄 Topic 수. 기존 값을 유지한다.
+const HOME_DISPLAY_COUNT = 41
+// Hero 후보를 보는 범위. 표시용보다 훨씬 넓은 이유는 lib/topics.ts getHeroCandidates 주석 참고 —
+// 신선도 요건을 통과하는 Topic이 상위권에 드물어서(실측: 자격자 61건 중 상위 41건 안에 1건)
+// 41건만 보면 회전 후보가 1개로 쪼그라들어 헤드가 사실상 고정된다.
+// generateMetadata()와 Home()이 같은 값을 써야 OG 제목과 화면 헤드가 갈리지 않는다.
+const HERO_CANDIDATE_POOL = 300
 
 // 도메인(카테고리)별 그라디언트 배경 — Cover Rotation 카드용. domainColors에 없는 카테고리는
 // 중립 스톤 톤으로 폴백(색이 없다고 카드가 비어 보이지 않게).
@@ -23,9 +28,10 @@ function topicGradient(category: string | null) {
 }
 
 export async function generateMetadata(): Promise<Metadata> {
-  // 아래 Home()과 반드시 같은 limit을 써야 한다 — Hero가 4시간 단위 회전 + 카테고리 다양성으로
-  // 선정되므로, 후보 풀이 다르면 OG 제목과 화면에 보이는 헤드가 서로 달라질 수 있다.
-  const topics = await getActiveTopics(HOME_TOPIC_POOL)
+  // 아래 Home()과 반드시 같은 후보 풀·같은 함수를 써야 한다 — Hero가 4시간 단위 회전 +
+  // 카테고리 다양성으로 선정되므로, 풀이 다르면 OG 제목과 화면 헤드가 서로 달라진다.
+  // 여기서는 제목만 필요하므로 경량 조회로 충분하다(전체 ai_context를 받지 않는다).
+  const topics = await getHeroCandidates(HERO_CANDIDATE_POOL)
   const top = pickHeroTopic(topics)
   const desc = top
     ? `오늘 세상은 "${top.name}" 쪽으로 기울어 있습니다.`
@@ -45,11 +51,9 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function Home() {
-  const [activeTopics, discoveryCards] = await Promise.all([
-    // 주의: 이 41은 오래된 주석("active 약 41개")이 근거였지만 지금 active는 642건이다.
-    // Hero 회전 후보(카테고리당 1개, 상위 6개)를 뽑기에는 상위 41건으로 충분해서 값은 유지한다.
-    // generateMetadata()와 같은 값을 써야 헤드가 갈리지 않는다(HOME_TOPIC_POOL).
-    getActiveTopics(HOME_TOPIC_POOL),
+  const [activeTopics, heroCandidates, discoveryCards] = await Promise.all([
+    getActiveTopics(HOME_DISPLAY_COUNT),
+    getHeroCandidates(HERO_CANDIDATE_POOL),
     getDiscoveryCards(),
   ])
 
@@ -61,12 +65,21 @@ export default async function Home() {
     )
   }
 
-  // Hero는 실제 importance_score(Weight Engine) 1위 — getActiveTopics()가 이미 정렬해 넘겨준다.
-  const heroTopic = pickHeroTopic(activeTopics)!
+  // Hero는 넓은 후보 풀(경량 조회)에서 신선도·회전·카테고리 다양성을 적용해 고른다.
+  // 고른 Topic이 표시용 41건 안에 있으면 그 객체를 그대로 쓰고, 밖에 있으면 그 1건만 전체
+  // 조회한다(전체 ai_context를 300건 받으면 응답이 2MB가 되므로 이 분리가 필요하다).
+  const heroPick = pickHeroTopic(heroCandidates)
+  const heroFromDisplay = heroPick ? activeTopics.find((t) => t.slug === heroPick.slug) : undefined
+  const heroTopic =
+    heroFromDisplay ??
+    (heroPick ? await getTopicForHero(heroPick.slug) : null) ??
+    activeTopics[0]
+
   const rest = activeTopics.filter((t) => t.slug !== heroTopic.slug)
   const sideTopics = rest.slice(0, 2)
 
   // Living Index는 목업과 동일하게 히어로/사이드 포함 전체를 순위대로 다시 나열한다.
+  // Hero가 표시용 41건 밖에서 선정된 경우에도 목록 맨 앞에 보이도록 앞에 붙인다.
   const rankedAll = [heroTopic, ...rest]
 
   const weightOf = (t: (typeof activeTopics)[number]) => Math.round(t.importance_score ?? 0)
