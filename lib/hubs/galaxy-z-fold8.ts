@@ -18,6 +18,7 @@ import type { HubConfig } from './types'
 
 export const galaxyZFold8: HubConfig = {
   slug: 'galaxy-z-fold8',
+  kind: 'product',
   title: '갤럭시 Z 폴드8',
   breadcrumb: ['신제품·가전', '모바일'],
   category: '모바일',
@@ -34,27 +35,30 @@ export const galaxyZFold8: HubConfig = {
   ],
 
   createdAt: '2026-07-18',
+  updatedAtFallback: '2026-08-04',
   updateCountFallback: 14,
 
   // 실측으로 검증한 키워드 조합(articles 제목 기준 7건 매칭).
   // 'Z8'은 시리즈 통칭으로 기사에 자주 쓰이므로 함께 넣는다.
   newsKeywords: ['갤럭시 Z 폴드8', '갤럭시Z폴드8', '갤럭시 Z8', '폴드8', 'Z폴드8', '갤폴드8'],
 
-  price: {
+  trend: {
+    title: '가격 추이',
     label: '자급제 512GB',
     unit: '만원',
+    cadence: '매일 09:00 수집 예정',
     // needsEditorVerification — 시안 값. 가격 수집 파이프라인 붙기 전까지 설정값.
     points: [
-      { date: '2026-06-30', price: 254 },
-      { date: '2026-07-07', price: 251 },
-      { date: '2026-07-14', price: 246 },
-      { date: '2026-07-21', price: 243 },
-      { date: '2026-07-28', price: 241 },
-      { date: '2026-08-04', price: 238 },
+      { date: '2026-06-30', value: 254 },
+      { date: '2026-07-07', value: 251 },
+      { date: '2026-07-14', value: 246 },
+      { date: '2026-07-21', value: 243 },
+      { date: '2026-07-28', value: 241 },
+      { date: '2026-08-04', value: 238 },
     ],
-    verdict:
-      '6주간 16만원 내렸고, 4차 물량 오픈 직후 추가 인하가 있었던 전작 패턴을 감안하면 8월 11일 이후를 기다리는 편이 유리합니다.',
   },
+  verdict:
+    '6주간 16만원 내렸고, 4차 물량 오픈 직후 추가 인하가 있었던 전작 패턴을 감안하면 8월 11일 이후를 기다리는 편이 유리합니다.',
 
   evergreen: {
     howto: {
@@ -95,6 +99,7 @@ export const galaxyZFold8: HubConfig = {
     },
   },
 
+  specsTitle: '스펙',
   // needsEditorVerification — 시안 값. 공식 발표 기준으로 검증 필요.
   specs: [
     { label: '디스플레이', value: '내부 8.0" / 외부 6.5"' },
@@ -126,6 +131,7 @@ export const galaxyZFold8: HubConfig = {
     },
   ],
 
+  timelineTitle: '이 제품이 지나온 일',
   timeline: [
     { date: '2026-08-04', text: '3차 물량 12분 만에 소진, 4차 일정 8월 11일로 공지' },
     { date: '2026-08-02', text: 'One UI 8.5 배포 시작 — 멀티윈도우 동작 변경' },
@@ -135,13 +141,17 @@ export const galaxyZFold8: HubConfig = {
     { date: '2026-07-09', text: '글로벌 언팩 공개, 국내 인증 통과' },
   ],
 
+  // 가전·모바일은 종합몰 제휴 허용 카테고리(§8.3).
   // targetUrl은 의도적으로 비워둔 상태다(위 주석 참고). 채우면 즉시 링크가 활성화된다.
-  affiliate: [
-    { slot: 'fold8-512-self', label: '폴드8 512GB 자급제', network: 'coupang' },
-    { slot: 'fold8-spen', label: '폴드8 전용 S펜', network: 'coupang' },
-    { slot: 'fold8-case', label: '에디터가 쓰는 케이스', network: 'coupang' },
-    { slot: 'fold8-charger', label: '45W 고속 충전기', network: 'coupang' },
-  ],
+  affiliate: {
+    allowed: true,
+    slots: [
+      { slot: 'fold8-512-self', label: '폴드8 512GB 자급제', network: 'coupang' },
+      { slot: 'fold8-spen', label: '폴드8 전용 S펜', network: 'coupang' },
+      { slot: 'fold8-case', label: '에디터가 쓰는 케이스', network: 'coupang' },
+      { slot: 'fold8-charger', label: '45W 고속 충전기', network: 'coupang' },
+    ],
+  },
 
   editor: {
     name: '노정민',
@@ -163,7 +173,7 @@ export const galaxyZFold8: HubConfig = {
 
   tags: ['폴드8가격', '폴드8사용법', '폴드8오류', '폴더블비교', '자급제', '지원금'],
 
-  product: {
+  schema: {
     brand: 'Samsung',
     price: 2380000,
     currency: 'KRW',

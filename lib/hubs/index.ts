@@ -1,6 +1,10 @@
 import { createClient } from '@supabase/supabase-js'
 import type { HubAffiliateSlot, HubConfig } from './types'
 import { galaxyZFold8 } from './galaxy-z-fold8'
+import { audiQ9 } from './audi-q9'
+import { youthMonthlyRent } from './youth-monthly-rent'
+import { evSubsidy } from './ev-subsidy'
+import { excel } from './excel'
 
 export type * from './types'
 
@@ -13,7 +17,7 @@ function client() {
 
 // 허브 레지스트리. 새 허브를 추가할 때 여기 한 줄만 넣으면 라우트·사이트맵·/go 리다이렉트가
 // 모두 따라온다(설계서 §11 기준 1년차 목표 허브 150~250개까지 이 구조로 감당 가능).
-const HUBS: HubConfig[] = [galaxyZFold8]
+const HUBS: HubConfig[] = [galaxyZFold8, audiQ9, youthMonthlyRent, evSubsidy, excel]
 
 export const ALL_HUBS = HUBS
 export const HUB_SLUGS = HUBS.map((h) => h.slug)
@@ -25,7 +29,9 @@ export function getHubConfig(slug: string): HubConfig | null {
 /** /go/{slot} 라우트가 목적지를 찾을 때 쓴다. 슬롯은 전 허브에서 유일해야 한다. */
 export function findAffiliateSlot(slot: string): { hub: HubConfig; entry: HubAffiliateSlot } | null {
   for (const hub of HUBS) {
-    const entry = hub.affiliate.find((a) => a.slot === slot)
+    // 링크 금지 허브(§8.3 신차·정책)는 슬롯 자체가 없다 — 타입이 그렇게 강제한다.
+    if (!hub.affiliate.allowed) continue
+    const entry = hub.affiliate.slots.find((a) => a.slot === slot)
     if (entry) return { hub, entry }
   }
   return null
@@ -46,7 +52,7 @@ export type HubMeta = {
 export async function getHubMeta(hub: HubConfig): Promise<HubMeta> {
   const fallback: HubMeta = {
     createdAt: hub.createdAt,
-    updatedAt: hub.price.points[hub.price.points.length - 1]?.date ?? hub.createdAt,
+    updatedAt: hub.updatedAtFallback,
     updateCount: hub.updateCountFallback,
     fromDb: false,
   }
@@ -93,7 +99,12 @@ export async function getHubNews(hub: HubConfig, limit = 6): Promise<HubNewsItem
       .order('published_at', { ascending: false })
       .limit(limit)
     if (error || !data) return []
-    return data.map((a: any) => ({
+    const excluded = hub.newsExclude ?? []
+    return data
+      // 짧은 키워드는 부분매칭 오탐이 난다(실측: '엑셀'이 '큐엑셀'을 잡았다).
+      // 제목에 제외어가 있으면 버린다 — 엉뚱한 기사가 허브에 보이면 안 된다.
+      .filter((a: any) => !excluded.some((x: string) => (a.title || '').includes(x)))
+      .map((a: any) => ({
       id: a.id,
       // source_url이 원문 해제된 주소다. 없으면 수집 당시 url로 폴백.
       url: a.source_url || a.url || null,

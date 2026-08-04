@@ -78,8 +78,15 @@ create policy "service write" on hubs for all using (auth.role() = 'service_role
 -- ── 파일럿 허브 1호 등록 ─────────────────────────────────────────────────────
 -- created_at을 설계 시안의 "최초 작성 2026.07.18"에 맞춘다(허브 개설 시점).
 -- 콘텐츠 정본은 lib/hubs/galaxy-z-fold8.ts이고, 여기 title/category는 목록·사이트맵용 사본이다.
+-- 파일럿 5개(설계서 §11 실행순서 3번). created_at은 허브 개설 시점이다.
+-- 재실행해도 안전하다(on conflict do update) — 새 허브를 추가할 때 이 블록에 한 줄 넣고 다시 실행한다.
 insert into hubs (slug, title, category, update_count, created_at, updated_at)
-values ('galaxy-z-fold8', '갤럭시 Z 폴드8', '모바일', 0, '2026-07-18T09:00:00+09:00', now())
+values
+  ('galaxy-z-fold8',     '갤럭시 Z 폴드8',   '모바일',      0, '2026-07-18T09:00:00+09:00', now()),
+  ('audi-q9',            '아우디 Q9',        '신차',        0, '2026-07-29T09:00:00+09:00', now()),
+  ('youth-monthly-rent', '청년월세 특별지원', '청년지원',    0, '2026-08-05T09:00:00+09:00', now()),
+  ('ev-subsidy',         '전기차 구매 보조금', '전기차지원',  0, '2026-08-05T09:00:00+09:00', now()),
+  ('excel',              '엑셀',             '오피스',      0, '2026-08-05T09:00:00+09:00', now())
 on conflict (slug) do update
   set title = excluded.title,
       category = excluded.category;

@@ -104,9 +104,10 @@ export default async function HubPage({ params }: { params: Promise<{ slug: stri
     getHubTopics(hub, 4),
   ])
 
-  const maxPrice = Math.max(...hub.price.points.map((p) => p.price))
-  const liveSlots = hub.affiliate.filter((a) => a.targetUrl)
-  const hasAffiliate = liveSlots.length > 0
+  const trend = hub.trend
+  const maxTrend = trend ? Math.max(...trend.points.map((p) => p.value)) : 0
+  const slots = hub.affiliate.allowed ? hub.affiliate.slots : []
+  const hasLiveAffiliate = slots.some((a) => a.targetUrl)
 
   // ── 구조화 데이터 (설계서 §10.5: 허브 = Product/FAQPage, 저자 = Person) ──
   const personSchema = {
@@ -117,23 +118,38 @@ export default async function HubPage({ params }: { params: Promise<{ slug: stri
     description: hub.editor.statement,
     worksFor: { '@type': 'Organization', name: '뉴스저울', url: BASE },
   }
-  const productSchema = {
+  // kind별로 스키마 타입이 갈린다(설계서 §10.5). 제도를 Product로 내보내면 잘못된 선언이 된다.
+  //   product → Product / car → Car / policy → GovernmentService / program → SoftwareApplication
+  const SCHEMA_TYPE: Record<string, string> = {
+    product: 'Product', car: 'Car', policy: 'GovernmentService', program: 'SoftwareApplication',
+  }
+  const entitySchema: Record<string, unknown> = {
     '@context': 'https://schema.org',
-    '@type': 'Product',
-    '@id': `${BASE}/hub/${hub.slug}#product`,
+    '@type': SCHEMA_TYPE[hub.kind] ?? 'Product',
+    '@id': `${BASE}/hub/${hub.slug}#entity`,
     name: hub.title,
     description: hub.definition,
     category: hub.category,
-    brand: { '@type': 'Brand', name: hub.product.brand },
-    ...(hub.product.releaseDate ? { releaseDate: hub.product.releaseDate } : {}),
-    offers: {
-      '@type': 'Offer',
-      price: hub.product.price,
-      priceCurrency: hub.product.currency,
-      availability: 'https://schema.org/InStock',
-      url: `${BASE}/hub/${hub.slug}`,
-    },
+    url: `${BASE}/hub/${hub.slug}`,
     additionalProperty: hub.specs.map((s) => ({ '@type': 'PropertyValue', name: s.label, value: s.value })),
+    ...(hub.schema.brand ? { brand: { '@type': 'Brand', name: hub.schema.brand } } : {}),
+    ...(hub.schema.releaseDate ? { releaseDate: hub.schema.releaseDate } : {}),
+    ...(hub.schema.provider ? { provider: { '@type': 'GovernmentOrganization', name: hub.schema.provider } } : {}),
+    ...(hub.schema.applicationCategory ? { applicationCategory: hub.schema.applicationCategory } : {}),
+    ...(hub.schema.operatingSystem ? { operatingSystem: hub.schema.operatingSystem } : {}),
+    // 가격이 확정되지 않은 실체(예: 국내 가격 미공시 신차)는 Offer를 넣지 않는다 —
+    // 추정치를 구조화 데이터로 선언하면 검색엔진에 잘못된 정보를 주는 셈이다.
+    ...(typeof hub.schema.price === 'number'
+      ? {
+          offers: {
+            '@type': 'Offer',
+            price: hub.schema.price,
+            priceCurrency: hub.schema.currency ?? 'KRW',
+            availability: 'https://schema.org/InStock',
+            url: `${BASE}/hub/${hub.slug}`,
+          },
+        }
+      : {}),
   }
   const faqSchema = {
     '@context': 'https://schema.org',
@@ -164,18 +180,19 @@ export default async function HubPage({ params }: { params: Promise<{ slug: stri
     },
   }
 
+  // 추이가 없는 허브(프로그램·일부 제도)는 목차에서도 그 항목을 뺀다 — 없는 앵커로 보내지 않는다.
   const TOC = [
     { id: 'news', label: '최신 소식' },
-    { id: 'price', label: '가격 추이' },
+    ...(trend ? [{ id: 'trend', label: trend.title }] : []),
     { id: 'guides', label: '가이드' },
-    { id: 'specs', label: '스펙' },
+    { id: 'specs', label: hub.specsTitle },
     { id: 'timeline', label: '타임라인' },
     { id: 'faq', label: '자주 묻는 질문' },
   ]
 
   return (
     <div className="nj-hub">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(productSchema) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(entitySchema) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(webPageSchema) }} />
 
@@ -259,32 +276,43 @@ export default async function HubPage({ params }: { params: Promise<{ slug: stri
             )}
           </section>
 
-          {/* 가격 추이 + 에디터 판단 1문장 */}
-          <section id="price" style={{ scrollMarginTop: 12 }}>
-            <div className="nj-hub-h2">
-              <h2>가격 추이 <span className="sub">{hub.price.label} · 최근 {hub.price.points.length}주</span></h2>
-              <span className="sub">매일 09:00 수집 예정</span>
-            </div>
-            <div className="nj-hub-bars">
-              {hub.price.points.map((p, i) => {
-                const last = i === hub.price.points.length - 1
-                return (
-                  <div className="nj-hub-bar-col" key={p.date}>
-                    <span style={{ font: '700 11px/1 Pretendard', color: last ? 'var(--hot)' : 'var(--mute)' }}>{p.price}{hub.price.unit}</span>
-                    <div className={`nj-hub-bar${last ? ' is-last' : ''}`} style={{ height: Math.round((p.price / maxPrice) * 96) }} />
-                  </div>
-                )
-              })}
-            </div>
-            <div style={{ display: 'flex', gap: 10, padding: '6px 0 0' }}>
-              {hub.price.points.map((p, i) => (
-                <span key={p.date} style={{ flex: 1, textAlign: 'center', font: `${i === hub.price.points.length - 1 ? 700 : 500} 11px/1 Pretendard`, color: i === hub.price.points.length - 1 ? 'var(--ink)' : 'var(--mute2)' }}>
-                  {fmtShort(p.date)}
-                </span>
-              ))}
-            </div>
-            <p style={{ margin: '12px 0 0', font: '400 13.5px/1.65 Pretendard', color: 'var(--body)' }}>
-              {hub.price.verdict} <b style={{ fontWeight: 700 }}>— {hub.editor.name} 에디터</b>
+          {/* 수치 추이(있는 허브만) + 에디터 판단 1문장 */}
+          {trend && (
+            <section id="trend" style={{ scrollMarginTop: 12 }}>
+              <div className="nj-hub-h2">
+                <h2>{trend.title} <span className="sub">{trend.label}</span></h2>
+                {trend.cadence && <span className="sub">{trend.cadence}</span>}
+              </div>
+              <div className="nj-hub-bars">
+                {trend.points.map((p, i) => {
+                  const last = i === trend.points.length - 1
+                  return (
+                    <div className="nj-hub-bar-col" key={p.date}>
+                      <span style={{ font: '700 11px/1 Pretendard', color: last ? 'var(--hot)' : 'var(--mute)' }}>{p.value}{trend.unit}</span>
+                      <div className={`nj-hub-bar${last ? ' is-last' : ''}`} style={{ height: Math.round((p.value / maxTrend) * 96) }} />
+                    </div>
+                  )
+                })}
+              </div>
+              <div style={{ display: 'flex', gap: 10, padding: '6px 0 0' }}>
+                {trend.points.map((p, i) => {
+                  const last = i === trend.points.length - 1
+                  return (
+                    <span key={p.date} style={{ flex: 1, textAlign: 'center', font: `${last ? 700 : 500} 11px/1 Pretendard`, color: last ? 'var(--ink)' : 'var(--mute2)' }}>
+                      {fmtShort(p.date)}
+                    </span>
+                  )
+                })}
+              </div>
+            </section>
+          )}
+
+          {/* 에디터 판단 1문장 — 추이가 없는 허브에도 항상 노출한다(§3.2·§4.1-2).
+              수치만 보여주고 판단을 빼면 AI 요약에 그대로 먹힌다. */}
+          <section style={{ borderLeft: '3px solid var(--hot)', background: 'var(--card)', border: '1px solid var(--line)', borderLeftWidth: 3, padding: '14px 16px' }}>
+            <span style={{ display: 'block', font: '700 11px/1 Pretendard', color: 'var(--hot)', letterSpacing: '.06em', marginBottom: 7 }}>에디터 판단</span>
+            <p style={{ margin: 0, font: '400 14px/1.7 Pretendard', color: 'var(--body)' }}>
+              {hub.verdict} <b style={{ fontWeight: 700, whiteSpace: 'nowrap' }}>— {hub.editor.name} 에디터</b>
             </p>
           </section>
 
@@ -303,7 +331,7 @@ export default async function HubPage({ params }: { params: Promise<{ slug: stri
 
           {/* 스펙 */}
           <section id="specs" style={{ scrollMarginTop: 12 }}>
-            <div className="nj-hub-h2"><h2>스펙 <span className="sub">공식 발표 기준</span></h2></div>
+            <div className="nj-hub-h2"><h2>{hub.specsTitle} <span className="sub">공식 자료 기준</span></h2></div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))', gap: '0 24px' }}>
               {hub.specs.map((s) => (
                 <div key={s.label} style={{ display: 'grid', gridTemplateColumns: '96px 1fr', gap: 10, font: '500 13.5px/1.5 Pretendard', padding: '7px 0', borderBottom: '1px dotted var(--line)' }}>
@@ -316,7 +344,7 @@ export default async function HubPage({ params }: { params: Promise<{ slug: stri
 
           {/* 타임라인 */}
           <section id="timeline" style={{ scrollMarginTop: 12 }}>
-            <div className="nj-hub-h2"><h2>이 제품이 지나온 일 <span className="sub">출시부터 지금까지</span></h2></div>
+            <div className="nj-hub-h2"><h2>{hub.timelineTitle} <span className="sub">기록된 변화</span></h2></div>
             {hub.timeline.map((t) => (
               <div key={t.date} style={{ display: 'grid', gridTemplateColumns: '88px 1fr', gap: 12, font: '400 13.5px/1.6 Pretendard', padding: '7px 0', borderBottom: '1px dotted var(--line)' }}>
                 <b style={{ fontWeight: 700 }}>{fmtShort(t.date)}</b>
@@ -355,46 +383,48 @@ export default async function HubPage({ params }: { params: Promise<{ slug: stri
             </div>
           </div>
 
-          {/* 지금 사기 — 쿠팡 파트너스 (/go/{slot}) */}
-          <div>
-            <div className="nj-hub-rail-h" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-              <span>지금 사기</span>
-              <span style={{ font: '500 10px/1 Pretendard', color: 'var(--mute)' }}>광고</span>
+          {/* 지금 사기 — 쿠팡 파트너스 (/go/{slot}).
+              링크 금지 카테고리(§8.3 신차·정책)는 슬롯 자체가 없고, 대신 왜 없는지를 밝힌다.
+              설계서 §6.3-2와 같은 원리다: "링크 없는 섹션의 존재가 신뢰의 증거"다. */}
+          {hub.affiliate.allowed ? (
+            <div>
+              <div className="nj-hub-rail-h" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                <span>지금 사기</span>
+                <span style={{ font: '500 10px/1 Pretendard', color: 'var(--mute)' }}>광고</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+                {slots.map((a) => {
+                  const inner = (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      <span style={{ font: '600 12px/1.3 Pretendard' }}>{a.label}</span>
+                      <b style={{ font: '800 12px/1 Pretendard', color: a.targetUrl ? 'var(--hot)' : 'var(--mute2)' }}>
+                        {a.targetUrl ? '최저가 확인 →' : '링크 준비 중'}
+                      </b>
+                    </div>
+                  )
+                  // 제휴 링크는 rel="sponsored nofollow" 필수(§8.1 — 누락 시 페널티 사유).
+                  // targetUrl이 없는 슬롯은 링크로 만들지 않는다(빈 목적지로 보내지 않는다).
+                  return a.targetUrl ? (
+                    <a key={a.slot} href={`/go/${a.slot}`} rel="sponsored nofollow" target="_blank" className="nj-hub-card" style={{ padding: '8px 9px' }}>
+                      {inner}
+                    </a>
+                  ) : (
+                    <div key={a.slot} className="nj-hub-card" style={{ padding: '8px 9px', opacity: 0.6 }}>{inner}</div>
+                  )
+                })}
+              </div>
+              <span style={{ display: 'block', font: '500 10px/1.5 Pretendard', color: 'var(--mute2)', marginTop: 7 }}>
+                {hasLiveAffiliate
+                  ? '이 페이지는 쿠팡 파트너스 활동의 일환으로, 구매 시 일정액의 수수료를 제공받습니다.'
+                  : '제휴 링크가 연결되면 쿠팡 파트너스 고지 문구가 함께 표시됩니다.'}
+              </span>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
-              {hub.affiliate.map((a) => {
-                const inner = (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    <span style={{ font: '600 12px/1.3 Pretendard' }}>{a.label}</span>
-                    <b style={{ font: '800 12px/1 Pretendard', color: a.targetUrl ? 'var(--hot)' : 'var(--mute2)' }}>
-                      {a.targetUrl ? '최저가 확인 →' : '링크 준비 중'}
-                    </b>
-                  </div>
-                )
-                // 제휴 링크는 rel="sponsored nofollow" 필수(설계서 §8.1 — 누락 시 페널티 사유).
-                // targetUrl이 없는 슬롯은 링크로 만들지 않는다(빈 목적지로 보내지 않는다).
-                return a.targetUrl ? (
-                  <a
-                    key={a.slot}
-                    href={`/go/${a.slot}`}
-                    rel="sponsored nofollow"
-                    target="_blank"
-                    className="nj-hub-card"
-                    style={{ padding: '8px 9px' }}
-                  >
-                    {inner}
-                  </a>
-                ) : (
-                  <div key={a.slot} className="nj-hub-card" style={{ padding: '8px 9px', opacity: 0.6 }}>{inner}</div>
-                )
-              })}
+          ) : (
+            <div>
+              <div className="nj-hub-rail-h">제휴 링크 없음</div>
+              <p style={{ margin: 0, font: '400 12px/1.65 Pretendard', color: 'var(--body2)' }}>{hub.affiliate.reason}</p>
             </div>
-            <span style={{ display: 'block', font: '500 10px/1.5 Pretendard', color: 'var(--mute2)', marginTop: 7 }}>
-              {hasAffiliate
-                ? '이 페이지는 쿠팡 파트너스 활동의 일환으로, 구매 시 일정액의 수수료를 제공받습니다.'
-                : '제휴 링크가 연결되면 쿠팡 파트너스 고지 문구가 함께 표시됩니다.'}
-            </span>
-          </div>
+          )}
 
           {/* 함께 보는 허브 */}
           <div>
