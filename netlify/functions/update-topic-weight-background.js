@@ -29,6 +29,21 @@ const HERO_STALE_AFTER_HOURS = 6; // 상위권은 6시간 지나면 재계산 �
 const HERO_REFRESH_SLICE = 25; // 한 실행에서 Hero 우선분에 배정할 최대 건수(나머지는 커버리지)
 const HISTORY_CAP = 20;
 
+// ── 산식 버전 ────────────────────────────────────────────────────────────────
+// 산식을 바꾸면 저장된 모든 무게가 그 순간 "낡은 값"이 된다. 그런데 대상 선정은
+// computed_at(언제 계산했나)만 보기 때문에, 방금 계산된 구산식 값은 신선한 값으로 취급돼
+// 재계산 대상에서 빠진다.
+//
+// 실측(2026-08-05, 감쇠 도입 직후): 1회 실행 후 상위 200건 중 4건만 새 산식이었다.
+// heroTargets는 상위 60건 중 "6시간 넘게 낡은 것"만 잡고 최대 25건이며, stalest는 전체에서
+// 가장 오래된 80건이라 대부분 상위권 밖이다. 즉 새 산식이 가장 필요한 상위권이 가장 늦게
+// 바뀐다 — 홈을 바꾸려고 넣은 변경인데 홈에 제일 늦게 도달한다.
+//
+// 그래서 버전을 함께 저장하고, 버전이 다른 Topic을 무게순으로 우선 재계산한다.
+// 산식을 바꿀 때마다 이 숫자를 올리면 다음 전환도 자동으로 빠르게 퍼진다.
+const WEIGHT_FORMULA_VERSION = 2; // v2 = 신선도 감쇠(staleness_decay) 도입
+const FORMULA_UPGRADE_SLICE = 40; // 한 실행에서 구버전 전환에 배정할 최대 건수
+
 // ── 신선도 감쇠 파라미터 ─────────────────────────────────────────────────────
 // 보도가 끊긴 사안이 누적 점수만으로 상단에 남는 것을 막는다(2026-08-05 신설).
 // 값의 근거: 감쇠 없음 상태에서 상위 30건 중 24건이 48시간 넘게 기사가 없었고,
@@ -74,6 +89,15 @@ async function supabasePatch(table, params, data) {
     body: JSON.stringify(data),
   });
   if (!res.ok) throw new Error(`Supabase PATCH ${table} 실패: ` + await res.text());
+}
+
+/**
+ * 구산식으로 계산된 Topic인가. 산식 전환 슬라이스가 쓴다.
+ * 순수 함수로 빼둔 이유: "버전 저장을 빠뜨리면 매 실행마다 같은 40건을 재계산한다"는
+ * 실패 모드를 테스트로 잡을 수 있게 하려고.
+ */
+function needsFormulaUpgrade(topic, current = WEIGHT_FORMULA_VERSION) {
+  return (topic?.ai_context?.weight?.formula_version ?? 0) < current;
 }
 
 // 실제 신호만으로 구성된 결정론적 산식 — 각 항목이 얼마나 기여했는지 components에 그대로 남기고,
@@ -219,9 +243,12 @@ exports.handler = async function (event) {
     //   (2) 커버리지 — 전체에서 가장 오래된(또는 미계산) Topic
     // 이렇게 하면 홈 헤드에 쓰이는 점수는 항상 신선하게 유지되면서 전체 순회도 계속 진행된다.
     const SELECT = 'select=id,name,category,importance_score,ai_context';
-    const [topScored, stalest] = await Promise.all([
+    const [topScored, stalest, formulaScope] = await Promise.all([
       supabaseGet('topics', `?status=eq.active&${SELECT}&order=importance_score.desc&limit=${HERO_SCOPE_SIZE}`),
       supabaseGet('topics', `?status=eq.active&${SELECT}&order=ai_context->weight->>computed_at.asc.nullsfirst&limit=${BATCH_SIZE}`),
+      // (3) 산식 전환 — 무게순으로 넓게 받아 구버전만 걸러낸다. 무게순인 이유는 홈 상단이
+      //     먼저 새 산식으로 바뀌어야 하기 때문이다(위 WEIGHT_FORMULA_VERSION 주석 참고).
+      supabaseGet('topics', `?status=eq.active&${SELECT}&order=importance_score.desc&limit=300`),
     ]);
 
     const heroCutoff = Date.now() - HERO_STALE_AFTER_HOURS * 3600000;
@@ -232,10 +259,16 @@ exports.handler = async function (event) {
       })
       .slice(0, HERO_REFRESH_SLICE);
 
-    // Hero 우선분을 앞에 두고 합친 뒤 중복 제거 — 배치 예산을 넘지 않게 자른다.
+    // 구산식으로 계산된 Topic(무게순 상위부터). 전환이 끝나면 자동으로 빈 배열이 되고
+    // 이 슬라이스는 비용 0이 된다 — 임시 스크립트가 아니라 상시 장치로 둘 수 있는 이유다.
+    const formulaTargets = formulaScope
+      .filter((t) => needsFormulaUpgrade(t))
+      .slice(0, FORMULA_UPGRADE_SLICE);
+
+    // Hero 우선분 → 산식 전환분 → 커버리지 순으로 합친 뒤 중복 제거(배치 예산 내로 자른다).
     const seenIds = new Set();
     const targets = [];
-    for (const t of [...heroTargets, ...stalest]) {
+    for (const t of [...heroTargets, ...formulaTargets, ...stalest]) {
       if (seenIds.has(t.id)) continue;
       seenIds.add(t.id);
       targets.push(t);
@@ -291,7 +324,9 @@ exports.handler = async function (event) {
           importance_score: grams,
           ai_context: {
             ...(topic.ai_context || {}),
-            weight: { grams, reasons, components, computed_at: now },
+            // formula_version을 함께 저장해야 위 formulaTargets 필터가 동작한다 —
+            // 저장을 빠뜨리면 모든 Topic이 영원히 구버전으로 보여 매 실행마다 같은 40건을 재계산한다.
+            weight: { grams, reasons, components, computed_at: now, formula_version: WEIGHT_FORMULA_VERSION },
             weight_history: history,
           },
         });
@@ -317,4 +352,4 @@ exports.handler = async function (event) {
 };
 
 // 산식만 따로 테스트할 수 있게 내보낸다(감쇠 도입 시 신설).
-exports._testUtils = { computeWeight, DECAY_FREE_HOURS, DECAY_PER_DAY, MAX_DECAY_RATIO, EVENT_TYPE_BASE };
+exports._testUtils = { computeWeight, needsFormulaUpgrade, DECAY_FREE_HOURS, DECAY_PER_DAY, MAX_DECAY_RATIO, EVENT_TYPE_BASE, WEIGHT_FORMULA_VERSION, FORMULA_UPGRADE_SLICE };

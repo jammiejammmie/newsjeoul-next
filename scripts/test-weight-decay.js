@@ -163,5 +163,43 @@ t(`15. 파라미터가 문서화된 값과 일치한다 (조용히 바뀌면 홈
   assert.strictEqual(MAX_DECAY_RATIO, 0.6)
 })
 
-console.log(`\n총 ${pass + fail}건 · 통과 ${pass} · 실패 ${fail}`)
+// ── 산식 전환 슬라이스 ───────────────────────────────────────────────────────
+// 감쇠를 넣어도 상위권에 도달하지 않으면 홈은 그대로다. 실측(2026-08-05): 감쇠 배포 후
+// 1회 실행에서 상위 200건 중 4건만 새 산식이었다. 전환 장치가 그 문제를 고친다.
+const u = require(path.join(__dirname, '..', 'netlify', 'functions', 'update-topic-weight-background.js'))._testUtils
+const { needsFormulaUpgrade, WEIGHT_FORMULA_VERSION } = u
+
+console.log('\n⑤ 산식 전환')
+
+t('16. 버전이 없는(구산식) Topic은 전환 대상이다', () => {
+  assert.strictEqual(needsFormulaUpgrade({ ai_context: { weight: { grams: 500 } } }), true)
+  assert.strictEqual(needsFormulaUpgrade({ ai_context: {} }), true)
+  assert.strictEqual(needsFormulaUpgrade({}), true)
+  assert.strictEqual(needsFormulaUpgrade(null), true)
+})
+
+t('17. 현재 버전으로 계산된 Topic은 전환 대상이 아니다', () => {
+  assert.strictEqual(
+    needsFormulaUpgrade({ ai_context: { weight: { formula_version: WEIGHT_FORMULA_VERSION } } }), false)
+})
+
+t('18. 미래 버전(롤백 상황)도 대상이 아니다 — 무한 재계산을 만들지 않는다', () => {
+  assert.strictEqual(
+    needsFormulaUpgrade({ ai_context: { weight: { formula_version: WEIGHT_FORMULA_VERSION + 5 } } }), false)
+})
+
+t('19. ★ 계산 결과에 formula_version이 저장돼야 한다 (안 하면 같은 40건을 영원히 재계산한다)', () => {
+  // computeWeight는 버전을 넣지 않는다(저장 시점에 붙인다). 저장 코드가 붙이는지 소스로 확인한다.
+  const fs = require('fs')
+  const src = fs.readFileSync(
+    path.join(__dirname, '..', 'netlify', 'functions', 'update-topic-weight-background.js'), 'utf8')
+  assert.ok(/weight:\s*\{[^}]*formula_version:\s*WEIGHT_FORMULA_VERSION/.test(src),
+    'PATCH하는 weight 객체에 formula_version이 없다 — 전환이 끝나지 않는다')
+})
+
+t('20. 감쇠 파라미터가 바뀌면 버전도 올려야 한다는 표식이 있다', () => {
+  assert.ok(WEIGHT_FORMULA_VERSION >= 2, `감쇠 도입 버전은 2 이상이어야 한다: ${WEIGHT_FORMULA_VERSION}`)
+})
+
+console.log(`\n최종: 통과 ${pass} · 실패 ${fail}`)
 process.exit(fail ? 1 : 0)
