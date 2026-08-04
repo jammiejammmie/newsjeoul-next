@@ -337,7 +337,12 @@ revoke all on function ops.activate_phase(integer), ops.deactivate_phase(integer
 -- 다시 겪지 않으려면 실측 간격을 항상 볼 수 있어야 한다.
 -- active/phase를 함께 보여준다 — 이 뷰가 "지금 무엇이 켜져 있고 얼마나 잘 도는가"를 한 번에
 -- 답해야 한다. 2026-08-04 전환 중, 이 뷰만 봐서는 활성 여부를 알 수 없어 보완했다.
-create or replace view ops.cron_health as
+--
+-- drop을 먼저 하는 이유: create or replace view는 기존 컬럼의 순서·이름을 바꿀 수 없다
+-- (끝에 추가만 허용 — "cannot change name of view column" 42P16). 이 뷰는 컬럼 구성이
+-- 바뀔 수 있는 점검용이고 다른 객체가 의존하지 않으므로 drop 후 재생성하는 편이 맞다.
+drop view if exists ops.cron_health;
+create view ops.cron_health as
 with runs as (
   select
     j.jobname,
@@ -376,7 +381,9 @@ comment on view ops.cron_health is
   'pg_cron 잡별 활성 여부/단계/최근 실행/성공·실패 수/실측 평균 간격. avg_gap_min이 schedule과 크게 다르면 스케줄러가 밀리는 것이다.';
 
 -- HTTP 응답까지 확인하는 뷰 — 잡이 "돌았다"와 함수가 "응답했다"는 다른 문제다.
-create or replace view ops.invoke_health as
+-- 위와 같은 이유로 drop 후 재생성한다(컬럼 구성 변경 시 42P16을 피한다).
+drop view if exists ops.invoke_health;
+create view ops.invoke_health as
 select
   l.job_name,
   l.invoked_at,
