@@ -21,6 +21,19 @@ export async function getActiveTopics(limit = 10) {
   return data || []
 }
 
+// 단문(Brief) Topic 판별 — 목록에서 장문과 구분해 배지를 붙이는 단일 기준(PM 지시 2026-08-03).
+//
+// 판별을 gate_status가 아니라 ai_context.draft.promoted_from으로 하는 이유:
+//   1) getActiveTopics가 이미 ai_context를 select하므로 모든 목록에서 추가 쿼리 없이 쓸 수 있다
+//      (gate_status는 select 목록에 없어서 전 화면 쿼리를 다 고쳐야 한다).
+//   2) promoted_from은 publish-routed-content-background가 "승격으로 발행했다"는 사실을 직접
+//      기록한 값이다. gate_status는 발행 이후에도 재분류로 바뀔 수 있지만 이 값은 발행 경로를
+//      가리키므로, 화면에 보이는 글의 실제 형태(단문)와 어긋나지 않는다.
+//   3) 장문(DEEP_DIVE) 경로는 이 필드를 쓰지 않으므로 오탐이 구조적으로 불가능하다.
+export function isBriefTopic(topic: any): boolean {
+  return Boolean(topic?.ai_context?.draft?.promoted_from)
+}
+
 // Hero(메인 헤드라인) 선정 — Weight Engine(update-topic-weight-background.js, 2026-07-17
 // 도입)이 실제 importance_score를 3시간마다 갱신하므로, getActiveTopics()가 이미 정렬해
 // 넘겨준 1등을 그대로 쓴다. 예전엔 스코어링이 없어 고정 키워드 화이트리스트로 우회했었지만
@@ -350,7 +363,9 @@ export async function getTopicsByCategory(category: string, limit = 20) {
   const supabase = client()
   const { data } = await supabase
     .from('topics')
-    .select('id, slug, name, summary, description, lifecycle_stage')
+    // ai_context는 카테고리 목록에서 단문(Brief) 배지 판별(isBriefTopic)에 필요하다 —
+    // 다른 목록 쿼리(getActiveTopics)는 이미 포함하고 있어서 여기만 빠져 있었다.
+    .select('id, slug, name, summary, description, lifecycle_stage, ai_context')
     .eq('status', 'active')
     .eq('category', category)
     .order('importance_score', { ascending: false })

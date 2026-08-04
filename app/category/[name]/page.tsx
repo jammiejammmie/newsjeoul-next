@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { getTopicsByCategory } from '@/lib/topics'
+import { getTopicsByCategory, isBriefTopic } from '@/lib/topics'
 import { categoryIcon } from '@/lib/icons'
 import SignatureCard from '@/components/SignatureCard'
 
@@ -46,6 +46,7 @@ export default async function CategoryPage({ params }: { params: Promise<{ name:
             href={`/topic/${t.slug}`}
             seed={t.slug}
             icon={categoryIcon(category)}
+            brief={isBriefTopic(t)}
             title={t.name}
             subtitle={t.summary || t.description}
             size="md"

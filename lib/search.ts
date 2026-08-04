@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { isBriefTopic } from '@/lib/topics'
 
 function client() {
   return createClient(
@@ -12,6 +13,8 @@ export type SearchResult = {
   slug: string
   name: string
   summary: string | null
+  /** 단문(Brief) Topic 여부 — entity 결과는 항상 false. 판별은 lib/topics.ts isBriefTopic() 한 곳만 쓴다. */
+  brief: boolean
 }
 
 // PostgREST .or() 필터 문법에서 특별한 의미를 갖는 문자를 제거해 안전한 검색어만 통과시킨다
@@ -30,7 +33,9 @@ export async function searchContent(rawQuery: string, limit = 20): Promise<Searc
     const [{ data: topics }, { data: entities }] = await Promise.all([
       supabase
         .from('topics')
-        .select('slug, name, summary')
+        // ai_context는 단문(Brief) 배지 판별(isBriefTopic)에만 쓴다 — 검색 결과에서도
+        // 장문/단문 구분이 목록과 동일하게 보이도록(PM 지시 2026-08-03).
+        .select('slug, name, summary, ai_context')
         .eq('status', 'active')
         .or(`name.fts(simple).${q},summary.fts(simple).${q}`)
         .limit(limit),
@@ -43,10 +48,10 @@ export async function searchContent(rawQuery: string, limit = 20): Promise<Searc
     ])
 
     const topicResults: SearchResult[] = (topics || []).map((t: any) => ({
-      type: 'topic', slug: t.slug, name: t.name, summary: t.summary,
+      type: 'topic', slug: t.slug, name: t.name, summary: t.summary, brief: isBriefTopic(t),
     }))
     const entityResults: SearchResult[] = (entities || []).map((e: any) => ({
-      type: 'entity', slug: e.slug, name: e.name, summary: e.description,
+      type: 'entity', slug: e.slug, name: e.name, summary: e.description, brief: false,
     }))
     return [...topicResults, ...entityResults].slice(0, limit)
   } catch {

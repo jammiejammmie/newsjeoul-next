@@ -1,7 +1,8 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { getActiveTopics, getDiscoveryCards, pickHeroTopic } from '@/lib/topics'
+import { getActiveTopics, getDiscoveryCards, pickHeroTopic, isBriefTopic } from '@/lib/topics'
 import { domainColors } from '@/lib/design-tokens'
+import BriefBadge from '@/components/BriefBadge'
 
 export const revalidate = 300
 
@@ -152,6 +153,9 @@ export default async function Home() {
                   {t.category && <><span>·</span><span>{t.category}</span></>}
                   <span>·</span>
                   <span>보도 {storyCountOf(t)}건</span>
+                  {/* 단문 표시 — 이 메타 줄이 이미 무게·카테고리·보도수를 담고 있어, 분량 정보도
+                      같은 줄에 두는 편이 카드 레이아웃을 흔들지 않는다. */}
+                  {isBriefTopic(t) && <BriefBadge size="sm" />}
                 </div>
                 {keywordsOf(t).length > 0 && (
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2px 8px', marginBottom: 6 }}>
@@ -199,6 +203,7 @@ export default async function Home() {
                   {String(i + 1).padStart(2, '0')}
                 </span>
                 {t.name}
+                {isBriefTopic(t) && <BriefBadge size="sm" />}
               </span>
               <span style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                 {/* 모멘텀(▲/▼/🔥) 델타는 importance_score 시계열 추적이 필요 — 아직 미구현이라

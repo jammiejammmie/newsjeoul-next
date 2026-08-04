@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { getActiveTopics } from '@/lib/topics'
+import { getActiveTopics, isBriefTopic } from '@/lib/topics'
 import { categoryIcon } from '@/lib/icons'
 import SignatureCard from '@/components/SignatureCard'
 
@@ -35,6 +35,7 @@ export default async function TopicIndexPage() {
             seed={t.slug}
             icon={categoryIcon(t.category)}
             badge={t.category || undefined}
+            brief={isBriefTopic(t)}
             title={t.name}
             subtitle={t.summary}
             size="md"

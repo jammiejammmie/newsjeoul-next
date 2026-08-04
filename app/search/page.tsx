@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { searchContent } from '@/lib/search'
+import BriefBadge from '@/components/BriefBadge'
 
 export const dynamic = 'force-dynamic'
 
@@ -46,8 +47,9 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
             style={{ textDecoration: 'none' }}
           >
             <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 14, padding: '16px' }}>
-              <p style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 6 }}>
+              <p style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
                 {r.type === 'topic' ? '이슈' : '엔티티'}
+                {r.brief && <BriefBadge size="sm" />}
               </p>
               <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>{r.name}</p>
               {r.summary && (
