@@ -54,9 +54,15 @@ export async function POST(req: Request) {
       if (error.code === '23505') {
         return NextResponse.json({ ok: true, already: true })
       }
-      // 42703 = 컬럼 없음 → 마이그레이션 미적용. 원인을 명확히 알려준다.
-      if (error.code === '42703') {
-        console.error('구독 실패: email_subscribers 컬럼 누락 — home_modules_migration.sql 미적용')
+      // 마이그레이션 미적용 → 원인을 명확히 알려준다.
+      //
+      // ★ 42703(Postgres의 "컬럼 없음")만 잡으면 이 분기는 실전에서 절대 타지 않는다.
+      //   PostgREST는 INSERT를 자기 스키마 캐시로 먼저 검증하므로 컬럼이 없으면
+      //   Postgres에 도달하기 전에 PGRST204를 낸다(실측 2026-08-05: 프로덕션에서 이 경로가
+      //   42703이 아니라 PGRST204로 떨어져 "잠시 후 다시" 라는 엉뚱한 500이 나갔다).
+      //   PGRST205/42P01은 표 자체가 없는 경우다.
+      if (['42703', 'PGRST204', 'PGRST205', '42P01'].includes(error.code ?? '')) {
+        console.error('구독 실패: email_subscribers 스키마 미적용 — supabase/home_modules_migration.sql 실행 필요:', error.code, error.message)
         return NextResponse.json({ ok: false, error: '구독 기능이 아직 설정되지 않았습니다.' }, { status: 503 })
       }
       console.error('구독 저장 실패:', error.code, error.message)
