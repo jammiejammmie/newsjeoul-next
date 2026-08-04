@@ -335,11 +335,14 @@ revoke all on function ops.activate_phase(integer), ops.deactivate_phase(integer
 -- ============================================================================
 -- 잡별 최근 실행 상태 + 실제 실행 간격. GitHub Actions에서 겪은 "설정과 실제가 다른" 문제를
 -- 다시 겪지 않으려면 실측 간격을 항상 볼 수 있어야 한다.
+-- active/phase를 함께 보여준다 — 이 뷰가 "지금 무엇이 켜져 있고 얼마나 잘 도는가"를 한 번에
+-- 답해야 한다. 2026-08-04 전환 중, 이 뷰만 봐서는 활성 여부를 알 수 없어 보완했다.
 create or replace view ops.cron_health as
 with runs as (
   select
     j.jobname,
     j.schedule,
+    j.active,
     d.start_time,
     d.status,
     row_number() over (partition by j.jobname order by d.start_time desc) as rn,
@@ -349,18 +352,28 @@ with runs as (
   where j.jobname like 'nj-%'
 )
 select
-  jobname,
-  schedule,
-  max(start_time) filter (where rn = 1) as last_run,
-  count(*) filter (where status = 'succeeded') as succeeded,
-  count(*) filter (where status = 'failed')    as failed,
-  round(avg(extract(epoch from (next_newer - start_time)) / 60) filter (where rn <= 10), 1) as avg_gap_min
-from runs
-group by jobname, schedule
-order by jobname;
+  r.jobname,
+  cp.phase,
+  r.active,
+  r.schedule,
+  max(r.start_time)                                    as last_run,
+  count(*) filter (where r.status = 'succeeded')        as succeeded,
+  count(*) filter (where r.status = 'failed')           as failed,
+  round(avg(extract(epoch from (r.next_newer - r.start_time)) / 60) filter (where r.rn <= 10), 1) as avg_gap_min,
+  -- 실측이 설정보다 1.5배 이상 느리면 스케줄러가 밀리는 신호(GitHub Actions에서 겪은 그 문제)
+  case
+    when not r.active then '대기(비활성)'
+    when max(r.start_time) is null then '활성 · 첫 실행 대기'
+    when max(r.start_time) < now() - interval '3 hours' then '★ 3시간 이상 실행 없음'
+    else '정상'
+  end                                                  as state
+from runs r
+left join ops.cron_phase cp on cp.jobname = r.jobname
+group by r.jobname, cp.phase, r.active, r.schedule
+order by cp.phase nulls last, r.jobname;
 
 comment on view ops.cron_health is
-  'pg_cron 잡별 최근 실행/성공·실패 수/실측 평균 간격. avg_gap_min이 schedule과 크게 다르면 스케줄러가 밀리는 것이다.';
+  'pg_cron 잡별 활성 여부/단계/최근 실행/성공·실패 수/실측 평균 간격. avg_gap_min이 schedule과 크게 다르면 스케줄러가 밀리는 것이다.';
 
 -- HTTP 응답까지 확인하는 뷰 — 잡이 "돌았다"와 함수가 "응답했다"는 다른 문제다.
 create or replace view ops.invoke_health as
