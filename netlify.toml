@@ -103,6 +103,14 @@
 [functions."generate-expansion-drafts-background"]
   # 2026-07-26: 위와 동일한 이유로 Netlify 자체 schedule 제거, publish-pipeline.yml로 전환.
 
+[functions."publish-routed-content-background"]
+  # 2026-08-03 신규(PM 지시 — 발행 처리량 상향). Content Routing Gate가 분류한 6개 비장문
+  # 유형을 published로 승격한다. 발행 경로가 DEEP_DIVE 하나뿐이어서 248건이 planned에 영구
+  # 적체돼 있던 것이 일 발행량 13건의 직접 원인이었다. AI 호출이 없어 실행이 짧지만,
+  # 배치 40건 x DB 왕복이 26초 동기 캡을 넘길 수 있어 Background Function으로 만들었다.
+  # 트리거는 publish-pipeline.yml 하나뿐이다(Netlify 네이티브 schedule은 쓰지 않는다 — 2026-07-26
+  # 전체 장애 이력).
+
 [functions."generate-relation-context-background"]
   # 2026-07-26: 위와 동일한 이유로 Netlify 자체 schedule 제거, publish-pipeline.yml로 전환.
 

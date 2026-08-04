@@ -70,7 +70,29 @@ jobs:
       - name: 대기 (2분)
         run: sleep 120
 
-      - name: 5. Relation Context (generate-relation-context-background)
+      # 2026-08-03 추가(PM 지시 — 발행 처리량 상향). 반드시 Expansion Drafts 다음에 온다:
+      # 이 단계는 4번이 만들어둔 expansion draft를 published로 "승격"하는 것이므로 순서가
+      # 뒤바뀌면 승격할 원고가 없어 매번 expansion_missing으로 건너뛴다.
+      #
+      # 병목이 여기였다: 발행(editorial_status='published')을 하는 곳이 장문(DEEP_DIVE) 경로
+      # 하나뿐이라, 게이트가 분류한 나머지 6개 유형(SHORT_BRIEF/UPDATE/SEARCH_GUIDE/BACKGROUND/
+      # PRODUCT_BRIEF/COMPARE) 248건이 planned에 영구 적체돼 있었다. AI 재생성 없이 승격만 하므로
+      # 비용은 0이다(원고는 이미 /topic/{slug}/{angle}로 공개 렌더링되고 있던 상태).
+      - name: 5. Publish Routed Content (publish-routed-content-background)
+        run: |
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+            -H "x-admin-key: ${{ secrets.NEWSJEOUL_ADMIN_KEY }}" \
+            "https://newsjeoul.co.kr/.netlify/functions/publish-routed-content-background")
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | head -n -1)
+          echo "publish-routed-content-background → HTTP $HTTP_CODE (202면 정상 접수)"
+          echo "$BODY"
+          [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "202" ] || exit 1
+
+      - name: 대기 (2분)
+        run: sleep 120
+
+      - name: 6. Relation Context (generate-relation-context-background)
         run: |
           RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
             -H "x-admin-key: ${{ secrets.NEWSJEOUL_ADMIN_KEY }}" \
