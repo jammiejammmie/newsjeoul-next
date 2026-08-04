@@ -243,20 +243,32 @@ async function main() {
     checks.forEach(([label, pass]) => check(label, pass));
   }
 
-  // 11g) 워크플로우 cron과 선언값(CONFIGURED_RUNS_PER_HOUR)이 어긋나지 않는지 — 실측 추정이
-  //      실패했을 때 쓰이는 폴백이므로 여전히 맞아야 한다. 둘이 갈라지면 각각은 정상으로 보여서
-  //      알아채기 어렵기 때문에 파일을 직접 읽어 고정한다.
+  // 11g) 스케줄 주기와 선언값(CONFIGURED_RUNS_PER_HOUR)이 어긋나지 않는지.
+  //      실측 추정이 실패했을 때 쓰이는 폴백이므로 여전히 맞아야 한다. 둘이 갈라지면 각각은
+  //      정상으로 보여서 알아채기 어렵기 때문에 스케줄 정의 파일을 직접 읽어 고정한다.
+  //
+  //      2026-08-04: 진실의 원천이 GitHub Actions에서 Supabase pg_cron으로 옮겨졌다.
+  //      post-threads.yml에는 이제 schedule이 없고 원복용 주석으로만 cron이 남아 있어서,
+  //      그 파일을 계속 읽으면 "주석을 읽고 통과하는" 무의미한 테스트가 된다.
+  //      그래서 supabase/pg_cron_migration.sql의 nj-post-threads 등록문을 읽는다.
   {
     const fs = require('fs');
-    const yml = fs.readFileSync(require('path').resolve(__dirname, '../.github/workflows/post-threads.yml'), 'utf8');
+    const sql = fs.readFileSync(require('path').resolve(__dirname, '../supabase/pg_cron_migration.sql'), 'utf8');
     const { CONFIGURED_RUNS_PER_HOUR } = require(path)._testUtils;
-    const cronMatch = yml.match(/cron:\s*'([^']+)'/);
-    const cron = cronMatch ? cronMatch[1] : '';
+    const m = sql.match(/cron\.schedule\('nj-post-threads',\s*'([^']+)'/);
+    const cron = m ? m[1] : '';
     const everyN = cron.match(/^\*\/(\d+) \* \* \* \*$/);
-    const expected = everyN ? 60 / Number(everyN[1]) : (cron.startsWith('0 ') ? 1 : null);
+    const expected = everyN ? 60 / Number(everyN[1]) : (/^\d+ \* \* \* \*$/.test(cron) ? 1 : null);
     check(
-      `11g) post-threads.yml cron('${cron}')이 CONFIGURED_RUNS_PER_HOUR(${CONFIGURED_RUNS_PER_HOUR})과 일치`,
+      `11g) pg_cron nj-post-threads('${cron}')이 CONFIGURED_RUNS_PER_HOUR(${CONFIGURED_RUNS_PER_HOUR})과 일치`,
       expected === CONFIGURED_RUNS_PER_HOUR
+    );
+    // 워크플로우에 활성 schedule이 되살아나면 이중 실행이 되므로 그것도 감지한다.
+    // (주석 처리된 원복용 cron은 '#'로 시작하므로 걸리지 않는다)
+    const yml = fs.readFileSync(require('path').resolve(__dirname, '../.github/workflows/post-threads.yml'), 'utf8');
+    check(
+      '11g-2) post-threads.yml에 활성 schedule이 없음(pg_cron과 이중 실행 방지)',
+      !/^\s+schedule:\s*$/m.test(yml)
     );
   }
 

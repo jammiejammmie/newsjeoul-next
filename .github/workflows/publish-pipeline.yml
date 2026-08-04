@@ -5,9 +5,15 @@ name: Publish Pipeline (editorial plan → gate → draft → expansion/relation
 # 파이프라인 중간에 정체). update-topic-weight-background/post-threads-background와 동일하게
 # GitHub Actions를 유일한 트리거로 전환한다. 원래 netlify.toml의 단계 순서(50→52→55→56→58분)와
 # 대기 시간을 그대로 유지한다.
+# 2026-08-04: schedule 제거 — Supabase pg_cron(nj-publish-1~6)으로 이관.
+# 근거: 180분 설정 → 실측 평균 222분(1.2배). 단계 사이 sleep은 분 오프셋(50/52/55/56/58/59)으로 대체
+# GitHub Actions 스케줄이 저장소 전체에서 밀리는 것을 실측 확인했고(주기가 짧을수록 심함),
+# pg_cron 전환 후 정시 실행을 실측 검증했다(update-topic-weight: 08:05·09:05 정확히 60분 간격).
+# workflow_dispatch는 남긴다 — 수동 실행과 pg_cron 장애 시 긴급 경로.
+# 원복: 아래 블록을 on: 안에 되살리고  select ops.deactivate_phase(4);  실행
+#   schedule:
+#   - cron: '50 */3 * * *'   # collect-news(0)~generate-updates(45) 체인 다음 순서
 on:
-  schedule:
-    - cron: '50 */3 * * *'   # collect-news(0)~generate-updates(45) 체인 다음 순서
   workflow_dispatch:
 
 jobs:

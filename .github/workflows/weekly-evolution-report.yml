@@ -3,9 +3,15 @@ name: Weekly Evolution Report (월요일, 09:00 KST)
 # 마스터 스펙 v1 Track 2(Evolution Engine). 갭 감지(2-1)와 자기 감시 리포트(2-3)를 매주
 # 월요일에 실행한다. 두 함수 다 동기 함수(26초 캡 이내) — Background 전환 불필요할 만큼
 # 가볍지만, Claude 호출(갭 감지)이 있어 여유를 두고 배경 함수로 작성함(파일명 -background).
+# 2026-08-04: schedule 제거 — Supabase pg_cron(nj-weekly-1~2)으로 이관.
+# 근거: 주 1회. 단계 순서는 분 오프셋(00:00/00:10)으로 대체
+# GitHub Actions 스케줄이 저장소 전체에서 밀리는 것을 실측 확인했고(주기가 짧을수록 심함),
+# pg_cron 전환 후 정시 실행을 실측 검증했다(update-topic-weight: 08:05·09:05 정확히 60분 간격).
+# workflow_dispatch는 남긴다 — 수동 실행과 pg_cron 장애 시 긴급 경로.
+# 원복: 아래 블록을 on: 안에 되살리고  select ops.deactivate_phase(5);  실행
+#   schedule:
+#   - cron: '0 0 * * 1'   # 00:00 UTC 월요일 = 09:00 KST 월요일
 on:
-  schedule:
-    - cron: '0 0 * * 1'   # 00:00 UTC 월요일 = 09:00 KST 월요일
   workflow_dispatch:
 
 jobs:

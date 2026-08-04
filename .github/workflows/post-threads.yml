@@ -26,9 +26,15 @@ name: Post to Threads (every 30min, up to 4/run)
 #
 # 주의: 아래 cron 주기를 바꾸면 post-threads-background.js의 RUNS_PER_HOUR도 같이 바꿔야 한다.
 # 그 값이 "남은 목표 ÷ 남은 실행 기회" 계산의 분모라서, 어긋나면 하루 배급 페이스가 틀어진다.
+# 2026-08-04: schedule 제거 — Supabase pg_cron(nj-post-threads)으로 이관.
+# 근거: 30분 설정 → 실측 평균 94분(3.1배)
+# GitHub Actions 스케줄이 저장소 전체에서 밀리는 것을 실측 확인했고(주기가 짧을수록 심함),
+# pg_cron 전환 후 정시 실행을 실측 검증했다(update-topic-weight: 08:05·09:05 정확히 60분 간격).
+# workflow_dispatch는 남긴다 — 수동 실행과 pg_cron 장애 시 긴급 경로.
+# 원복: 아래 블록을 on: 안에 되살리고  select ops.deactivate_phase(3);  실행
+#   schedule:
+#   - cron: '*/30 * * * *'   # 30분마다(UTC) 트리거, 실제 호출은 아래 지연 이후
 on:
-  schedule:
-    - cron: '*/30 * * * *'   # 30분마다(UTC) 트리거, 실제 호출은 아래 지연 이후
   workflow_dispatch:         # 수동 실행 가능 (테스트용)
 
 jobs:
