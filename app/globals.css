@@ -681,6 +681,37 @@ body {
 }
 .nj-hero-side-col { display: flex; flex-direction: column; gap: 14px; }
 
+/* 2a 홈 2단 셸 — 본문 + 우측 레일.
+   시안(2a)의 홈은 전폭 섹션을 쌓는 구조가 아니라 본문/레일 2단이다. 전폭으로 쌓으면
+   한 섹션이 화면을 다 먹어서 아래 것들이 안 보인다(무게 인덱스 25행이 그랬다). */
+.nj-home-shell { display: grid; grid-template-columns: 1fr; gap: 34px; }
+@media (min-width: 1001px) {
+  .nj-home-shell { grid-template-columns: minmax(0, 1fr) 300px; gap: 40px; }
+}
+.nj-home-rail { display: flex; flex-direction: column; gap: 26px; }
+@media (min-width: 1001px) {
+  /* 레일은 본문보다 짧다. 스크롤해도 계산기·캘린더가 따라오게 붙여둔다. */
+  .nj-home-rail { position: sticky; top: 16px; align-self: start; }
+}
+
+/* 급상승 스트립 — 시안은 8칸 균등 그리드다. 좁은 화면에서는 가로 스크롤로 바뀐다. */
+.nj-surge-grid {
+  display: grid; grid-auto-flow: column; grid-auto-columns: minmax(150px, 1fr);
+  gap: 1px; background: var(--border); overflow-x: auto;
+}
+@media (min-width: 1001px) {
+  .nj-surge-grid { grid-auto-flow: row; grid-template-columns: repeat(8, 1fr); overflow-x: visible; }
+}
+
+/* 카테고리 4블록 */
+.nj-cat-grid { display: grid; grid-template-columns: 1fr; gap: 1px; background: var(--border); }
+@media (min-width: 641px) { .nj-cat-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (min-width: 1001px) { .nj-cat-grid { grid-template-columns: repeat(4, 1fr); } }
+
+/* 기획·해설 3-up */
+.nj-feature-3up { display: grid; grid-template-columns: 1fr; gap: 14px; }
+@media (min-width: 641px) { .nj-feature-3up { grid-template-columns: repeat(3, 1fr); } }
+
 .nj-index-row { transition: background .2s ease; }
 .nj-index-row:hover { background: rgba(243, 239, 230, .03); }
 

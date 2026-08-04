@@ -7,7 +7,6 @@ import {
 import { domainColors } from '@/lib/design-tokens'
 import { ALL_HUBS } from '@/lib/hubs'
 import { getIndexCounts, getRankDeltas, getUpcomingEvents, getMostReadTopics } from '@/lib/home-modules'
-import SubscribeForm from '@/components/SubscribeForm'
 import BriefBadge from '@/components/BriefBadge'
 
 export const revalidate = 300
@@ -125,6 +124,38 @@ export default async function Home() {
     excludeTopicSlugs: [heroTopic.slug, ...sideTopics.map((t: any) => t.slug)],
   })
 
+  // 2a 카테고리 4블록 — 시안의 'IT·AI / 경제·증시 / 건강 / 스포츠' 자리.
+  // 실측 분포(2026-08-05): Society 354 · Technology 69 · Economy 61 · Business 58 · Entertainment 47.
+  // Society가 압도적이라 그것만 담으면 4블록이 사실상 한 분야가 된다 — 그래서 분야를 고정하고
+  // 각 분야에서 무게순 상위만 뽑는다. 토픽이 없는 분야는 블록 자체를 내린다(빈 칸을 두지 않는다).
+  const CATEGORY_BLOCK_DEFS = [
+    { label: 'IT·기술', href: '/category/Technology', match: ['Technology', 'Science', 'IT/보안', '산업/기술'] },
+    { label: '경제·비즈니스', href: '/category/Economy', match: ['Economy', 'Business', 'Crypto', '경제/물가', '경제/기업', '경제/국제'] },
+    { label: '사회', href: '/category/Society', match: ['Society', '사회', '사회/사고', '사회/사건사고', '사회/재난', '지역/행정'] },
+    { label: '문화·건강', href: '/category/Entertainment', match: ['Entertainment', 'Health', 'Lifestyle', '스포츠'] },
+  ]
+  // 위쪽(급상승 스트립 + 히어로/사이드)에 이미 보인 토픽은 아래 목록에서 뺀다.
+  // 스트립은 무게순 상위 8건이고 '더 많은 뉴스'도 무게순이라, 안 빼면 한 화면에서 같은 제목이
+  // 두 번 보인다(실측: 스트립 8건 중 6건이 본문과 겹쳤다). 중복은 정보를 늘리지 않고
+  // 페이지만 길어지게 한다 — PM이 지적한 "너무 많은 부분을 차지" 문제의 일부다.
+  const shownInHero = new Set([
+    heroTopic.slug,
+    ...sideTopics.map((t: any) => t.slug),
+    ...rankDeltas.slice(0, 8).map((d) => d.slug),
+  ])
+  const categoryBlocks = CATEGORY_BLOCK_DEFS.map((def) => ({
+    label: def.label,
+    href: def.href,
+    items: candidates
+      .filter((t: any) => def.match.includes(t.category) && !shownInHero.has(t.slug))
+      .slice(0, 4),
+  })).filter((b) => b.items.length > 0)
+
+  // 더 많은 뉴스 — 카테고리 블록·히어로에 이미 나온 것은 빼고 다양성 정렬 순서를 따른다.
+  // 예전 무게 인덱스는 rankedAll 25건 전부를 큰 카드로 깔았다(약 1,100px).
+  const shownAbove = new Set([...shownInHero, ...categoryBlocks.flatMap((b) => b.items.map((t: any) => t.slug))])
+  const moreNews = rankedAll.filter((t: any) => !shownAbove.has(t.slug)).slice(0, 12)
+
   const weightOf = (t: any) => Math.round(t.importance_score ?? 0)
   // PM 지시(2026-07-17) — 제목을 다 읽기 전에 3초 안에 파악하게 하는 강조 키워드.
   // 아직 display_keywords를 만든 적 없는(장문 미발행) Topic은 빈 배열 — 카드 레이아웃은 그대로 유지.
@@ -187,26 +218,44 @@ export default async function Home() {
           만들어낸 숫자가 아니라 Weight Engine이 실제로 계산한 변화량이다.
           이력이 1개뿐이면 비교 대상이 없으므로 NEW로 표시한다(0으로 속이지 않는다). */}
       {rankDeltas.length > 0 && (
-        <div style={{ background: 'var(--card2)', borderBottom: '1px solid var(--border)', overflowX: 'auto' }}>
-          <div style={{ maxWidth: 1240, margin: '0 auto', padding: '9px 32px', display: 'flex', gap: 18, alignItems: 'center', whiteSpace: 'nowrap' }}>
-            <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--accent)', letterSpacing: '.06em', flexShrink: 0 }}>무게 변동</span>
-            {rankDeltas.map((d, i) => (
-              <Link key={d.slug} href={`/topic/${d.slug}`} style={{ fontSize: 12.5, fontWeight: 600, display: 'flex', gap: 6, alignItems: 'baseline', flexShrink: 0 }}>
-                <b style={{ fontSize: 11, fontWeight: 800, color: 'var(--muted)' }}>{i + 1}</b>
-                <span>{d.name.length > 18 ? d.name.slice(0, 18) + '…' : d.name}</span>
-                {d.direction === 'up' && <b style={{ fontSize: 11, fontWeight: 800, color: 'var(--accent)' }}>▲{d.delta}</b>}
-                {d.direction === 'down' && <b style={{ fontSize: 11, fontWeight: 800, color: 'var(--link)' }}>▼{Math.abs(d.delta ?? 0)}</b>}
-                {d.direction === 'flat' && <span style={{ fontSize: 11, color: 'var(--muted)' }}>–</span>}
-                {d.direction === 'new' && <b style={{ fontSize: 10.5, fontWeight: 800, color: 'var(--accent)' }}>NEW</b>}
+        <div style={{ borderBottom: '1px solid var(--text)' }}>
+          <div className="nj-surge-grid" style={{ maxWidth: 1240, margin: '0 auto' }}>
+            {rankDeltas.slice(0, 8).map((d, i) => (
+              <Link key={d.slug} href={`/topic/${d.slug}`}
+                style={{
+                  // 시안은 1위 칸만 다크로 반전시켜 시선을 잡는다.
+                  background: i === 0 ? 'var(--text)' : 'var(--bg)',
+                  padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0,
+                }}>
+                <span style={{ fontSize: 11, fontWeight: 800, lineHeight: 1, color: i === 0 ? '#FF8A9B' : d.direction === 'down' ? 'var(--link)' : d.direction === 'flat' ? 'var(--muted)' : 'var(--accent)' }}>
+                  {i === 0 ? '급상승 1'
+                    : d.direction === 'up' ? `▲${d.delta}`
+                    : d.direction === 'down' ? `▼${Math.abs(d.delta ?? 0)}`
+                    : d.direction === 'new' ? 'NEW' : '–'}
+                </span>
+                <span style={{
+                  fontSize: 12.5, fontWeight: 600, lineHeight: 1.35, color: i === 0 ? 'var(--bg)' : 'var(--text)',
+                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                }}>
+                  {d.name}
+                </span>
               </Link>
             ))}
           </div>
         </div>
       )}
 
+      {/* 2a 2단 셸 — 본문 + 우측 레일.
+          이전엔 전폭 섹션을 쌓았고 그 중 '오늘의 무게 인덱스'가 25행(약 1,100px)으로 화면을
+          독점했다(PM 지적 2026-08-05). 시안 2a는 본문/레일 2단이고 무게 인덱스 같은 대형
+          블록이 없다 — 카테고리 4블록·기획 3-up·컴팩트 목록으로 나눠 담는다. */}
+      <div style={{ maxWidth: 1240, margin: '0 auto', padding: '18px 32px 80px' }}>
+        <div className="nj-home-shell">
+        <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 34 }}>
+
       {/* COVER ROTATION HERO — 이미지 제거·텍스트 중심 개편(PM 지시 2026-07-19).
           더 이상 이미지 공간을 전제로 한 고정 높이가 없다 — 카드는 내용 길이만큼만 커진다. */}
-      <section style={{ maxWidth: 1240, margin: '0 auto', padding: '18px 32px 0' }}>
+      <section>
         <div className="nj-hero-grid">
           <Link
             href={`/topic/${heroTopic.slug}`}
@@ -293,84 +342,126 @@ export default async function Home() {
         </div>
       </section>
 
-      {/* LIVING INDEX */}
-      <section style={{ maxWidth: 1240, margin: '56px auto 0', padding: '0 32px' }}>
-        <div style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 16 }}>
-          오늘의 무게 — 실시간 인덱스
-        </div>
-        <div style={{ border: '1px solid var(--border)', borderRadius: 16, overflow: 'hidden' }}>
-          {rankedAll.map((t, i) => (
-            <Link
-              key={t.slug}
-              href={`/topic/${t.slug}`}
-              className="nj-index-row"
-              style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                padding: '13px 20px', borderBottom: i < rankedAll.length - 1 ? '1px solid var(--border2)' : 'none',
-                fontFamily: "'JetBrains Mono',monospace", fontSize: 12.5,
-              }}
-            >
-              <span style={{ display: 'flex', alignItems: 'center', gap: 12, fontFamily: "'Pretendard'", fontWeight: 700, fontSize: 13 }}>
-                <span style={{ color: '#605D54', fontFamily: "'JetBrains Mono',monospace", fontSize: 11 }}>
-                  {String(i + 1).padStart(2, '0')}
+      {/* 2a 카테고리 4블록 — 시안의 'IT·AI / 경제·증시 / 건강 / 스포츠' 자리.
+          무게 인덱스 25행을 대신한다. 같은 정보를 분야로 쪼개면 독자가 자기 관심사만
+          골라 읽을 수 있고, 한 블록이 화면을 독점하지 않는다. */}
+      {categoryBlocks.length > 0 && (
+        <section>
+          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', borderBottom: '2px solid var(--text)', paddingBottom: 7 }}>
+            <h2 style={{ margin: 0, fontSize: 15, fontWeight: 800 }}>분야별 지금</h2>
+            <Link href="/topic" style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--link)' }}>전체 이슈 →</Link>
+          </div>
+          <div className="nj-cat-grid" style={{ borderBottom: '1px solid var(--border)' }}>
+            {categoryBlocks.map((block) => (
+              <div key={block.label} style={{ background: 'var(--bg)', padding: '12px 14px 14px', display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 }}>
+                <Link href={block.href} style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>{block.label}</Link>
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  {block.items.map((t: any, i: number) => (
+                    <Link key={t.slug} href={`/topic/${t.slug}`}
+                      style={{
+                        fontSize: 13, fontWeight: 500, lineHeight: 1.45, padding: '6px 0',
+                        borderTop: i === 0 ? 'none' : '1px dotted var(--border)',
+                      }}>
+                      {t.name}
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* 2a 기획·해설 3-up — 시안의 '읽을 거리 · 기획과 해설'.
+          기존 '오늘의 발견'을 이 자리로 옮겼다. 4열 매트릭스(130px 행)로 크게 펼치던 것을
+          3칸으로 줄여 레일과 나란히 들어가게 했다. */}
+      {discoveryCards.length > 0 && (
+        <section>
+          <div style={{ borderBottom: '2px solid var(--text)', paddingBottom: 7, marginBottom: 12 }}>
+            <h2 style={{ margin: 0, fontSize: 15, fontWeight: 800 }}>
+              읽을 거리 <span style={{ fontWeight: 500, color: 'var(--muted)' }}>· 기획과 해설</span>
+            </h2>
+          </div>
+          <div className="nj-feature-3up">
+            {discoveryCards.slice(0, 3).map((d, i) => (
+              <Link key={i} href={d.href} className="nj-discovery-card"
+                style={{
+                  border: '1px solid var(--border)', background: 'var(--bg2)',
+                  padding: 16, flexDirection: 'column', gap: 8, minHeight: 118, justifyContent: 'flex-end',
+                }}>
+                <span style={{ fontSize: 10.5, fontWeight: 700, color: d.accent, textTransform: 'uppercase', letterSpacing: '.06em' }}>
+                  {d.kicker}
                 </span>
+                <span style={{ fontSize: 14, fontWeight: 800, lineHeight: 1.4 }}>{d.title}</span>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* 2a 더 많은 뉴스 — 시안의 마지막 본문 블록.
+          예전 '오늘의 무게 인덱스'가 이 역할이었는데 25행 카드 목록으로 화면을 독점했다.
+          같은 데이터를 한 줄 목록으로 압축하고 무게만 우측에 붙인다. */}
+      <section>
+        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', borderBottom: '2px solid var(--text)', paddingBottom: 7, marginBottom: 2 }}>
+          <h2 style={{ margin: 0, fontSize: 15, fontWeight: 800 }}>
+            더 많은 뉴스 <span style={{ fontSize: 11.5, fontWeight: 500, color: 'var(--muted)' }}>무게순</span>
+          </h2>
+          <Link href="/topic" style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--link)' }}>전체 →</Link>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          {moreNews.map((t, i) => (
+            <Link key={t.slug} href={`/topic/${t.slug}`} className="nj-index-row"
+              style={{
+                display: 'grid', gridTemplateColumns: '22px minmax(0,1fr) auto', gap: 10,
+                alignItems: 'baseline', padding: '9px 0', borderBottom: '1px dotted var(--border)',
+              }}>
+              <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: 'var(--muted)' }}>
+                {String(i + 1).padStart(2, '0')}
+              </span>
+              <span style={{ fontSize: 13.5, fontWeight: 600, lineHeight: 1.45, display: 'flex', alignItems: 'baseline', gap: 7, flexWrap: 'wrap' }}>
                 {t.name}
                 {isBriefTopic(t) && <BriefBadge size="sm" />}
               </span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                {/* 모멘텀(▲/▼/🔥) 델타는 importance_score 시계열 추적이 필요 — 아직 미구현이라
-                    거짓 수치를 보여주지 않고 중립 표시로 남겨둔다(§docs/newsjeoul-decision-log.md 참고 예정). */}
-                <span style={{ color: 'var(--muted)' }}>—</span>
-                <span style={{ color: 'var(--muted)' }}>{weightOf(t)}g</span>
+              <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11.5, color: 'var(--muted)' }}>
+                {weightOf(t)}g
               </span>
             </Link>
           ))}
         </div>
       </section>
 
-      {/* DISCOVERY FEED */}
-      {discoveryCards.length > 0 && (
-        <section style={{ maxWidth: 1240, margin: '56px auto 0', padding: '0 32px 90px' }}>
-          <div style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--violet)', marginBottom: 16 }}>
-            오늘의 발견 — 연결된 궁금증
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gridAutoRows: 130, gap: 14 }}>
-            {discoveryCards.map((d, i) => (
-              <Link
-                key={i}
-                href={d.href}
-                className="nj-discovery-card"
-                style={{
-                  gridColumn: `span ${d.colSpan}`, gridRow: `span ${d.rowSpan}`,
-                  border: '1px solid var(--border)', background: 'var(--bg2)',
-                  borderRadius: 16, padding: 18, flexDirection: 'column', justifyContent: 'flex-end', gap: 8,
-                }}
-              >
-                <span style={{ fontSize: 10.5, fontWeight: 700, color: d.accent, textTransform: 'uppercase', letterSpacing: '.06em' }}>
-                  {d.kicker}
-                </span>
-                <span style={{ fontSize: d.colSpan === 2 && d.rowSpan === 2 ? 16 : 13.5, fontWeight: 800, lineHeight: 1.4 }}>
-                  {d.title}
-                </span>
-              </Link>
-            ))}
-          </div>
-        </section>
-      )}
-      {/* 2a 레일 모듈 — ③ 캘린더 / ⑤ 많이 본 이슈 / ④ 계산기 / ⑥ 구독.
-          데이터가 있는 모듈만 렌더한다. 빈 모듈을 자리만 잡아두면 시안은 채워 보이지만
-          독자에게는 고장난 화면으로 보인다. 데이터가 쌓이면 자동으로 나타난다. */}
-      <section style={{ maxWidth: 1240, margin: '56px auto 0', padding: '0 32px' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(240px,1fr))', gap: 24 }}>
+        </div>{/* /본문 */}
 
-          {/* ③ 출시·마감 캘린더 — extract-upcoming-events-background가 채운다 */}
+        {/* 2a 우측 레일 — 캘린더·계산기·많이 본. 시안과 같은 위치다.
+            구독 폼은 PM 지시(2026-08-05)로 홈에서 내렸다. 컴포넌트와 /api/subscribe는
+            그대로 남겨둔다 — 발송 경로가 준비되면 다시 붙인다. */}
+        <aside className="nj-home-rail">
+          {/* 추적 중인 허브 — 시안의 '오늘 나온 신제품' 자리.
+              신제품 데이터가 따로 없으므로 실제로 운영 중인 허브를 넣는다(없는 데이터를
+              만들지 않고, 이 자리의 역할인 '검색해서 찾는 실체'는 그대로 채운다). */}
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 800, borderBottom: '2px solid var(--text)', paddingBottom: 7, marginBottom: 8 }}>
+              추적 중인 허브
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              {ALL_HUBS.map((h) => (
+                <Link key={h.slug} href={`/hub/${h.slug}`}
+                  style={{ fontSize: 12.5, fontWeight: 600, padding: '7px 0', borderBottom: '1px dotted var(--border)' }}>
+                  {h.title}
+                </Link>
+              ))}
+            </div>
+          </div>
+
+          {/* 출시·마감 캘린더 — extract-upcoming-events-background가 채운다 */}
           {upcoming.length > 0 && (
             <div>
               <div style={{ fontSize: 14, fontWeight: 800, borderBottom: '2px solid var(--text)', paddingBottom: 7, marginBottom: 8 }}>출시·마감 캘린더</div>
               <div style={{ display: 'flex', flexDirection: 'column' }}>
                 {upcoming.map((e) => (
                   <Link key={e.id} href={e.topicSlug ? `/topic/${e.topicSlug}` : '/topic'}
-                    style={{ display: 'grid', gridTemplateColumns: '52px 1fr auto', gap: 8, alignItems: 'baseline', padding: '7px 0', borderBottom: '1px dotted var(--border)' }}>
+                    style={{ display: 'grid', gridTemplateColumns: '48px minmax(0,1fr) auto', gap: 8, alignItems: 'baseline', padding: '7px 0', borderBottom: '1px dotted var(--border)' }}>
                     <b style={{ fontSize: 11.5, fontWeight: 800 }}>{e.date.slice(5).replace('-', '.')}</b>
                     <span style={{ fontSize: 12.5, fontWeight: 500 }}>{e.title}</span>
                     <span style={{ fontSize: 10.5, fontWeight: 800, color: e.daysLeft <= 7 ? 'var(--accent)' : 'var(--muted)' }}>
@@ -382,16 +473,26 @@ export default async function Home() {
             </div>
           )}
 
-          {/* ⑤ 많이 본 이슈 24시간 — ReadTracker 비콘이 채운다 */}
+          {/* 비교표·계산기 */}
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 800, borderBottom: '2px solid var(--text)', paddingBottom: 7, marginBottom: 8 }}>비교표·계산기</div>
+            <Link href="/tools/ev-subsidy"
+              style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--card)', border: '1px solid var(--border)', padding: '10px 11px' }}>
+              <span style={{ fontSize: 12.5, fontWeight: 600 }}>전기차 보조금 계산기</span>
+              <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--accent)' }}>→</span>
+            </Link>
+          </div>
+
+          {/* 많이 본 뉴스 24시간 — ReadTracker 비콘이 채운다 */}
           {mostRead.length > 0 && (
             <div>
               <div style={{ fontSize: 14, fontWeight: 800, borderBottom: '2px solid var(--text)', paddingBottom: 7, marginBottom: 8 }}>
-                많이 본 이슈 <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--muted)' }}>24시간</span>
+                많이 본 뉴스 <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--muted)' }}>· 24시간</span>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column' }}>
                 {mostRead.map((r, i) => (
                   <Link key={r.slug} href={`/topic/${r.slug}`}
-                    style={{ display: 'grid', gridTemplateColumns: '16px 1fr auto', gap: 8, alignItems: 'baseline', padding: '7px 0', borderBottom: '1px dotted var(--border)' }}>
+                    style={{ display: 'grid', gridTemplateColumns: '14px minmax(0,1fr) auto', gap: 8, alignItems: 'baseline', padding: '7px 0', borderBottom: '1px dotted var(--border)' }}>
                     <b style={{ fontSize: 11.5, fontWeight: 800, color: i < 3 ? 'var(--accent)' : 'var(--muted)' }}>{i + 1}</b>
                     <span style={{ fontSize: 12.5, fontWeight: 500 }}>{r.name}</span>
                     <span style={{ fontSize: 10.5, color: 'var(--muted)' }}>{r.views}</span>
@@ -400,28 +501,9 @@ export default async function Home() {
               </div>
             </div>
           )}
-
-          {/* ④ 계산기·도구 — 실제 동작하는 도구만 올린다(빈 링크를 두지 않는다) */}
-          <div>
-            <div style={{ fontSize: 14, fontWeight: 800, borderBottom: '2px solid var(--text)', paddingBottom: 7, marginBottom: 8 }}>계산기·도구</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
-              <Link href="/tools/ev-subsidy" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--card)', border: '1px solid var(--border)', padding: '9px 10px' }}>
-                <span style={{ fontSize: 12.5, fontWeight: 600 }}>전기차 보조금 계산기</span>
-                <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--accent)' }}>→</span>
-              </Link>
-            </div>
-          </div>
-
-          {/* ⑥ 키워드 구독 */}
-          <div>
-            <div style={{ fontSize: 14, fontWeight: 800, borderBottom: '2px solid var(--text)', paddingBottom: 7, marginBottom: 8 }}>키워드로 새 뉴스 받기</div>
-            <p style={{ margin: '0 0 8px', fontSize: 11.5, lineHeight: 1.6, color: 'var(--muted)' }}>
-              관심 키워드가 담긴 새 이슈가 올라오면 메일로 보내드립니다.
-            </p>
-            <SubscribeForm source="home" withKeyword buttonLabel="구독하기" />
-          </div>
-        </div>
-      </section>
+        </aside>
+        </div>{/* /nj-home-shell */}
+      </div>
 
       {/* 2a 하단 SEO 색인 블록 — 홈의 역할 중 하나가 "내부링크 허브"다(설계서 §2 표).
           검색엔진과 독자 모두에게 이 사이트가 무엇을 다루는지 한눈에 보여준다. */}
