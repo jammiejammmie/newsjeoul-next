@@ -219,18 +219,39 @@ async function main() {
     checks.forEach(([label, pass]) => check(label, pass));
   }
 
-  // 11) 이번 실행 게시 건수 계산(남은 목표÷남은 시간) 직접 검증 — PM 지시 예시와 동일
+  // 11) 이번 실행 게시 건수 계산(남은 목표 ÷ 남은 실행 기회) 직접 검증
+  //     2026-08-03: cron 30분 주기(RUNS_PER_HOUR=2)로 바뀌어 분모가 "남은 시간"에서
+  //     "남은 시간 × 2"로 변경됐다 — 기대값도 그에 맞춰 갱신.
   {
-    const { computePostsThisRun } = require(path)._testUtils;
-    const noon12hLeft = new Date('2026-07-22T12:00:00Z'); // UTC 12:00 → 남은 12시간
-    const evening10hLeft = new Date('2026-07-22T14:00:00Z'); // UTC 14:00 → 남은 10시간
+    const { computePostsThisRun, MAX_POSTS_PER_RUN, RUNS_PER_HOUR } = require(path)._testUtils;
+    const noon12hLeft = new Date('2026-07-22T12:00:00Z'); // UTC 12:00 → 남은 12시간 = 24회 실행
+    const evening10hLeft = new Date('2026-07-22T14:00:00Z'); // UTC 14:00 → 남은 10시간 = 20회 실행
     const checks = [
-      ['11-a) 목표24,게시0,12시간남음 → 시간당 2건', computePostsThisRun(24, 0, noon12hLeft) === 2],
-      ['11-b) 목표40,게시10,10시간남음 → 시간당 3건', computePostsThisRun(40, 10, evening10hLeft) === 3],
+      ['11-a) 목표24,게시0,12시간(24회)남음 → 실행당 1건', computePostsThisRun(24, 0, noon12hLeft) === 1],
+      ['11-b) 목표40,게시10,10시간(20회)남음 → 실행당 2건(남은 30÷20=1.5→2)', computePostsThisRun(40, 10, evening10hLeft) === 2],
       ['11-c) 목표 이미 달성(remaining<=0) → 최소 1건은 시도', computePostsThisRun(20, 25, noon12hLeft) === 1],
-      ['11-d) 최대 3건 상한 유지(아무리 남아도)', computePostsThisRun(60, 0, noon12hLeft) === 3],
+      [`11-d) 최대 ${MAX_POSTS_PER_RUN}건 상한 유지(아무리 남아도)`, computePostsThisRun(600, 0, noon12hLeft) === MAX_POSTS_PER_RUN],
+      ['11-e) 하루 끝자락(남은 1시간)에도 상한을 넘지 않음', computePostsThisRun(60, 0, new Date('2026-07-22T23:30:00Z')) === MAX_POSTS_PER_RUN],
+      ['11-f) RUNS_PER_HOUR가 2(cron 30분 주기)', RUNS_PER_HOUR === 2],
     ];
     checks.forEach(([label, pass]) => check(label, pass));
+  }
+
+  // 11g) 워크플로우 cron과 RUNS_PER_HOUR가 어긋나지 않는지 — 둘이 갈라지면 배급 페이스가
+  //      조용히 틀어지므로(코드도 워크플로우도 각각은 정상이라 알아채기 어렵다) 파일을 직접 읽어 고정한다.
+  {
+    const fs = require('fs');
+    const yml = fs.readFileSync(require('path').resolve(__dirname, '../.github/workflows/post-threads.yml'), 'utf8');
+    const { RUNS_PER_HOUR } = require(path)._testUtils;
+    const cronMatch = yml.match(/cron:\s*'([^']+)'/);
+    const cron = cronMatch ? cronMatch[1] : '';
+    // '*/N * * * *' → 시간당 60/N회, '0 * * * *' → 시간당 1회
+    const everyN = cron.match(/^\*\/(\d+) \* \* \* \*$/);
+    const expected = everyN ? 60 / Number(everyN[1]) : (cron.startsWith('0 ') ? 1 : null);
+    check(
+      `11g) post-threads.yml cron('${cron}')이 RUNS_PER_HOUR(${RUNS_PER_HOUR})과 일치`,
+      expected === RUNS_PER_HOUR
+    );
   }
 
   // 12) 적응형 임계값 — 오늘 목표치를 초과했으면 평범한 후보는 Skip(below_distribution_threshold),
@@ -336,16 +357,51 @@ async function main() {
     process.env.THREADS_USER_ID = 'fake-user';
   }
 
-  // 23) 1회 실행 다건 게시 — 남은 목표가 충분하면 최대 3건까지, 서로 다른 Topic을 순차 게시
-  //     (postedTotal=0, articleCount=600 → dailyTarget=60(clamp) → remaining=60 → 시간대 무관하게
-  //     항상 postsThisRun=3으로 결정됨을 이용해 테스트 결정성 확보)
+  // 23) 1회 실행 다건 게시 — 남은 목표가 충분하면 상한까지, 서로 다른 Topic을 순차 게시.
+  //     2026-08-03: 예전엔 "항상 3건"으로 단정할 수 있었다(구 공식에선 remaining=60이면 시간대와
+  //     무관하게 3이 나왔다). 30분 주기로 분모가 바뀐 뒤엔 실행 시각에 따라 2~4건으로 달라지므로,
+  //     기대값을 상수로 박지 않고 같은 함수로 계산해 비교한다(시간대 무관하게 결정적).
+  //     remaining=60 기준 최소값이 2(하루 시작 시점: 60÷48)이므로 다건 게시 경로는 항상 검증된다.
   {
-    const t1 = makeTopic('t-multi-1', '정치 이슈', '정치', 500);
-    const t2 = makeTopic('t-multi-2', '경제 이슈', '경제', 490);
-    const t3 = makeTopic('t-multi-3', 'IT 이슈', 'IT', 480);
-    const { body, patched } = await run({ pool: [t1, t2, t3], articleCount: 600, postedTotal: 0, postIds: ['multi-post-1', 'multi-post-2', 'multi-post-3'] });
+    const { computePostsThisRun } = require(path)._testUtils;
+    const expected = computePostsThisRun(60, 0); // articleCount=600 → dailyTarget=60(clamp), postedTotal=0
+    const pool = [
+      makeTopic('t-multi-1', '정치 이슈', '정치', 500),
+      makeTopic('t-multi-2', '경제 이슈', '경제', 490),
+      makeTopic('t-multi-3', 'IT 이슈', 'IT', 480),
+      makeTopic('t-multi-4', '문화 이슈', '문화', 470),
+    ];
+    const { body, patched } = await run({ pool, articleCount: 600, postedTotal: 0 });
     const distinctTopics = new Set(body.results.map((r) => r.topicId));
-    check('23) 1회 실행에서 최대 3건 게시, 서로 다른 Topic 선택', body.postsAttemptedThisRun === 3 && body.postsSucceededThisRun === 3 && distinctTopics.size === 3 && patched.length === 3);
+    check(
+      `23) 1회 실행에서 ${expected}건 게시(상한 내), 서로 다른 Topic 선택`,
+      expected >= 2 && body.postsAttemptedThisRun === expected && body.postsSucceededThisRun === expected &&
+      distinctTopics.size === expected && patched.length === expected
+    );
+  }
+
+  // 23b) 게시 간격이 Background Function 예산(15분) 안에 들어오는지 — 상한을 올릴 때 함께
+  //      확인해야 하는 제약이다. 최악의 경우(모든 간격이 최대) 간격 합 + 건당 오버헤드가
+  //      예산을 넘으면 마지막 게시가 실행 도중 죽는다(2026-08-03 상한 3→4 상향 시 도입).
+  //      주의: 이 파일 맨 위에서 POST_GAP_*_MS를 테스트용으로 5~10ms로 덮어쓰기 때문에, 그 값을
+  //      그대로 쓰면 "최악 1분"이라는 무의미한 통과가 된다. 운영 기본값으로 다시 로드해서 검사한다.
+  {
+    const savedMin = process.env.POST_GAP_MIN_MS;
+    const savedMax = process.env.POST_GAP_MAX_MS;
+    delete process.env.POST_GAP_MIN_MS;
+    delete process.env.POST_GAP_MAX_MS;
+    const prod = freshHandler()._testUtils; // 운영 기본값(2~3분)으로 로드된 모듈
+    process.env.POST_GAP_MIN_MS = savedMin;
+    process.env.POST_GAP_MAX_MS = savedMax;
+
+    const PER_POST_OVERHEAD_MS = 20 * 1000; // Claude 호출 + 컨테이너 3초 대기 + API 왕복 여유
+    const worstCaseMs = (prod.MAX_POSTS_PER_RUN - 1) * prod.MAX_GAP_MS + prod.MAX_POSTS_PER_RUN * PER_POST_OVERHEAD_MS;
+    const BUDGET_MS = 15 * 60 * 1000;
+    check(
+      `23b) 운영 기본값 최악 실행시간 ${(worstCaseMs / 60000).toFixed(1)}분 < Background 예산 15분` +
+      ` (상한 ${prod.MAX_POSTS_PER_RUN}건, 최대간격 ${prod.MAX_GAP_MS / 60000}분)`,
+      prod.MAX_GAP_MS >= 60 * 1000 && worstCaseMs < BUDGET_MS
+    );
   }
 
   // 24) 후보 소진 시 조기 중단 — 목표는 충분히 남았지만(3건 시도 가능) 후보가 1개뿐이면 1건만

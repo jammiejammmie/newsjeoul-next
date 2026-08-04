@@ -100,11 +100,24 @@ const DISTRIBUTION_SCORE_CEILING = 80;
 // 매시간 1건씩만으로는 "하루 20건 이상"을 달성하기 어려워(하루 최대 24건) PM 지시로 도입 —
 // 남은 목표를 남은 시간으로 나눠 이번 실행에서 몇 건을 시도할지 결정한다(computePostsThisRun).
 // 간격을 두는 이유는 Threads API 연속 호출로 인한 스팸성 패턴을 피하기 위함.
-const MAX_POSTS_PER_RUN = 3;
-// 테스트에서만 오버라이드 가능(운영 기본값은 그대로 2~5분) — 실제 분 단위 대기를 mock 테스트에서
+// 2026-08-03: PM 지시로 배급 밀도 상향 — 상한 3 → 4건, cron 1시간 → 30분 주기.
+//
+// 상한을 4로 정한 근거(더 올리지 않은 이유): Background Function 예산이 15분이다.
+// 게시 사이 간격이 최대 5분이던 기존 설정에서 4건을 시도하면 간격만 3×5=15분으로 예산을
+// 그대로 초과해 마지막 게시가 중간에 죽는다. 그래서 간격을 2~3분으로 좁혔다 —
+// 최악의 경우 3×3=9분 + 건당 오버헤드(Claude 호출·컨테이너 대기·API ≈ 15초)×4 ≈ 10분으로
+// 예산 안에 안전하게 들어온다. 간격을 좁혀도 스팸성 패턴 우려가 커지지 않는 이유는
+// 실행 주기 자체가 30분으로 짧아져 게시가 하루 전체에 더 고르게 퍼지기 때문이다.
+const MAX_POSTS_PER_RUN = 4;
+// 실행 주기(시간당 실행 횟수) — computePostsThisRun의 "남은 실행 기회" 계산에 쓴다.
+// .github/workflows/post-threads.yml의 cron과 반드시 일치해야 한다: 값이 어긋나면 페이스가
+// 어긋난다(1시간 주기 전제로 남은 시간만큼 나누던 공식을 30분 주기에 그대로 쓰면 시간당
+// 배급량을 2배로 계산해 하루 목표를 오전에 다 태워버린다).
+const RUNS_PER_HOUR = 2;
+// 테스트에서만 오버라이드 가능(운영 기본값은 2~3분) — 실제 분 단위 대기를 mock 테스트에서
 // 그대로 기다리면 테스트가 몇 분씩 걸리므로, 테스트 전용 환경변수로만 짧게 조정할 수 있게 열어둔다.
 const MIN_GAP_MS = Number(process.env.POST_GAP_MIN_MS) || 2 * 60 * 1000; // 2분
-const MAX_GAP_MS = Number(process.env.POST_GAP_MAX_MS) || 5 * 60 * 1000; // 5분
+const MAX_GAP_MS = Number(process.env.POST_GAP_MAX_MS) || 3 * 60 * 1000; // 3분
 
 // Distribution Score 구성 가중치(합=1.0) — PM 지시 §1의 9개 요소를 7개 계산 컴포넌트로 매핑.
 // (카테고리 생산량 + 카테고리별 오늘 게시 수 → categoryAllocation 하나로 통합: 두 값의 격차가
@@ -277,14 +290,20 @@ function computeDailyTarget(todayArticles) {
   return Math.max(MIN_DAILY_TARGET, Math.min(MAX_DAILY_TARGET, raw));
 }
 
-// 이번 실행(1시간 주기)에서 몇 건을 시도할지 — "남은 목표 ÷ 남은 시간"(PM 지시 2026-07-22 예시와
-// 동일한 계산). 목표를 이미 채웠어도 0건이 아니라 1건은 시도한다 — 정말 뛰어난 후보라면 적응형
+// 이번 실행에서 몇 건을 시도할지 — "남은 목표 ÷ 남은 실행 기회"(PM 지시 2026-07-22 계산의
+// 일반화). 목표를 이미 채웠어도 0건이 아니라 1건은 시도한다 — 정말 뛰어난 후보라면 적응형
 // 문턱값(computeAdaptiveMinDistributionScore)이 알아서 통과시키고, 아니면 자연히 Skip된다.
+//
+// 2026-08-03: 분모를 "남은 시간"에서 "남은 실행 기회(남은 시간 × RUNS_PER_HOUR)"로 바꿨다.
+// 원래 공식은 1시간 주기를 암묵적으로 가정하고 있었다 — cron을 30분으로 줄이면 같은 목표를
+// 시간당 2번씩 배정해 하루 몫을 오전에 다 태우고, 그 뒤엔 적응형 문턱값이 올라가 오후·밤
+// 배급이 말라버린다. 주기와 분모를 명시적으로 묶어 그 결합을 드러냈다.
 function computePostsThisRun(dailyTarget, postedToday, now = new Date()) {
   const remaining = Math.max(0, dailyTarget - postedToday);
   if (remaining <= 0) return 1;
   const hoursRemainingToday = Math.max(1, 24 - (now.getUTCHours() + now.getUTCMinutes() / 60));
-  return Math.min(MAX_POSTS_PER_RUN, Math.max(1, Math.ceil(remaining / hoursRemainingToday)));
+  const runsRemainingToday = Math.max(1, Math.round(hoursRemainingToday * RUNS_PER_HOUR));
+  return Math.min(MAX_POSTS_PER_RUN, Math.max(1, Math.ceil(remaining / runsRemainingToday)));
 }
 
 // 목표 대비 진행률에 따라 요구 점수를 부드럽게 올린다(하드 컷오프 아님) — 목표를 채웠어도
@@ -874,4 +893,5 @@ exports.handler = async function (event) {
 exports._testUtils = {
   computeDailyTarget, computePostsThisRun, computeAdaptiveMinDistributionScore,
   truncateAtSentenceBoundary, buildTopicUrl, THREADS_MAX_CHARS,
+  MAX_POSTS_PER_RUN, RUNS_PER_HOUR, MIN_GAP_MS, MAX_GAP_MS,
 };
