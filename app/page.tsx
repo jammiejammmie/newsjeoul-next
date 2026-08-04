@@ -6,6 +6,8 @@ import {
 } from '@/lib/topics'
 import { domainColors } from '@/lib/design-tokens'
 import { ALL_HUBS } from '@/lib/hubs'
+import { getIndexCounts, getRankDeltas, getUpcomingEvents, getMostReadTopics } from '@/lib/home-modules'
+import SubscribeForm from '@/components/SubscribeForm'
 import BriefBadge from '@/components/BriefBadge'
 
 export const revalidate = 300
@@ -70,9 +72,15 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function Home() {
-  const [candidates, activeTopicCount] = await Promise.all([
+  // 2a 6개 모듈은 전부 실제 쿼리에서 값을 받는다. 비면 그 모듈을 숨긴다 —
+  // 숫자를 만들어 채우면 시안과 똑같아 보이지만 전부 거짓이 된다.
+  const [candidates, activeTopicCount, indexCounts, rankDeltas, upcoming, mostRead] = await Promise.all([
     getHomeCandidates(HOME_CANDIDATE_POOL),
     getActiveTopicCount(),
+    getIndexCounts(),      // ① 색인 카운터
+    getRankDeltas(10),     // ② 순위 변동 (ai_context.weight_history)
+    getUpcomingEvents(6),  // ③ 캘린더 (upcoming_events)
+    getMostReadTopics(6),  // ⑤ 조회수 (topic_reads)
   ])
 
   if (candidates.length === 0) {
@@ -139,13 +147,20 @@ export default async function Home() {
 
   return (
     <div style={{ fontFamily: "'Pretendard',-apple-system,sans-serif" }}>
-      {/* 2a 유틸리티 바 — 시안의 다크 상단 띠. 라이트 본문과 대비를 만드는 요소다.
-          시안엔 "오늘 색인 12,481건"이 있지만 색인 수 집계가 없어 넣지 않는다 —
-          근거 없는 숫자를 만들지 않는다는 원칙을 여기서도 지킨다. */}
+      {/* 2a 유틸리티 바 — 시안의 다크 상단 띠. ① 색인 카운터가 여기 들어간다.
+          시안의 "오늘 색인 12,481건"을 실제 published 카운트로 채웠다(getIndexCounts). */}
       <div style={{ background: 'var(--text)', color: 'var(--bg)' }}>
         <div style={{ maxWidth: 1240, margin: '0 auto', padding: '0 32px', height: 32, display: 'flex', alignItems: 'center', gap: 12, fontSize: 11.5, fontWeight: 500 }}>
           <span className="nj-live-dot" />
-          <span>추적 중인 이슈 <b style={{ fontWeight: 800 }}>{activeTopicCount}</b>건</span>
+          <span>색인 <b style={{ fontWeight: 800 }}>{indexCounts.published.toLocaleString('ko-KR')}</b>건</span>
+          <span style={{ opacity: .4 }}>|</span>
+          <span>추적 중 <b style={{ fontWeight: 800 }}>{activeTopicCount.toLocaleString('ko-KR')}</b>건</span>
+          {indexCounts.todayPublished > 0 && (
+            <>
+              <span style={{ opacity: .4 }}>|</span>
+              <span>오늘 <b style={{ fontWeight: 800, color: '#FF8A9B' }}>+{indexCounts.todayPublished}</b></span>
+            </>
+          )}
           <span style={{ opacity: .4 }}>|</span>
           <Link href="/topic" style={{ color: 'inherit', opacity: .85 }}>전체 이슈</Link>
           <span style={{ opacity: .4 }}>|</span>
@@ -166,20 +181,28 @@ export default async function Home() {
         </nav>
       </div>
 
-      {/* 2a 급상승 스트립 — 시안은 ▲6 ▼1 NEW 같은 순위 변동을 보여주지만, 그건
-          importance_score 시계열이 필요하고 아직 없다. 변동 대신 현재 무게 순으로만 띠를
-          만든다(거짓 델타를 만들지 않는다). 시계열이 붙으면 여기에 델타를 넣는다. */}
-      <div style={{ background: 'var(--card2)', borderBottom: '1px solid var(--border)', overflowX: 'auto' }}>
-        <div style={{ maxWidth: 1240, margin: '0 auto', padding: '9px 32px', display: 'flex', gap: 18, alignItems: 'center', whiteSpace: 'nowrap' }}>
-          <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--accent)', letterSpacing: '.06em', flexShrink: 0 }}>지금 무거운 이슈</span>
-          {rankedAll.slice(0, 8).map((t, i) => (
-            <Link key={t.slug} href={`/topic/${t.slug}`} style={{ fontSize: 12.5, fontWeight: 600, display: 'flex', gap: 6, alignItems: 'baseline', flexShrink: 0 }}>
-              <b style={{ fontSize: 11, fontWeight: 800, color: 'var(--muted)' }}>{i + 1}</b>
-              <span>{t.name.length > 18 ? t.name.slice(0, 18) + '…' : t.name}</span>
-            </Link>
-          ))}
+      {/* 2a 급상승 스트립 — ② 순위 변동. 시안의 ▲6 ▼1 NEW를 실제 값으로 채웠다.
+          ai_context.weight_history는 update-topic-weight-background가 무게를 재계산할 때마다
+          {grams, computed_at}을 append한다. 여기 델타는 그 이력의 마지막 두 값 차이다 —
+          만들어낸 숫자가 아니라 Weight Engine이 실제로 계산한 변화량이다.
+          이력이 1개뿐이면 비교 대상이 없으므로 NEW로 표시한다(0으로 속이지 않는다). */}
+      {rankDeltas.length > 0 && (
+        <div style={{ background: 'var(--card2)', borderBottom: '1px solid var(--border)', overflowX: 'auto' }}>
+          <div style={{ maxWidth: 1240, margin: '0 auto', padding: '9px 32px', display: 'flex', gap: 18, alignItems: 'center', whiteSpace: 'nowrap' }}>
+            <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--accent)', letterSpacing: '.06em', flexShrink: 0 }}>무게 변동</span>
+            {rankDeltas.map((d, i) => (
+              <Link key={d.slug} href={`/topic/${d.slug}`} style={{ fontSize: 12.5, fontWeight: 600, display: 'flex', gap: 6, alignItems: 'baseline', flexShrink: 0 }}>
+                <b style={{ fontSize: 11, fontWeight: 800, color: 'var(--muted)' }}>{i + 1}</b>
+                <span>{d.name.length > 18 ? d.name.slice(0, 18) + '…' : d.name}</span>
+                {d.direction === 'up' && <b style={{ fontSize: 11, fontWeight: 800, color: 'var(--accent)' }}>▲{d.delta}</b>}
+                {d.direction === 'down' && <b style={{ fontSize: 11, fontWeight: 800, color: 'var(--link)' }}>▼{Math.abs(d.delta ?? 0)}</b>}
+                {d.direction === 'flat' && <span style={{ fontSize: 11, color: 'var(--muted)' }}>–</span>}
+                {d.direction === 'new' && <b style={{ fontSize: 10.5, fontWeight: 800, color: 'var(--accent)' }}>NEW</b>}
+              </Link>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* COVER ROTATION HERO — 이미지 제거·텍스트 중심 개편(PM 지시 2026-07-19).
           더 이상 이미지 공간을 전제로 한 고정 높이가 없다 — 카드는 내용 길이만큼만 커진다. */}
@@ -334,6 +357,72 @@ export default async function Home() {
           </div>
         </section>
       )}
+      {/* 2a 레일 모듈 — ③ 캘린더 / ⑤ 많이 본 이슈 / ④ 계산기 / ⑥ 구독.
+          데이터가 있는 모듈만 렌더한다. 빈 모듈을 자리만 잡아두면 시안은 채워 보이지만
+          독자에게는 고장난 화면으로 보인다. 데이터가 쌓이면 자동으로 나타난다. */}
+      <section style={{ maxWidth: 1240, margin: '56px auto 0', padding: '0 32px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(240px,1fr))', gap: 24 }}>
+
+          {/* ③ 출시·마감 캘린더 — extract-upcoming-events-background가 채운다 */}
+          {upcoming.length > 0 && (
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 800, borderBottom: '2px solid var(--text)', paddingBottom: 7, marginBottom: 8 }}>출시·마감 캘린더</div>
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                {upcoming.map((e) => (
+                  <Link key={e.id} href={e.topicSlug ? `/topic/${e.topicSlug}` : '/topic'}
+                    style={{ display: 'grid', gridTemplateColumns: '52px 1fr auto', gap: 8, alignItems: 'baseline', padding: '7px 0', borderBottom: '1px dotted var(--border)' }}>
+                    <b style={{ fontSize: 11.5, fontWeight: 800 }}>{e.date.slice(5).replace('-', '.')}</b>
+                    <span style={{ fontSize: 12.5, fontWeight: 500 }}>{e.title}</span>
+                    <span style={{ fontSize: 10.5, fontWeight: 800, color: e.daysLeft <= 7 ? 'var(--accent)' : 'var(--muted)' }}>
+                      {e.daysLeft === 0 ? '오늘' : `D-${e.daysLeft}`}
+                    </span>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ⑤ 많이 본 이슈 24시간 — ReadTracker 비콘이 채운다 */}
+          {mostRead.length > 0 && (
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 800, borderBottom: '2px solid var(--text)', paddingBottom: 7, marginBottom: 8 }}>
+                많이 본 이슈 <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--muted)' }}>24시간</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                {mostRead.map((r, i) => (
+                  <Link key={r.slug} href={`/topic/${r.slug}`}
+                    style={{ display: 'grid', gridTemplateColumns: '16px 1fr auto', gap: 8, alignItems: 'baseline', padding: '7px 0', borderBottom: '1px dotted var(--border)' }}>
+                    <b style={{ fontSize: 11.5, fontWeight: 800, color: i < 3 ? 'var(--accent)' : 'var(--muted)' }}>{i + 1}</b>
+                    <span style={{ fontSize: 12.5, fontWeight: 500 }}>{r.name}</span>
+                    <span style={{ fontSize: 10.5, color: 'var(--muted)' }}>{r.views}</span>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ④ 계산기·도구 — 실제 동작하는 도구만 올린다(빈 링크를 두지 않는다) */}
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 800, borderBottom: '2px solid var(--text)', paddingBottom: 7, marginBottom: 8 }}>계산기·도구</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+              <Link href="/tools/ev-subsidy" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--card)', border: '1px solid var(--border)', padding: '9px 10px' }}>
+                <span style={{ fontSize: 12.5, fontWeight: 600 }}>전기차 보조금 계산기</span>
+                <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--accent)' }}>→</span>
+              </Link>
+            </div>
+          </div>
+
+          {/* ⑥ 키워드 구독 */}
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 800, borderBottom: '2px solid var(--text)', paddingBottom: 7, marginBottom: 8 }}>키워드로 새 뉴스 받기</div>
+            <p style={{ margin: '0 0 8px', fontSize: 11.5, lineHeight: 1.6, color: 'var(--muted)' }}>
+              관심 키워드가 담긴 새 이슈가 올라오면 메일로 보내드립니다.
+            </p>
+            <SubscribeForm source="home" withKeyword buttonLabel="구독하기" />
+          </div>
+        </div>
+      </section>
+
       {/* 2a 하단 SEO 색인 블록 — 홈의 역할 중 하나가 "내부링크 허브"다(설계서 §2 표).
           검색엔진과 독자 모두에게 이 사이트가 무엇을 다루는지 한눈에 보여준다. */}
       <section style={{ borderTop: '1px solid var(--text)', background: 'var(--bg2)', marginTop: 56 }}>

@@ -185,6 +185,7 @@ export default async function HubPage({ params }: { params: Promise<{ slug: stri
     { id: 'news', label: '최신 소식' },
     ...(trend ? [{ id: 'trend', label: trend.title }] : []),
     { id: 'guides', label: '가이드' },
+    ...(hub.tools?.length ? [{ id: 'tools', label: '계산기' }] : []),
     { id: 'specs', label: hub.specsTitle },
     { id: 'timeline', label: '타임라인' },
     { id: 'faq', label: '자주 묻는 질문' },
@@ -328,6 +329,26 @@ export default async function HubPage({ params }: { params: Promise<{ slug: stri
               <EvergreenBlock label={hub.evergreen.buying.label} items={hub.evergreen.buying.items} />
             </div>
           </section>
+
+          {/* 계산기·도구 — 설정에 선언된 허브만 렌더된다(§4.1-3).
+              허브가 늘어도 템플릿은 그대로 두고 config에 tools만 추가하면 된다. */}
+          {hub.tools?.length ? (
+            <section id="tools" style={{ scrollMarginTop: 12 }}>
+              <div className="nj-hub-h2"><h2>계산기 <span className="sub">입력값으로 직접 계산</span></h2></div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', gap: 10 }}>
+                {hub.tools.map((tool) => (
+                  <Link key={tool.href} href={tool.href}
+                    style={{ display: 'block', background: 'var(--card)', border: '1px solid var(--line)', padding: '13px 15px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+                      <b style={{ font: '800 14px/1.4 Pretendard' }}>{tool.title}</b>
+                      <span style={{ font: '800 12px/1 Pretendard', color: 'var(--accent)' }}>→</span>
+                    </div>
+                    <p style={{ margin: '5px 0 0', font: '500 12.5px/1.6 Pretendard', color: 'var(--mute)' }}>{tool.description}</p>
+                  </Link>
+                ))}
+              </div>
+            </section>
+          ) : null}
 
           {/* 스펙 */}
           <section id="specs" style={{ scrollMarginTop: 12 }}>

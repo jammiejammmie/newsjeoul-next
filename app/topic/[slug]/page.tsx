@@ -8,6 +8,7 @@ import PerspectiveExplorer from '@/components/topic/PerspectiveExplorer'
 import { generateArticleSchema } from '@/lib/schema/article'
 import { generateBreadcrumbSchema } from '@/lib/schema/breadcrumb'
 import { generateFaqSchema } from '@/lib/schema/faq'
+import ReadTracker from '@/components/ReadTracker'
 
 const TYPE_LABEL: Record<string, string> = {
   company: '기업', person: '인물', organization: '기관', country: '국가',
@@ -118,6 +119,10 @@ export default async function TopicPage({ params }: { params: Promise<{ slug: st
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbLd) }} />
       {faqLd && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqLd) }} />}
+
+      {/* 홈 "많이 본 이슈 24시간"의 집계원. 브라우저에서 1회 비콘을 보낸다 —
+          서버 렌더 시점에 세면 크롤러·ISR 재생성까지 조회로 잡힌다. */}
+      <ReadTracker topicId={topic.id} />
 
       <div style={{ padding: '16px 0 0', display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--muted)' }}>
         <Link href="/" style={{ color: 'var(--muted)', textDecoration: 'none' }}>뉴스저울</Link>

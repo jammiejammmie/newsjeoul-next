@@ -51,6 +51,18 @@ export type HubEvergreen = {
 
 export type HubFaq = { q: string; a: string }
 
+/**
+ * 허브에 딸린 도구(계산기·비교표) 링크.
+ * 설계서 §4.1-3이 계산기를 "AI 요약에 먹히지 않는" 3종 중 하나로 꼽는다 — 요약할 수 없는 것은
+ * 사용자 입력을 받아 계산하는 상호작용이다.
+ */
+export type HubTool = {
+  title: string
+  href: string
+  /** 무엇을 계산해 주는지 한 줄. 클릭 전에 알 수 있어야 한다. */
+  description: string
+}
+
 export type HubTrendPoint = { date: string; value: number }
 
 /**
@@ -141,6 +153,15 @@ export type HubConfig = {
 
   /** 수치 추이. 없으면 섹션과 목차 항목을 함께 숨긴다. */
   trend?: HubTrend
+
+  /**
+   * 이 허브에 딸린 계산기·비교표 도구. 없으면 섹션을 숨긴다.
+   *
+   * 왜 설정으로 받는가: 도구는 앞으로 허브마다 늘어난다(청년월세 지원금 계산, 자동차 취등록세 등).
+   * 허브 템플릿에 특정 도구를 박으면 허브가 늘 때마다 템플릿을 고쳐야 한다.
+   * 여기에 링크만 선언하면 템플릿은 그대로 두고 설정만 추가하면 된다.
+   */
+  tools?: HubTool[]
   /** 에디터 판단 1문장(§3.2). 추이가 없어도 항상 있어야 한다 — 없으면 AI 요약에 먹힌다(§4.1-2). */
   verdict: string
 
