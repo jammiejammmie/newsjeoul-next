@@ -27,8 +27,19 @@
 --   · 각 잡마다 timeout을 따로 둔다. 동기 함수(collect-news 등)는 응답까지 60~90초가
 --     걸리므로 pg_net 기본값 5초로는 요청이 중간에 끊긴다.
 --
--- 실행 순서: STEP 1 → 2 → 3 → 4 순서대로. STEP 3(스케줄 등록) 전까지는 아무것도 자동 실행되지 않으므로
---            중간에 멈춰도 기존 GitHub Actions 동작에 영향이 없다.
+-- ── 이 파일은 통째로 한 번에 실행해도 안전하다 ─────────────────────────────
+-- 스케줄을 등록하되 **전부 비활성(active=false)** 상태로 만들기 때문이다. 즉 이 파일을 실행한
+-- 직후에는 아무 잡도 돌지 않고, GitHub Actions가 그대로 유일한 트리거로 남는다.
+-- 실제 전환은 STEP 6에서 단계별로 한 줄씩 활성화하며 진행한다.
+--
+-- 그렇게 설계한 이유:
+--   · 23개 잡을 한꺼번에 켜면 GitHub Actions와 이중 실행이 되어 AI 호출 비용이 두 배로 나간다
+--     (특히 news/publish 체인 11개가 Claude를 대량 호출한다).
+--   · Vault 키 등록(STEP 2)은 값을 직접 넣어야 하는 수동 단계라, 파일을 통째로 실행하면
+--     건너뛰게 된다. 잡이 비활성이면 키가 없어도 실패 로그가 쌓이지 않는다.
+--
+-- 유일한 수동 단계: STEP 2에서 ADMIN_KEY를 넣어 한 줄 실행. 이건 자동화하지 않는다
+-- (키를 파일·git·커밋에 남기지 않기 위해서다).
 -- ============================================================================
 
 
@@ -185,7 +196,7 @@ grant execute on function ops.invoke(text) to postgres;
 
 
 -- ============================================================================
--- STEP 4. 스케줄 등록
+-- STEP 4. 스케줄 등록 (전부 비활성 상태로 — 이 STEP 실행만으로는 아무것도 돌지 않는다)
 -- ============================================================================
 -- 원칙
 --   · pg_cron은 UTC로 동작한다(기존 GitHub Actions cron도 UTC였으므로 값을 그대로 옮긴다).
@@ -193,6 +204,7 @@ grant execute on function ops.invoke(text) to postgres;
 --     sleep을 쓸 수 없다. 대신 단계마다 분(minute) 오프셋을 줘서 순서를 만든다
 --     (원래 netlify.toml이 쓰던 방식이며 sleep 길이를 그대로 반영했다).
 --   · cron.schedule은 같은 jobname이면 갱신하므로 이 블록은 여러 번 실행해도 안전하다.
+--   · 등록 직후 이 STEP 마지막에서 전부 active=false로 내린다. 활성화는 STEP 6에서 단계별로 한다.
 
 -- ── 단독 잡 ────────────────────────────────────────────────────────────────
 select cron.schedule('nj-check-pipeline-health', '*/20 * * * *', $$select ops.invoke('check-pipeline-health')$$);
@@ -234,6 +246,88 @@ select cron.schedule('nj-insights-3-nodes',      '30 2 * * *',   $$select ops.in
 -- ── 주 1회(월요일 09:00 KST = 월요일 00:00 UTC) ────────────────────────────
 select cron.schedule('nj-weekly-1-gaps',         '0 0 * * 1',    $$select ops.invoke('detect-coverage-gaps-background')$$);
 select cron.schedule('nj-weekly-2-report',       '10 0 * * 1',   $$select ops.invoke('generate-weekly-report-background')$$);
+
+
+-- ── 단계(Phase) 매핑 ────────────────────────────────────────────────────────
+-- 어떤 잡을 언제 켤지 문서가 아니라 데이터로 관리한다.
+-- docs/pg-cron-migration-plan.md의 Phase 구분과 동일하다.
+create table if not exists ops.cron_phase (
+  jobname      text primary key,
+  phase        integer not null,
+  activated_at timestamptz,
+  note         text
+);
+
+insert into ops.cron_phase (jobname, phase, note) values
+  ('nj-check-pipeline-health', 1, 'AI 비용 0 · 5.5배 밀림 · 20분 주기라 검증이 가장 빠름'),
+  ('nj-update-topic-weight',   2, 'Hero 무게 갱신 — 체감 효과 가장 큼'),
+  ('nj-scan-comments',         2, ''),
+  ('nj-post-threads',          3, 'AI 비용 + 외부 게시 · dedup이 중복 방어'),
+  ('nj-news-1-collect',        4, '체인 · AI 비용 최대 → GH를 먼저 끄고 켤 것'),
+  ('nj-news-2-stories',        4, ''),
+  ('nj-news-3-entities',       4, ''),
+  ('nj-news-4-topics',         4, ''),
+  ('nj-news-5-updates',        4, ''),
+  ('nj-publish-1-plan',        4, ''),
+  ('nj-publish-2-gate',        4, ''),
+  ('nj-publish-3-draft',       4, ''),
+  ('nj-publish-4-expansion',   4, ''),
+  ('nj-publish-5-routed',      4, ''),
+  ('nj-publish-6-relation',    4, ''),
+  ('nj-daily-news-morning',    5, '실측 배율 1.0~1.2배로 이미 정상 · 일관성 목적'),
+  ('nj-daily-news-evening',    5, ''),
+  ('nj-daily-zeitgeist',       5, ''),
+  ('nj-insights-1-relations',  5, ''),
+  ('nj-insights-2-insights',   5, ''),
+  ('nj-insights-3-nodes',      5, ''),
+  ('nj-weekly-1-gaps',         5, ''),
+  ('nj-weekly-2-report',       5, '')
+on conflict (jobname) do update set phase = excluded.phase, note = excluded.note;
+
+-- ── 아직 전환하지 않은 잡을 비활성으로 (★ 이 파일을 한 번에 실행해도 안전한 이유) ──
+-- activated_at이 비어 있으면 = STEP 6에서 아직 켜지 않은 잡이므로 내린다.
+-- 이미 켠 잡(activated_at 기록됨)은 건드리지 않으므로, 전환을 진행한 뒤 이 파일을 다시
+-- 실행해도 운영 중인 스케줄이 멈추지 않는다(멱등).
+-- cron.alter_job은 pg_cron의 공식 API다(cron.job 테이블 직접 UPDATE보다 안전).
+select cron.alter_job(j.jobid, active := false)
+from cron.job j
+join ops.cron_phase p on p.jobname = j.jobname
+where p.activated_at is null;
+
+-- 단계 활성화 함수 — 한 줄로 해당 Phase의 잡을 전부 켠다.
+create or replace function ops.activate_phase(p integer)
+returns table (jobname text, schedule text)
+language plpgsql
+as $fn$
+begin
+  perform cron.alter_job(j.jobid, active := true)
+  from cron.job j join ops.cron_phase cp on cp.jobname = j.jobname
+  where cp.phase = p;
+
+  update ops.cron_phase set activated_at = now() where phase = p and activated_at is null;
+
+  return query
+    select j.jobname::text, j.schedule::text
+    from cron.job j join ops.cron_phase cp on cp.jobname = j.jobname
+    where cp.phase = p order by j.jobname;
+end;
+$fn$;
+
+-- 되돌리기용(해당 Phase만 다시 끈다)
+create or replace function ops.deactivate_phase(p integer)
+returns void
+language plpgsql
+as $fn$
+begin
+  perform cron.alter_job(j.jobid, active := false)
+  from cron.job j join ops.cron_phase cp on cp.jobname = j.jobname
+  where cp.phase = p;
+
+  update ops.cron_phase set activated_at = null where phase = p;
+end;
+$fn$;
+
+revoke all on function ops.activate_phase(integer), ops.deactivate_phase(integer) from public, anon, authenticated;
 
 
 -- ============================================================================
@@ -285,10 +379,54 @@ comment on view ops.invoke_health is
 
 
 -- ============================================================================
--- STEP 6. 검증 쿼리 (등록 직후 + 30분 후 + 3시간 후에 확인)
+-- STEP 6. 단계별 활성화 (★ 여기서부터가 실제 전환 — 한 줄씩, 관찰하면서)
 -- ============================================================================
--- (1) 등록된 잡 목록 — 23개 함수가 24개 잡으로 등록돼야 한다
-select jobname, schedule, active from cron.job where jobname like 'nj-%' order by jobname;
+-- 위 STEP 1~5를 실행한 시점에는 모든 잡이 active=false다. 아래를 순서대로 진행한다.
+-- 각 단계 사이에 최소 한 주기 이상 관찰하고, 확인되면 해당 GitHub 워크플로우의
+-- schedule: 블록을 제거한다(workflow_dispatch:는 남긴다).
+--
+-- 전제: STEP 2(Vault 키 등록)를 반드시 먼저 완료해야 한다. 안 하면 모든 호출이
+--       'Vault에 newsjeoul_admin_key가 없다' 예외로 실패한다.
+--
+-- 먼저 키가 제대로 들어갔는지 1회 호출로 확인한다(202가 나와야 정상):
+--   select ops.invoke('post-threads-background');
+--   select pg_sleep(3);
+--   select job_name, status_code, error_msg from ops.invoke_health limit 3;
+--
+-- Phase 1 — check-pipeline-health (AI 비용 0, 20분 주기라 1시간이면 검증됨)
+--   select * from ops.activate_phase(1);
+--
+-- Phase 2 — update-topic-weight, scan-comments (Hero 무게 갱신 — 체감 가장 큼)
+--   select * from ops.activate_phase(2);
+--
+-- Phase 3 — post-threads
+--   select * from ops.activate_phase(3);
+--
+-- Phase 4 — 체인 11개. ★ 이 단계만 순서가 반대다: GitHub 워크플로우
+--   (news-pipeline.yml, publish-pipeline.yml)의 schedule:을 먼저 제거한 뒤 켠다.
+--   중복 실행 시 AI 비용이 두 배로 나가고, 3시간 주기라 한 사이클 빠져도 손실이 작다.
+--   select * from ops.activate_phase(4);
+--
+-- Phase 5 — 일/주 배치(이미 정상 동작 중이라 급하지 않음)
+--   select * from ops.activate_phase(5);
+--
+-- 되돌리기: select ops.deactivate_phase(3);
+
+-- 현재 단계별 전환 상태
+select cp.phase, count(*) as jobs,
+       count(*) filter (where j.active) as active_now,
+       min(cp.activated_at) as activated_at
+from ops.cron_phase cp join cron.job j on j.jobname = cp.jobname
+group by cp.phase order by cp.phase;
+
+
+-- ============================================================================
+-- STEP 7. 검증 쿼리 (활성화 직후 + 30분 후 + 3시간 후에 확인)
+-- ============================================================================
+-- (1) 등록된 잡 목록과 활성 여부 — 23개 잡이 등록되고, 아직 전환 전이면 active가 전부 false
+select j.jobname, j.schedule, j.active, cp.phase
+from cron.job j left join ops.cron_phase cp on cp.jobname = j.jobname
+where j.jobname like 'nj-%' order by cp.phase, j.jobname;
 
 -- (2) 수동 1회 호출 테스트(스케줄을 기다리지 않고 즉시 확인).
 --     202가 나와야 정상이다. 401이면 Vault 키가 틀렸고, 400이면 함수 이름이 잘못됐다.
@@ -314,16 +452,19 @@ order by start_time desc limit 20;
 
 
 -- ============================================================================
--- STEP 7. 롤백 (문제 시 즉시 되돌리기)
+-- STEP 8. 롤백 (문제 시 즉시 되돌리기)
 -- ============================================================================
--- 전체 중단(스케줄 삭제):
---   select cron.unschedule(jobname) from cron.job where jobname like 'nj-%';
+-- 단계 단위 되돌리기(가장 흔한 경우 — 스케줄은 남고 실행만 멈춘다):
+--   select ops.deactivate_phase(3);
 --
--- 일부만 잠시 멈추기(스케줄은 남기고 호출만 차단 — 원인 조사 중에 유용):
+-- 전체 정지(스케줄은 남기고 전부 비활성):
+--   select cron.alter_job(jobid, active := false) from cron.job where jobname like 'nj-%';
+--
+-- 특정 함수만 호출 차단(스케줄·활성 상태는 유지 — 원인 조사 중에 유용):
 --   update ops.netlify_job set enabled = false where name = 'collect-news';
 --
--- 특정 잡만 비활성화:
---   update cron.job set active = false where jobname = 'nj-post-threads';
+-- 스케줄 자체를 삭제(완전 원복):
+--   select cron.unschedule(jobname) from cron.job where jobname like 'nj-%';
 --
 -- 되돌린 뒤에는 .github/workflows/*.yml의 schedule 블록을 복구하면 원래 상태로 돌아간다
 -- (전환 계획서 docs/pg-cron-migration-plan.md의 단계별 절차 참고).

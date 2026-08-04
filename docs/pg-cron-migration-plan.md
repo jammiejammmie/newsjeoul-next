@@ -39,26 +39,37 @@
 
 중복 실행이 겹치는 구간이 짧게 생기는데, 함수 대부분은 멱등이라 데이터가 깨지지 않는다(`post-threads`는 `ai_context.threads` dedup, `publish-routed-content`는 draft 존재 시 skip, `update-topic-weight`는 재계산, `update-news`는 당일치 삭제 후 재삽입). 다만 AI 호출 비용은 이중으로 나가므로 겹치는 시간을 짧게 유지한다.
 
-### Phase 0 — 사전 준비 (자동 실행 없음, 위험 0)
-1. `supabase/pg_cron_migration.sql`의 **STEP 1**(확장) 실행 → `pg_cron`/`pg_net`/`supabase_vault`가 installed로 보이는지 확인
-2. **STEP 2** — `<PASTE_ADMIN_KEY_HERE>`를 실제 `ADMIN_KEY`로 바꿔 1회 실행. 이후 쿼리 히스토리에서 해당 문장 삭제 권장
-3. **STEP 3**(잡 테이블 + 헬퍼 + 권한) 실행
-4. **STEP 5**(모니터링 뷰) 실행
-5. 수동 호출 테스트:
-   ```sql
-   select ops.invoke('post-threads-background');
-   select pg_sleep(3);
-   select * from ops.invoke_health limit 3;
-   ```
-   `status_code = 202`가 나와야 정상. `401`이면 Vault 키가 틀렸고, `400`이면 함수 이름이 잘못됐다.
+### Phase 0 — 사전 준비 (위험 0)
 
-이 시점까지 스케줄은 하나도 등록되지 않으므로 기존 동작에 영향이 없다.
+**`supabase/pg_cron_migration.sql`을 통째로 한 번에 실행하면 된다.** 스케줄 23개가 등록되지만 **전부 비활성(`active=false`)** 상태이므로 아무것도 돌지 않고, GitHub Actions가 그대로 유일한 트리거로 남는다.
+
+그렇게 설계한 이유:
+- 23개를 한꺼번에 켜면 GitHub Actions와 이중 실행이 되어 AI 호출 비용이 두 배가 된다(체인 11개가 Claude를 대량 호출).
+- 재실행해도 멱등하다. 이미 활성화한 잡(`ops.cron_phase.activated_at` 기록됨)은 건드리지 않으므로, 전환을 진행한 뒤 파일을 다시 실행해도 운영 중인 스케줄이 멈추지 않는다.
+
+그 다음 **수동 단계 하나**만 직접 한다 — 파일 안에 주석으로만 있는 STEP 2다:
+
+```sql
+select vault.create_secret('<ADMIN_KEY 값>', 'newsjeoul_admin_key', 'Netlify 함수 호출용 x-admin-key');
+```
+
+키를 파일·git·커밋에 남기지 않기 위해 이 한 줄만 자동화하지 않았다. 실행 후 SQL Editor 쿼리 히스토리에서 해당 문장을 지우는 것을 권장한다.
+
+마지막으로 키가 제대로 들어갔는지 1회 호출로 확인한다:
+
+```sql
+select ops.invoke('post-threads-background');
+select pg_sleep(3);
+select job_name, status_code, error_msg from ops.invoke_health limit 3;
+```
+
+`status_code = 202`가 정상이다. `401`이면 Vault 키가 틀렸고, `400`이면 함수 이름이 잘못됐다.
 
 ### Phase 1 — 가장 심하게 밀리는 것부터 (검증 목적)
 대상: `check-pipeline-health` (AI 비용 없음, 5.5배 밀림, 20분 주기라 검증이 빠름)
 
 ```sql
-select cron.schedule('nj-check-pipeline-health', '*/20 * * * *', $$select ops.invoke('check-pipeline-health')$$);
+select * from ops.activate_phase(1);
 ```
 
 1시간 관찰 → `select * from ops.cron_health where jobname = 'nj-check-pipeline-health';`
@@ -71,6 +82,10 @@ select cron.schedule('nj-check-pipeline-health', '*/20 * * * *', $$select ops.in
 
 `update-topic-weight`는 홈 헤드 무게 갱신이라 밀리면 헤드가 낡는다(2026-08-04 Hero 고정 사고의 배경 요인). 이 단계 효과가 가장 체감된다.
 
+```sql
+select * from ops.activate_phase(2);
+```
+
 1~2시간 관찰 후 해당 워크플로우 2개의 `schedule:` 제거.
 
 ### Phase 3 — Threads 배급
@@ -78,17 +93,29 @@ select cron.schedule('nj-check-pipeline-health', '*/20 * * * *', $$select ops.in
 
 AI 비용과 외부 게시가 걸리므로 Phase 1~2가 안정된 뒤에 옮긴다. 중복 실행 위험은 dedup(`ai_context.threads`)과 게시 직전 재확인(`isStillUnposted`)이 막지만, 겹치는 동안 하루 게시량이 늘 수 있으므로 GitHub 쪽을 **같은 날 안에** 끈다.
 
+```sql
+select * from ops.activate_phase(3);
+```
+
 관찰: `select * from distribution_run_log order by run_at desc limit 10;` — `run_at` 간격이 30분에 가까워지는지. 이때 `post-threads-background`의 실측 주기 추정(`estimateRunsPerHourFromLog`)도 자동으로 따라 올라가 실행당 게시 건수가 줄어든다(설계된 동작).
 
 ### Phase 4 — 체인 파이프라인 (AI 비용 최대)
 대상: `nj-news-1~5`, `nj-publish-1~6`
 
-3시간 주기라 한 사이클 검증에 3시간 이상 걸린다. **중복 실행 시 AI 비용이 두 배로 나가므로, 이 단계는 GitHub 워크플로우 `schedule`을 먼저 제거한 뒤 pg_cron을 등록한다**(다른 단계와 순서가 반대). 두 파이프라인은 3시간에 한 번이라 한 사이클 빠져도 손실이 작다.
+3시간 주기라 한 사이클 검증에 3시간 이상 걸린다. **중복 실행 시 AI 비용이 두 배로 나가므로, 이 단계는 GitHub 워크플로우 `schedule`을 먼저 제거한 뒤 pg_cron을 활성화한다**(다른 단계와 순서가 반대). 두 파이프라인은 3시간에 한 번이라 한 사이클 빠져도 손실이 작다.
+
+```sql
+select * from ops.activate_phase(4);
+```
 
 관찰: `ops.invoke_health`에서 11개 잡 전부 200/202가 찍히는지, 그리고 오프셋 순서대로 호출됐는지.
 
 ### Phase 5 — 일/주 배치
 대상: `nj-daily-*`, `nj-insights-*`, `nj-weekly-*`
+
+```sql
+select * from ops.activate_phase(5);
+```
 
 실측 배율이 1.0~1.2배로 거의 정상이라 급하지 않다. 스케줄러를 한 곳으로 모으는 일관성 목적으로 마지막에 옮긴다.
 
@@ -111,14 +138,20 @@ select * from ops.invoke_health where status_code not in (200, 202) limit 20;  -
 ## 롤백
 
 ```sql
--- 전체 중단
+-- 단계 단위 되돌리기(가장 흔한 경우 — 스케줄은 남고 실행만 멈춘다)
+select ops.deactivate_phase(3);
+
+-- 전체 정지(스케줄은 남기고 전부 비활성)
+select cron.alter_job(jobid, active := false) from cron.job where jobname like 'nj-%';
+
+-- 스케줄 자체를 삭제(완전 원복)
 select cron.unschedule(jobname) from cron.job where jobname like 'nj-%';
 
 -- 특정 함수만 호출 차단(스케줄은 유지 — 원인 조사 중에 유용)
 update ops.netlify_job set enabled = false where name = 'collect-news';
 
--- 특정 잡만 비활성화
-update cron.job set active = false where jobname = 'nj-post-threads';
+-- 특정 잡만 비활성화(cron.job 직접 UPDATE보다 공식 API를 쓴다)
+select cron.alter_job(jobid, active := false) from cron.job where jobname = 'nj-post-threads';
 ```
 
 이후 해당 `.github/workflows/*.yml`에 `schedule:` 블록을 복구한다.
