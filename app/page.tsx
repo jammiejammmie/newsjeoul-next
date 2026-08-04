@@ -1,8 +1,8 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import {
-  getHomeCandidates, getTopicsBySlugs, getDiscoveryCards, getActiveTopicCount,
-  pickHeroTopic, pickSideTopics, diversifyForIndex, isBriefTopic,
+  getHomeCandidates, getTopicsBySlugs, getActiveTopicCount,
+  pickHeroTopic, pickSideTopics, diversifyForIndex, isBriefTopic, getFeatureReads,
 } from '@/lib/topics'
 import { domainColors } from '@/lib/design-tokens'
 import { ALL_HUBS } from '@/lib/hubs'
@@ -119,9 +119,12 @@ export default async function Home() {
   const indexPool = candidates.filter((t: any) => t.slug !== heroTopic.slug)
   const rankedAll = [heroTopic, ...diversifyForIndex(indexPool, { seed: [heroTopic] })]
 
-  // 오늘의 발견 — 화면에 이미 나온 토픽은 제외해 같은 인물/사안이 반복되지 않게 한다(PM 지시 (3)).
-  const discoveryCards = await getDiscoveryCards({
+  // 읽을 거리 · 기획과 해설 — 시안의 3층 구조(형식 라벨 + 후킹 문장 + 얻는 것).
+  // 예전엔 getDiscoveryCards의 자동 조합을 썼는데 "…논란와 …취소, 무슨 상관이지?"처럼
+  // 조사가 깨지고 클릭해서 얻는 것도 없었다(PM 지적 2026-08-05). 실제 발행 본문에서 뽑는다.
+  const featureReads = await getFeatureReads({
     excludeTopicSlugs: [heroTopic.slug, ...sideTopics.map((t: any) => t.slug)],
+    limit: 3,
   })
 
   // 2a 카테고리 4블록 — 시안의 'IT·AI / 경제·증시 / 건강 / 스포츠' 자리.
@@ -373,26 +376,44 @@ export default async function Home() {
       )}
 
       {/* 2a 기획·해설 3-up — 시안의 '읽을 거리 · 기획과 해설'.
-          기존 '오늘의 발견'을 이 자리로 옮겼다. 4열 매트릭스(130px 행)로 크게 펼치던 것을
-          3칸으로 줄여 레일과 나란히 들어가게 했다. */}
-      {discoveryCards.length > 0 && (
+          시안의 3층 구조를 그대로 따른다:
+            형식 라벨(기획 · 3부작)  →  후킹 제목  →  얻는 것(구매 타이밍까지)
+          예전엔 getDiscoveryCards의 자동 조합이라 "…논란와 …취소, 무슨 상관이지?"처럼
+          조사가 깨지고, 클릭해서 무엇을 얻는지가 없었다(PM 지적 2026-08-05).
+          지금은 발행 본문의 lead 첫 문장을 후킹으로, display_keywords를 '얻는 것'으로 쓴다. */}
+      {featureReads.length > 0 && (
         <section>
-          <div style={{ borderBottom: '2px solid var(--text)', paddingBottom: 7, marginBottom: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', borderBottom: '2px solid var(--text)', paddingBottom: 7, marginBottom: 12 }}>
             <h2 style={{ margin: 0, fontSize: 15, fontWeight: 800 }}>
               읽을 거리 <span style={{ fontWeight: 500, color: 'var(--muted)' }}>· 기획과 해설</span>
             </h2>
+            <Link href="/topic" style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--link)' }}>전체 기획 →</Link>
           </div>
           <div className="nj-feature-3up">
-            {discoveryCards.slice(0, 3).map((d, i) => (
-              <Link key={i} href={d.href} className="nj-discovery-card"
+            {featureReads.map((f) => (
+              <Link key={f.slug} href={`/topic/${f.slug}`} className="nj-discovery-card"
                 style={{
-                  border: '1px solid var(--border)', background: 'var(--bg2)',
-                  padding: 16, flexDirection: 'column', gap: 8, minHeight: 118, justifyContent: 'flex-end',
+                  border: '1px solid var(--border)', background: 'var(--card)',
+                  padding: '15px 16px 16px', flexDirection: 'column', gap: 7, minHeight: 150,
                 }}>
-                <span style={{ fontSize: 10.5, fontWeight: 700, color: d.accent, textTransform: 'uppercase', letterSpacing: '.06em' }}>
-                  {d.kicker}
+                {/* 1층 — 형식 라벨. 무엇을 읽게 되는지(기획/해설/데이터)와 분량(관점 수). */}
+                <span style={{ fontSize: 10.5, fontWeight: 800, color: 'var(--accent)', letterSpacing: '.04em' }}>
+                  {f.kicker}
                 </span>
-                <span style={{ fontSize: 14, fontWeight: 800, lineHeight: 1.4 }}>{d.title}</span>
+                {/* 2층 — 제목. */}
+                <span style={{ fontSize: 15, fontWeight: 800, lineHeight: 1.35, letterSpacing: '-.01em' }}>
+                  {f.name}
+                </span>
+                {/* 3층 — 후킹 문장. lead의 첫 문장이라 숫자·장면이 살아 있다. */}
+                <span style={{ fontSize: 12.5, fontWeight: 500, lineHeight: 1.6, color: 'var(--text2)', flex: 1 }}>
+                  {f.hook}
+                </span>
+                {/* 얻는 것 — 클릭 전에 무엇을 다루는지 보여준다. */}
+                {f.payoff.length > 0 && (
+                  <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', paddingTop: 7, borderTop: '1px dotted var(--border)' }}>
+                    {f.payoff.join(' · ')}
+                  </span>
+                )}
               </Link>
             ))}
           </div>

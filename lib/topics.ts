@@ -895,3 +895,106 @@ export async function getInterestTags() {
     return { ...tag, topic: match ? { slug: match.slug, name: match.name } : null }
   })
 }
+
+// ── 읽을 거리 · 기획과 해설 ───────────────────────────────────────────────────
+//
+// PM 지적(2026-08-05): 노차장 시안의 이 칸은 "기획 · 3부작 / 노트북 값은 왜 오르나 —
+// 메모리 슈퍼사이클 해부 / 2026년 하반기 구매 타이밍까지"처럼 **형식 라벨 + 후킹 제목 +
+// 얻는 것**의 3층 구조다. 우리 것은 getDiscoveryCards가 만든 자동 조합이라
+// "트럼프 이란 장례식 발언 논란와 트럼프 이란 공격 취소, 무슨 상관이지?" 같은 문장이 나왔다.
+// 조사가 깨지고("논란와"), 클릭해서 무엇을 얻는지도 없다. 시안이 클릭률이 높을 게 분명하다.
+//
+// 그래서 자동 조합을 버리고 실제 편집 결과물을 쓴다. 발행된 Topic에는 이미 다음이 있다:
+//   draft.lead              — 첫 문장이 강하다("88만 배럴.", "규모 7.1.", "국제유가 8% 뛰었다")
+//   draft.blocks            — 관점 수(PerspectiveExplorer가 탭으로 렌더한다)
+//   draft.display_keywords  — 이 기사에서 다루는 것들
+//   plan.event_type         — 형식 라벨의 근거
+// 없는 것을 만들지 않고, 있는 것을 시안의 3층 구조에 맞게 배치한다.
+
+/** event_type → 형식 라벨. 시안의 기획/해설/데이터 세 갈래를 실제 사건유형에 매핑한다. */
+const FEATURE_KICKER: Record<string, string> = {
+  '규제·정책': '해설',
+  '실적·시장변화': '데이터',
+  'M&A·투자': '데이터',
+  '재난·긴급상황': '현장 해설',
+  '보안사고·장애': '해설',
+  '분쟁·외교·전쟁': '기획',
+  '선언·전망·논쟁': '기획',
+  '인물교체·조직변화': '해설',
+  '신제품·모델출시': '리뷰',
+  '오픈소스·기술공개': '해설',
+}
+
+export type FeatureRead = {
+  slug: string
+  name: string
+  category: string | null
+  /** 형식 라벨 + 관점 수. 예: '기획 · 4개 관점' */
+  kicker: string
+  /** 후킹 문장 — draft.lead의 첫 문장. */
+  hook: string
+  /** 클릭하면 얻는 것 — display_keywords. */
+  payoff: string[]
+}
+
+/** lead에서 첫 문장만 뽑는다. 카드에 문단째로 넣으면 읽히지 않는다. */
+function firstSentence(text: string, max = 92): string {
+  const t = String(text || '').trim()
+  if (!t) return ''
+  // 종결부호 뒤에서 자른다. 숫자 뒤 마침표('7.1')에 걸리지 않게 뒤에 공백·따옴표가 오는 경우만.
+  const m = t.match(/^[\s\S]{10,}?[.!?](?=\s|$|["'"'])/)
+  const first = (m ? m[0] : t).trim()
+  if (first.length <= max) return first
+  const cut = first.slice(0, max)
+  const sp = cut.lastIndexOf(' ')
+  return (sp > max * 0.6 ? cut.slice(0, sp) : cut).trim() + '…'
+}
+
+/**
+ * 읽을 거리 카드. 발행된 Topic 중 본문이 실제로 있는 것만 고른다 —
+ * lead나 블록이 없으면 카드의 3층 구조를 채울 수 없으므로 아예 내보내지 않는다.
+ */
+export async function getFeatureReads(
+  { excludeTopicSlugs = [], limit = 3 }: { excludeTopicSlugs?: string[]; limit?: number } = {}
+): Promise<FeatureRead[]> {
+  const exclude = new Set(excludeTopicSlugs)
+  try {
+    const { data, error } = await client()
+      .from('topics')
+      .select('slug, name, category, importance_score, draft:ai_context->draft, plan:ai_context->plan')
+      .eq('status', 'active')
+      .eq('editorial_status', 'published')
+      .order('importance_score', { ascending: false })
+      .limit(40)
+    if (error || !data) return []
+
+    const out: FeatureRead[] = []
+    const seenCategory = new Map<string, number>()
+    for (const t of data as any[]) {
+      if (exclude.has(t.slug)) continue
+      const d = t.draft || {}
+      const hook = firstSentence(d.lead || '')
+      const blocks = Array.isArray(d.blocks) ? d.blocks.length : 0
+      // 3층 중 하나라도 못 채우면 넣지 않는다. 빈 칸이 있는 카드는 시안처럼 보이지 않는다.
+      if (!hook || blocks < 2) continue
+      // 한 분야가 3칸을 다 먹지 않게 한다(홈 다양성 규칙과 같은 취지).
+      const cat = t.category || '기타'
+      if ((seenCategory.get(cat) ?? 0) >= 1) continue
+      seenCategory.set(cat, (seenCategory.get(cat) ?? 0) + 1)
+
+      const label = FEATURE_KICKER[t.plan?.event_type] || '해설'
+      out.push({
+        slug: t.slug,
+        name: t.name,
+        category: t.category ?? null,
+        kicker: `${label} · ${blocks}개 관점`,
+        hook,
+        payoff: (Array.isArray(d.display_keywords) ? d.display_keywords : []).slice(0, 3),
+      })
+      if (out.length >= limit) break
+    }
+    return out
+  } catch {
+    return []
+  }
+}
