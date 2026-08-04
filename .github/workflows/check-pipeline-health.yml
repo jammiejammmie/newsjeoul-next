@@ -3,9 +3,15 @@ name: Check Pipeline Health (20분마다)
 # 2026-07-26: 이 함수 자체가 Netlify 네이티브 schedule로 돌던 파이프라인 정체 감지기였는데,
 # 정작 그 네이티브 schedule이 7/22 22:44 KST 이후 전체적으로 죽어서 "정체 감지기"가 자기
 # 자신도 4일간 못 돈 채 방치돼 있었다. GitHub Actions를 유일한 트리거로 전환한다.
+# 2026-08-04: schedule 제거 — Supabase pg_cron(nj-check-pipeline-health, '*/20 * * * *')으로 이관.
+# 근거: GitHub Actions가 이 워크플로우를 20분 설정 대비 실측 평균 109분(5.5배)으로 밀어냈다.
+# 정체 감지기 자체가 5.5배 늦게 도는 상태였다. pg_cron 전환 후 08:05 정시 실행을 실측 확인했다.
+# workflow_dispatch는 남긴다 — 수동 실행·pg_cron 장애 시 긴급 경로.
+# 원복하려면 아래 schedule 블록을 되살리고 pg_cron 쪽을 끈다:
+#   select ops.deactivate_phase(1);
+#   schedule:
+#     - cron: '*/20 * * * *'
 on:
-  schedule:
-    - cron: '*/20 * * * *'
   workflow_dispatch:
 
 jobs:

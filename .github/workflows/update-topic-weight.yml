@@ -8,10 +8,15 @@ name: Update Topic Weight (hourly)
 #
 # update-topic-weight-background.js는 파일명이 -background로 끝나는 Background Function이라
 # Netlify가 호출 즉시 202를 반환하고 실제 처리는 비동기로 이어진다 — 여기서는 "정상 접수"만 확인한다.
+# 2026-08-04: schedule 제거 — Supabase pg_cron(nj-update-topic-weight, '5 * * * *')으로 이관.
+# 근거: GitHub Actions가 60분 설정 대비 실측 평균 147분(2.4배)으로 밀어냈다. 이 함수가 밀리면
+# 홈 Hero 무게가 낡아 헤드가 고정되므로(2026-08-04 Hero 고정 사고의 배경 요인) 전환 우선순위가 높았다.
+# 실측 확인: pg_cron 전환 후 08:05 정시에 정확히 80건 재계산(GitHub Actions는 직전이 06:36으로 불규칙).
+# workflow_dispatch는 남긴다 — 수동 실행·pg_cron 장애 시 긴급 경로.
+# 원복하려면 아래를 되살리고 select ops.deactivate_phase(2); 를 실행한다:
+#   schedule:
+#     - cron: '5 * * * *'   # 매시 5분(UTC) — 정각의 news-pipeline과 겹치지 않게 띄움
 on:
-  schedule:
-    - cron: '5 * * * *'   # 매시 5분(UTC) — Hero 선정에 쓰이는 새 Topic 생성(news-pipeline)과
-                          # 겹치지 않도록 정각에서 살짝 띄움
   workflow_dispatch:
 
 jobs:

@@ -3,9 +3,13 @@ name: Scan Threads Comments (Shadow Mode, hourly)
 # 마스터 스펙 v1 Track 3-2. 실제 댓글 게시 없음 — comment_auto_reply_log에 분류+답변 초안만
 # 기록한다(scan-comments-shadow-background.js 상단 주석 참고). Threads 포스팅 주기(post-threads.yml)
 # 와 겹치지 않게 30분 오프셋.
+# 2026-08-04: schedule 제거 — Supabase pg_cron(nj-scan-comments, '30 * * * *')으로 이관.
+# 근거: GitHub Actions가 60분 설정 대비 실측 평균 143분(2.4배)으로 밀어냈다.
+# workflow_dispatch는 남긴다 — 수동 실행·pg_cron 장애 시 긴급 경로.
+# 원복하려면 아래를 되살리고 select ops.deactivate_phase(2); 를 실행한다:
+#   schedule:
+#     - cron: '30 * * * *'   # 매시 30분(UTC)
 on:
-  schedule:
-    - cron: '30 * * * *'   # 매시 30분(UTC)
   workflow_dispatch:
 
 jobs:
