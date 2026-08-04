@@ -168,23 +168,28 @@ select cron.schedule(
   $$select ops.invoke('extract-upcoming-events-background')$$
 );
 
--- Phase 매핑 — 발행 체인과 같은 Phase 5로 둔다(이미 활성 상태인 단계).
+-- Phase 매핑 — 발행 체인(nj-publish-1~6)은 Phase 4다. 이 잡도 그 체인의 뒤에 붙으므로 4로 둔다.
 insert into ops.cron_phase (jobname, phase, note) values
-  ('nj-publish-7-upcoming', 5, '홈 캘린더 적재 · 발행 체인 뒤에 붙는다')
+  ('nj-publish-7-upcoming', 4, '홈 캘린더 적재 · 발행 체인 뒤에 붙는다')
 on conflict (jobname) do update set phase = excluded.phase, note = excluded.note;
 
 -- 발행 체인이 이미 켜져 있으므로 이 잡도 바로 켠다(비활성으로 두면 캘린더가 계속 빈다).
-update cron.job set active = true where jobname = 'nj-publish-7-upcoming';
-update ops.cron_phase set activated_at = now()
-  where jobname = 'nj-publish-7-upcoming' and activated_at is null;
+--
+-- ★ cron.job을 직접 UPDATE하면 42501(permission denied for table job)이 난다 — 그 표는
+--   확장 소유다. pg_cron_migration.sql 291행에 "직접 UPDATE보다 안전"이라고 적어놓고
+--   여기서 어겼다(2026-08-05 수정).
+--   raw cron.alter_job 대신 이미 실전에서 성공한 ops.activate_phase를 쓴다. Phase 4는
+--   이미 전부 활성이므로 나머지 잡에는 아무 영향이 없다(멱등).
+select * from ops.activate_phase(4);
 
 
 -- ============================================================================
 -- 확인
 -- ============================================================================
+-- cron 상태는 ops.cron_health 뷰로 본다(cron.job 직접 조회 권한에 의존하지 않는다).
 select 'upcoming_events' as t, count(*)::text as v from upcoming_events
 union all select 'topic_reads', count(*)::text from topic_reads
 union all select 'email_subscribers', count(*)::text from email_subscribers
 union all select 'cron: nj-publish-7-upcoming',
-  coalesce((select 'active=' || active::text || ' schedule=' || schedule
-            from cron.job where jobname = 'nj-publish-7-upcoming'), '미등록');
+  coalesce((select 'active=' || active::text || ' / ' || schedule || ' / ' || state
+            from ops.cron_health where jobname = 'nj-publish-7-upcoming'), '미등록');
