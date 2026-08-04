@@ -24,7 +24,7 @@ export default function ShoppingCard({
       padding="18px"
       justify="space-between"
       hoverBg="var(--card2)"
-      hoverBorder="rgba(217,164,65,0.3)"
+      hoverBorder="rgba(200,16,46,0.3)"
       hoverTransform="translateY(-3px)"
       editorPersona={editorPersona}
     >

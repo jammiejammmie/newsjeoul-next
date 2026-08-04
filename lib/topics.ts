@@ -853,7 +853,7 @@ export async function getDiscoveryCards(
       kicker: '🧩 의외의 연결',
       title: `${pair.source.name}와 ${pair.target.name}, 무슨 상관이지?`,
       href: `/topic/${pair.source.slug}`,
-      colSpan: 2, rowSpan: 2, accent: '#D9A441',
+      colSpan: 2, rowSpan: 2, accent: '#C8102E',
     })
   }
   if (latestUpdate) {
@@ -862,19 +862,19 @@ export async function getDiscoveryCards(
       kicker: '🕐 방금 업데이트',
       title: latestUpdate.title,
       href: t?.slug ? `/topic/${t.slug}` : '/',
-      colSpan: 2, rowSpan: 1, accent: '#7CC2B8',
+      colSpan: 2, rowSpan: 1, accent: '#2E8B7F',
     })
   }
   if (topPerson) {
     cards.push({
       kicker: '👤 사람', title: topPerson.name, href: `/entity/${topPerson.slug}`,
-      colSpan: 1, rowSpan: 1, accent: '#B98CFF',
+      colSpan: 1, rowSpan: 1, accent: '#7A4FD6',
     })
   }
   if (topCountry) {
     cards.push({
       kicker: '🌍 국가', title: topCountry.name, href: `/entity/${topCountry.slug}`,
-      colSpan: 1, rowSpan: 1, accent: '#7C8CFF',
+      colSpan: 1, rowSpan: 1, accent: '#3F5BD9',
     })
   }
   return cards

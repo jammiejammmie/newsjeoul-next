@@ -767,8 +767,8 @@ export default function AdminPage() {
             {[
               ['미계획', editorialStatus.pending, 'var(--muted)'],
               ['계획수립', editorialStatus.planned, 'var(--blue,#7C8CFF)'],
-              ['발행됨', editorialStatus.published, 'var(--green,#7CC2B8)'],
-              ['강등', editorialStatus.degraded, 'var(--gold,#D9A441)'],
+              ['발행됨', editorialStatus.published, 'var(--green)'],
+              ['강등', editorialStatus.degraded, 'var(--gold)'],
             ].map(([label, count, color]: any) => (
               <div key={label} style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 8px', textAlign: 'center' }}>
                 <div style={{ fontSize: 18, fontWeight: 800, color }}>{count}</div>
@@ -837,10 +837,10 @@ export default function AdminPage() {
             .map((t) => {
               const gate = t.ai_context?.gate
               const badgeColor: Record<string, string> = {
-                DEEP_DIVE: 'var(--green,#7CC2B8)', SEARCH_GUIDE: 'var(--blue,#7C8CFF)',
-                PRODUCT_BRIEF: 'var(--blue,#7C8CFF)', COMPARE: 'var(--violet,#B98CFF)',
-                BACKGROUND: 'var(--violet,#B98CFF)', UPDATE: 'var(--gold,#D9A441)',
-                SHORT_BRIEF: 'var(--gold,#D9A441)', REJECT: 'var(--muted)', pending_gate: 'var(--muted)',
+                DEEP_DIVE: 'var(--green)', SEARCH_GUIDE: 'var(--blue,#7C8CFF)',
+                PRODUCT_BRIEF: 'var(--blue,#7C8CFF)', COMPARE: 'var(--violet)',
+                BACKGROUND: 'var(--violet)', UPDATE: 'var(--gold)',
+                SHORT_BRIEF: 'var(--gold)', REJECT: 'var(--muted)', pending_gate: 'var(--muted)',
               }
               return (
                 <div key={t.id} style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 12px' }}>
@@ -900,11 +900,11 @@ export default function AdminPage() {
                   <div style={{ fontSize: 10, color: 'var(--muted)' }}>전체 ({activeCount} 활성)</div>
                 </div>
                 <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 8px', textAlign: 'center' }}>
-                  <div style={{ fontSize: 18, fontWeight: 800, color: unassignedCount > 0 ? 'var(--gold,#D9A441)' : 'var(--green,#7CC2B8)' }}>{unassignedCount}</div>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: unassignedCount > 0 ? 'var(--gold)' : 'var(--green)' }}>{unassignedCount}</div>
                   <div style={{ fontSize: 10, color: 'var(--muted)' }}>미배정(0회)</div>
                 </div>
                 <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 8px', textAlign: 'center' }}>
-                  <div style={{ fontSize: 18, fontWeight: 800, color: overAssigned.length > 0 ? 'var(--gold,#D9A441)' : 'var(--text)' }}>{overAssigned.length}</div>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: overAssigned.length > 0 ? 'var(--gold)' : 'var(--text)' }}>{overAssigned.length}</div>
                   <div style={{ fontSize: 10, color: 'var(--muted)' }}>과다배정(평균 3배↑)</div>
                 </div>
               </div>

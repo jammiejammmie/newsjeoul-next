@@ -32,8 +32,8 @@ export default function ShareButtons({ url, text }: ShareButtonsProps) {
 
   return (
     <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
-      <button onClick={() => share('thread')} style={btnStyle('#000','#fff','1px solid #333')}>스레드 공유</button>
-      <button onClick={() => share('x')} style={btnStyle('#111','#fff','1px solid #444')}>𝕏 공유</button>
+      <button onClick={() => share('thread')} style={btnStyle('var(--text)','var(--bg)','1px solid var(--text)')}>스레드 공유</button>
+      <button onClick={() => share('x')} style={btnStyle('var(--text)','var(--bg)','1px solid var(--text)')}>𝕏 공유</button>
       <button onClick={() => share('kakao')} style={btnStyle('#FAE100','#000')}>카카오 공유</button>
       <button onClick={() => share('copy')} style={btnStyle('var(--card)','var(--text)','1px solid var(--border2)')}>🔗 링크 복사</button>
     </div>

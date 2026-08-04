@@ -285,7 +285,7 @@ export default async function TopicPage({ params }: { params: Promise<{ slug: st
                   ))}
                 </div>
               </div>
-              <div style={{ border: '1px solid rgba(217,164,65,.25)', background: 'rgba(217,164,65,.05)', borderRadius: 16, padding: 18 }}>
+              <div style={{ border: '1px solid rgba(200,16,46,.22)', background: 'rgba(200,16,46,.05)', borderRadius: 16, padding: 18 }}>
                 <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 12 }}>↓ 더 깊게</div>
                 {draft.closing_door?.deeper && (
                   <p style={{ fontSize: 14.5, color: 'var(--text)', lineHeight: 1.75, marginBottom: 14 }}>{draft.closing_door.deeper}</p>

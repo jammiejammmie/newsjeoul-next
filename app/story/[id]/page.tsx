@@ -99,7 +99,7 @@ export default async function QuestionDetailPage({ params }: { params: Promise<{
               {categoryIcon(topic.category)} {topic.category}
             </div>
           )}
-          <div style={{ fontSize: 10, fontWeight: 700, padding: '4px 10px', borderRadius: 20, background: 'var(--accent-soft)', border: '1px solid rgba(217,164,65,.3)', color: 'var(--accent)' }}>
+          <div style={{ fontSize: 10, fontWeight: 700, padding: '4px 10px', borderRadius: 20, background: 'var(--accent-soft)', border: '1px solid rgba(200,16,46,.28)', color: 'var(--accent)' }}>
             오늘 무게 {topic.importanceScore}
           </div>
         </div>

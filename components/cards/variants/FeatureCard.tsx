@@ -23,11 +23,11 @@ export default function FeatureCard({
       href={href}
       colSpan={colSpan}
       rowSpan={rowSpan}
-      bg="rgba(217,164,65,0.07)"
-      border="rgba(217,164,65,0.28)"
+      bg="rgba(200,16,46,0.06)"
+      border="rgba(200,16,46,0.28)"
       padding="26px"
       justify="space-between"
-      hoverBorder="#D9A441"
+      hoverBorder="var(--accent)"
       hoverTransform="translateY(-4px)"
       imageUrl={imageUrl}
       editorPersona={editorPersona}

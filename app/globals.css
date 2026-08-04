@@ -336,8 +336,8 @@ body {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  border: 1px solid rgba(217, 164, 65, .5);
-  background: rgba(217, 164, 65, .1);
+  border: 1px solid rgba(200, 16, 46, .45);
+  background: rgba(200, 16, 46, .07);
   color: var(--accent);
   font-size: 13.5px;
   font-weight: 700;
@@ -354,9 +354,9 @@ body {
 }
 
 .nj-btn-primary:disabled {
-  border-color: rgba(217, 164, 65, .2);
-  background: rgba(217, 164, 65, .04);
-  color: rgba(217, 164, 65, .4);
+  border-color: rgba(200, 16, 46, .2);
+  background: rgba(200, 16, 46, .04);
+  color: rgba(200, 16, 46, .35);
   cursor: not-allowed;
 }
 
@@ -377,7 +377,7 @@ body {
 
 .nj-btn-secondary:hover, .nj-btn-secondary.is-active {
   border-color: var(--accent);
-  background: rgba(217, 164, 65, .08);
+  background: rgba(200, 16, 46, .06);
   color: var(--text);
 }
 
@@ -647,7 +647,7 @@ body {
   width: 440px;
   height: 440px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(217, 164, 65, .12), transparent 70%);
+  background: radial-gradient(circle, rgba(200, 16, 46, .10), transparent 70%);
   animation: nj-hero-drift 15s ease-in-out infinite;
 }
 
