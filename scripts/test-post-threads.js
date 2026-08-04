@@ -223,34 +223,73 @@ async function main() {
   //     2026-08-03: cron 30분 주기(RUNS_PER_HOUR=2)로 바뀌어 분모가 "남은 시간"에서
   //     "남은 시간 × 2"로 변경됐다 — 기대값도 그에 맞춰 갱신.
   {
-    const { computePostsThisRun, MAX_POSTS_PER_RUN, RUNS_PER_HOUR } = require(path)._testUtils;
-    const noon12hLeft = new Date('2026-07-22T12:00:00Z'); // UTC 12:00 → 남은 12시간 = 24회 실행
-    const evening10hLeft = new Date('2026-07-22T14:00:00Z'); // UTC 14:00 → 남은 10시간 = 20회 실행
+    const { computePostsThisRun, MAX_POSTS_PER_RUN, CONFIGURED_RUNS_PER_HOUR } = require(path)._testUtils;
+    const noon12hLeft = new Date('2026-07-22T12:00:00Z'); // UTC 12:00 → 남은 12시간
+    const evening10hLeft = new Date('2026-07-22T14:00:00Z'); // UTC 14:00 → 남은 10시간
     const checks = [
-      ['11-a) 목표24,게시0,12시간(24회)남음 → 실행당 1건', computePostsThisRun(24, 0, noon12hLeft) === 1],
-      ['11-b) 목표40,게시10,10시간(20회)남음 → 실행당 2건(남은 30÷20=1.5→2)', computePostsThisRun(40, 10, evening10hLeft) === 2],
-      ['11-c) 목표 이미 달성(remaining<=0) → 최소 1건은 시도', computePostsThisRun(20, 25, noon12hLeft) === 1],
-      [`11-d) 최대 ${MAX_POSTS_PER_RUN}건 상한 유지(아무리 남아도)`, computePostsThisRun(600, 0, noon12hLeft) === MAX_POSTS_PER_RUN],
-      ['11-e) 하루 끝자락(남은 1시간)에도 상한을 넘지 않음', computePostsThisRun(60, 0, new Date('2026-07-22T23:30:00Z')) === MAX_POSTS_PER_RUN],
-      ['11-f) RUNS_PER_HOUR가 2(cron 30분 주기)', RUNS_PER_HOUR === 2],
+      ['11-a) 목표24,게시0,12시간(24회)남음 → 실행당 1건', computePostsThisRun(24, 0, noon12hLeft, 2) === 1],
+      ['11-b) 목표40,게시10,10시간(20회)남음 → 실행당 2건(남은 30÷20=1.5→2)', computePostsThisRun(40, 10, evening10hLeft, 2) === 2],
+      ['11-c) 목표 이미 달성(remaining<=0) → 최소 1건은 시도', computePostsThisRun(20, 25, noon12hLeft, 2) === 1],
+      [`11-d) 최대 ${MAX_POSTS_PER_RUN}건 상한 유지(아무리 남아도)`, computePostsThisRun(600, 0, noon12hLeft, 2) === MAX_POSTS_PER_RUN],
+      ['11-e) 하루 끝자락(남은 1시간)에도 상한을 넘지 않음', computePostsThisRun(60, 0, new Date('2026-07-22T23:30:00Z'), 2) === MAX_POSTS_PER_RUN],
+      ['11-f) runsPerHour 인자 생략 시 선언값으로 폴백', computePostsThisRun(40, 10, evening10hLeft) === computePostsThisRun(40, 10, evening10hLeft, CONFIGURED_RUNS_PER_HOUR)],
+      // 실측 주기가 느릴 때(0.64회/시) 같은 목표라도 실행당 건수를 더 크게 잡아야 한다 —
+      // 이게 08-03에 하루 누적 4건(목표 47)으로 끝난 원인이었다(선언값 2회/시로 3배 과대평가).
+      ['11-h) 실측 0.64회/시면 같은 목표에서 더 많이 시도(선언값 2회/시보다 큼)',
+        computePostsThisRun(47, 4, noon12hLeft, 0.64) > computePostsThisRun(47, 4, noon12hLeft, 2)],
+      ['11-i) 실측 0.64회/시, 목표47·게시4, 12시간 남음 → 상한까지 시도(남은43÷약8회≈6)',
+        computePostsThisRun(47, 4, noon12hLeft, 0.64) === MAX_POSTS_PER_RUN],
     ];
     checks.forEach(([label, pass]) => check(label, pass));
   }
 
-  // 11g) 워크플로우 cron과 RUNS_PER_HOUR가 어긋나지 않는지 — 둘이 갈라지면 배급 페이스가
-  //      조용히 틀어지므로(코드도 워크플로우도 각각은 정상이라 알아채기 어렵다) 파일을 직접 읽어 고정한다.
+  // 11g) 워크플로우 cron과 선언값(CONFIGURED_RUNS_PER_HOUR)이 어긋나지 않는지 — 실측 추정이
+  //      실패했을 때 쓰이는 폴백이므로 여전히 맞아야 한다. 둘이 갈라지면 각각은 정상으로 보여서
+  //      알아채기 어렵기 때문에 파일을 직접 읽어 고정한다.
   {
     const fs = require('fs');
     const yml = fs.readFileSync(require('path').resolve(__dirname, '../.github/workflows/post-threads.yml'), 'utf8');
-    const { RUNS_PER_HOUR } = require(path)._testUtils;
+    const { CONFIGURED_RUNS_PER_HOUR } = require(path)._testUtils;
     const cronMatch = yml.match(/cron:\s*'([^']+)'/);
     const cron = cronMatch ? cronMatch[1] : '';
-    // '*/N * * * *' → 시간당 60/N회, '0 * * * *' → 시간당 1회
     const everyN = cron.match(/^\*\/(\d+) \* \* \* \*$/);
     const expected = everyN ? 60 / Number(everyN[1]) : (cron.startsWith('0 ') ? 1 : null);
     check(
-      `11g) post-threads.yml cron('${cron}')이 RUNS_PER_HOUR(${RUNS_PER_HOUR})과 일치`,
-      expected === RUNS_PER_HOUR
+      `11g) post-threads.yml cron('${cron}')이 CONFIGURED_RUNS_PER_HOUR(${CONFIGURED_RUNS_PER_HOUR})과 일치`,
+      expected === CONFIGURED_RUNS_PER_HOUR
+    );
+  }
+
+  // 11j) 실측 주기 추정 — 중앙값 기반, 표본 부족 시 폴백, 극단값에 흔들리지 않는지
+  {
+    const { estimateRunsPerHourFromLog, CONFIGURED_RUNS_PER_HOUR, MIN_RUNS_PER_HOUR, MAX_RUNS_PER_HOUR } = require(path)._testUtils;
+    const mk = (gapsMin) => { // 최신순 timestamp 배열 생성
+      let t = Date.parse('2026-08-04T12:00:00Z'); const out = [new Date(t).toISOString()];
+      for (const g of gapsMin) { t -= g * 60000; out.push(new Date(t).toISOString()); }
+      return out;
+    };
+    const checks = [
+      ['11j) 표본 3개 미만이면 선언값 폴백', estimateRunsPerHourFromLog(['2026-08-04T12:00:00Z']).runsPerHour === CONFIGURED_RUNS_PER_HOUR],
+      ['11j-b) 빈 배열/undefined도 폴백(예외 없음)', estimateRunsPerHourFromLog([]).runsPerHour === CONFIGURED_RUNS_PER_HOUR && estimateRunsPerHourFromLog(undefined).runsPerHour === CONFIGURED_RUNS_PER_HOUR],
+      // 실측된 실제 패턴: 약 94분 간격 → 60/94 ≈ 0.64회/시
+      ['11j-c) 94분 간격 → 약 0.64회/시로 추정', Math.abs(estimateRunsPerHourFromLog(mk([94, 94, 94, 94])).runsPerHour - 0.638) < 0.02],
+      ['11j-d) 30분 간격 → 2회/시로 추정', Math.abs(estimateRunsPerHourFromLog(mk([30, 30, 30, 30])).runsPerHour - 2) < 0.01],
+      // 수동 실행이 끼어 간격 하나가 1분이어도 중앙값이라 흔들리지 않아야 한다(평균이면 크게 틀어진다)
+      ['11j-e) 극단값 1개(수동 실행)에 흔들리지 않음(중앙값)', Math.abs(estimateRunsPerHourFromLog(mk([94, 1, 94, 94])).runsPerHour - 0.638) < 0.02],
+      ['11j-f) 비정상적으로 빠른 간격도 상한으로 클램프', estimateRunsPerHourFromLog(mk([1, 1, 1, 1])).runsPerHour === MAX_RUNS_PER_HOUR],
+      ['11j-g) 비정상적으로 느린 간격도 하한으로 클램프', estimateRunsPerHourFromLog(mk([9999, 9999, 9999])).runsPerHour === MIN_RUNS_PER_HOUR],
+      ['11j-h) 추정 근거(source)를 남겨 로그에서 확인 가능', /measured/.test(estimateRunsPerHourFromLog(mk([94, 94, 94])).source)],
+    ];
+    checks.forEach(([label, pass]) => check(label, pass));
+  }
+
+  // 11k) 시간 예산 가드 상수가 Netlify 한도(15분)보다 안전하게 낮은지 + 상한 건수와 정합적인지
+  {
+    const { RUN_BUDGET_MS, PER_POST_ESTIMATE_MS, MAX_POSTS_PER_RUN } = require(path)._testUtils;
+    check('11k) RUN_BUDGET_MS가 Netlify 15분 한도보다 낮음', RUN_BUDGET_MS < 15 * 60 * 1000);
+    check(
+      `11k-b) 예산 가드가 실제로 상한을 제약함(상한 ${MAX_POSTS_PER_RUN}건은 예산만으론 다 못 채울 수 있어 가드가 필요)`,
+      PER_POST_ESTIMATE_MS > 0 && RUN_BUDGET_MS > PER_POST_ESTIMATE_MS * 2
     );
   }
 
@@ -380,11 +419,17 @@ async function main() {
     );
   }
 
-  // 23b) 게시 간격이 Background Function 예산(15분) 안에 들어오는지 — 상한을 올릴 때 함께
-  //      확인해야 하는 제약이다. 최악의 경우(모든 간격이 최대) 간격 합 + 건당 오버헤드가
-  //      예산을 넘으면 마지막 게시가 실행 도중 죽는다(2026-08-03 상한 3→4 상향 시 도입).
-  //      주의: 이 파일 맨 위에서 POST_GAP_*_MS를 테스트용으로 5~10ms로 덮어쓰기 때문에, 그 값을
-  //      그대로 쓰면 "최악 1분"이라는 무의미한 통과가 된다. 운영 기본값으로 다시 로드해서 검사한다.
+  // 23b) 실행시간이 Netlify Background Function 한도(15분) 안에서 끝나는지.
+  //      2026-08-04 재작성: 상한을 6건으로 올리면서 안전장치가 "정적 상한 x 간격 산술"에서
+  //      "실행 중 경과시간 가드(RUN_BUDGET_MS)"로 바뀌었다. 6건 x 최대간격 3분은 산술로는
+  //      17분이라 예산을 넘지만, 가드가 예산 도달 시 스스로 멈추므로 실제로는 넘지 않는다.
+  //      그래서 검증 대상도 가드 자체의 건전성이어야 한다.
+  //
+  //      가드는 대기 전에 `경과 + 대기 + 건당추정 <= 예산`을 확인하므로, 통과한 게시가 끝난
+  //      시점의 경과는 (실제 소요 <= 추정인 한) 예산을 넘지 않는다. 따라서 전체 실행시간의
+  //      상한은 대략 예산 + 추정보다 오래 걸린 마지막 한 건이다 — 그 합이 15분 미만이어야 한다.
+  //      주의: 이 파일 맨 위에서 POST_GAP_*_MS를 테스트용으로 5~10ms로 덮어쓰므로, 간격 관련
+  //      검사는 운영 기본값으로 다시 로드해서 해야 한다(안 하면 무의미하게 통과한다).
   {
     const savedMin = process.env.POST_GAP_MIN_MS;
     const savedMax = process.env.POST_GAP_MAX_MS;
@@ -394,13 +439,23 @@ async function main() {
     process.env.POST_GAP_MIN_MS = savedMin;
     process.env.POST_GAP_MAX_MS = savedMax;
 
-    const PER_POST_OVERHEAD_MS = 20 * 1000; // Claude 호출 + 컨테이너 3초 대기 + API 왕복 여유
-    const worstCaseMs = (prod.MAX_POSTS_PER_RUN - 1) * prod.MAX_GAP_MS + prod.MAX_POSTS_PER_RUN * PER_POST_OVERHEAD_MS;
-    const BUDGET_MS = 15 * 60 * 1000;
+    const PLATFORM_LIMIT_MS = 15 * 60 * 1000;
+    const worstCaseMs = prod.RUN_BUDGET_MS + prod.PER_POST_ESTIMATE_MS;
     check(
-      `23b) 운영 기본값 최악 실행시간 ${(worstCaseMs / 60000).toFixed(1)}분 < Background 예산 15분` +
-      ` (상한 ${prod.MAX_POSTS_PER_RUN}건, 최대간격 ${prod.MAX_GAP_MS / 60000}분)`,
-      prod.MAX_GAP_MS >= 60 * 1000 && worstCaseMs < BUDGET_MS
+      `23b) 가드 기준 최악 실행시간 ${(worstCaseMs / 60000).toFixed(2)}분 < 플랫폼 한도 15분` +
+      ` (예산 ${prod.RUN_BUDGET_MS / 60000}분 + 건당추정 ${prod.PER_POST_ESTIMATE_MS / 1000}초)`,
+      worstCaseMs < PLATFORM_LIMIT_MS
+    );
+    check(
+      '23b-2) 운영 간격이 실제 분 단위값(테스트 오버라이드가 아닌 값으로 검사됐는지)',
+      prod.MIN_GAP_MS >= 60 * 1000 && prod.MAX_GAP_MS >= prod.MIN_GAP_MS
+    );
+    // 상한을 6건까지 올려둔 것이 의미가 있으려면, 예산 안에서 최소 몇 건은 실제로 소화돼야 한다.
+    // (간격 최소값 기준으로 계산 — 최악이 아니라 "정상적인 경우 몇 건 가능한가")
+    const feasibleAtMinGap = Math.floor(prod.RUN_BUDGET_MS / (prod.MIN_GAP_MS + prod.PER_POST_ESTIMATE_MS));
+    check(
+      `23b-3) 최소간격 기준 예산 안에서 ${feasibleAtMinGap}건 소화 가능(상한 ${prod.MAX_POSTS_PER_RUN}건이 과도하지 않음)`,
+      feasibleAtMinGap >= 3
     );
   }
 

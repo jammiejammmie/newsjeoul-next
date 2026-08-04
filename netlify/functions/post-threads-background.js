@@ -108,12 +108,43 @@ const DISTRIBUTION_SCORE_CEILING = 80;
 // 최악의 경우 3×3=9분 + 건당 오버헤드(Claude 호출·컨테이너 대기·API ≈ 15초)×4 ≈ 10분으로
 // 예산 안에 안전하게 들어온다. 간격을 좁혀도 스팸성 패턴 우려가 커지지 않는 이유는
 // 실행 주기 자체가 30분으로 짧아져 게시가 하루 전체에 더 고르게 퍼지기 때문이다.
-const MAX_POSTS_PER_RUN = 4;
-// 실행 주기(시간당 실행 횟수) — computePostsThisRun의 "남은 실행 기회" 계산에 쓴다.
-// .github/workflows/post-threads.yml의 cron과 반드시 일치해야 한다: 값이 어긋나면 페이스가
-// 어긋난다(1시간 주기 전제로 남은 시간만큼 나누던 공식을 30분 주기에 그대로 쓰면 시간당
-// 배급량을 2배로 계산해 하루 목표를 오전에 다 태워버린다).
-const RUNS_PER_HOUR = 2;
+// 2026-08-04 재조정: 상한을 4 → 6으로 올렸다. 근거는 아래 "실측 주기" 항목 —
+// GitHub Actions가 cron을 그대로 지켜주지 않아 실행 횟수가 설정의 1/3 수준이므로, 부족한
+// 횟수를 실행당 건수로 메워야 한다. 6건이 안전한 이유는 아래 RUN_BUDGET_MS 가드 때문이다
+// (정적 상한만 믿지 않고 실제 경과 시간을 보며 멈춘다).
+const MAX_POSTS_PER_RUN = 6;
+
+// 워크플로우 cron이 선언하는 시간당 실행 횟수 — 실측값을 구할 수 없을 때의 폴백으로만 쓴다.
+// .github/workflows/post-threads.yml의 cron과 일치해야 한다(테스트 11g가 고정한다).
+const CONFIGURED_RUNS_PER_HOUR = 2;
+
+// ── 실측 주기(2026-08-04에 추가한 이유) ──────────────────────────────────────
+// distribution_run_log를 켠 뒤 실측해보니 GitHub Actions가 cron을 전혀 지키지 않는다.
+// 같은 저장소의 모든 스케줄 워크플로우가 설정보다 느리고, 주기가 짧을수록 더 심하게 밀린다:
+//   20분 설정 → 실측 109분(5.5배)  |  30분 → 94분(3.1배)
+//   60분 설정 → 실측 143분(2.4배)  |  180분 → 222분(1.2배)
+// 즉 실효 하한이 약 90~150분이라 cron을 짧게 줄이는 것으로는 밀도를 올릴 수 없다
+// (1시간 → 30분 변경의 실제 효과가 거의 0이었다).
+//
+// 문제는 이게 페이싱 계산을 조용히 망가뜨린다는 점이다. computePostsThisRun은 "남은 목표 ÷
+// 남은 실행 기회"인데, 남은 기회를 cron 선언값(시간당 2회)으로 계산하면 실제(시간당 약 0.64회)의
+// 3배로 과대평가해서 실행당 시도 건수를 그만큼 과소 산정한다 — 4건을 시도해야 할 때 1건만
+// 시도하고, 목표는 영원히 미달한다. 실제로 08-03 하루 누적이 4건(목표 47)이었다.
+//
+// 그래서 선언값을 신뢰하지 않고 distribution_run_log의 최근 실행 간격으로 실측한다.
+// 플랫폼 스케줄러 동작이 바뀌어도(더 느려지든 정상화되든) 코드를 고치지 않고 따라간다.
+const CADENCE_SAMPLE_SIZE = 8; // 최근 N회 실행 간격으로 추정(너무 적으면 우발적 지연에 흔들린다)
+const MIN_RUNS_PER_HOUR = 0.2; // 5시간에 1회보다 느리다고는 보지 않는다(과대 배급 방지)
+const MAX_RUNS_PER_HOUR = 4;   // 15분에 1회보다 빠르다고는 보지 않는다(과소 배급 방지)
+
+// 1회 실행이 쓸 수 있는 시간 예산. Netlify Background Function 한도는 15분이지만, 한도에
+// 닿으면 실행이 강제 종료되어 마지막 게시가 컨테이너 생성 후 publish 전에 죽을 수 있다.
+// 13분에서 스스로 멈춰 그 사고를 피한다(정적 상한이 아니라 이 가드가 실제 안전장치다).
+// 예산 12분 + 건당 추정 45초 = 12.75분으로, 플랫폼 한도(15분)까지 2분 이상 여유를 남긴다.
+// 건당 추정을 넉넉히(45초) 잡은 이유: Claude가 느린 날에는 한 건이 40초를 넘을 수 있고, 추정이
+// 실제보다 짧으면 가드가 "한 건 더 가능"이라 판단한 뒤 그 건이 예산을 넘겨 죽는다.
+const RUN_BUDGET_MS = 12 * 60 * 1000;
+const PER_POST_ESTIMATE_MS = 45 * 1000; // Claude 호출 + 컨테이너 3초 대기 + publish 왕복 + 지연 여유
 // 테스트에서만 오버라이드 가능(운영 기본값은 2~3분) — 실제 분 단위 대기를 mock 테스트에서
 // 그대로 기다리면 테스트가 몇 분씩 걸리므로, 테스트 전용 환경변수로만 짧게 조정할 수 있게 열어둔다.
 const MIN_GAP_MS = Number(process.env.POST_GAP_MIN_MS) || 2 * 60 * 1000; // 2분
@@ -298,12 +329,47 @@ function computeDailyTarget(todayArticles) {
 // 원래 공식은 1시간 주기를 암묵적으로 가정하고 있었다 — cron을 30분으로 줄이면 같은 목표를
 // 시간당 2번씩 배정해 하루 몫을 오전에 다 태우고, 그 뒤엔 적응형 문턱값이 올라가 오후·밤
 // 배급이 말라버린다. 주기와 분모를 명시적으로 묶어 그 결합을 드러냈다.
-function computePostsThisRun(dailyTarget, postedToday, now = new Date()) {
+function computePostsThisRun(dailyTarget, postedToday, now = new Date(), runsPerHour = CONFIGURED_RUNS_PER_HOUR) {
   const remaining = Math.max(0, dailyTarget - postedToday);
   if (remaining <= 0) return 1;
   const hoursRemainingToday = Math.max(1, 24 - (now.getUTCHours() + now.getUTCMinutes() / 60));
-  const runsRemainingToday = Math.max(1, Math.round(hoursRemainingToday * RUNS_PER_HOUR));
+  const runsRemainingToday = Math.max(1, Math.round(hoursRemainingToday * runsPerHour));
   return Math.min(MAX_POSTS_PER_RUN, Math.max(1, Math.ceil(remaining / runsRemainingToday)));
+}
+
+// 최근 실행 간격의 중앙값으로 시간당 실행 횟수를 추정한다. 평균이 아니라 중앙값을 쓰는 이유는
+// 수동 실행(workflow_dispatch)이나 일시적 장애로 생긴 극단값 하나가 추정을 크게 흔들기 때문이다.
+// 표본이 부족하면(로그를 켠 직후 등) 선언값을 그대로 쓴다.
+function estimateRunsPerHourFromLog(runAtList) {
+  const times = (runAtList || [])
+    .map((r) => new Date(r).getTime())
+    .filter((t) => Number.isFinite(t))
+    .sort((a, b) => b - a);
+  if (times.length < 3) return { runsPerHour: CONFIGURED_RUNS_PER_HOUR, source: 'configured(표본부족)', samples: times.length };
+  const gapsMin = [];
+  for (let i = 0; i < times.length - 1; i++) gapsMin.push((times[i] - times[i + 1]) / 60000);
+  const sorted = gapsMin.slice().sort((a, b) => a - b);
+  const medianGap = sorted[Math.floor(sorted.length / 2)];
+  if (!(medianGap > 0)) return { runsPerHour: CONFIGURED_RUNS_PER_HOUR, source: 'configured(간격이상)', samples: times.length };
+  const raw = 60 / medianGap;
+  const runsPerHour = Math.min(MAX_RUNS_PER_HOUR, Math.max(MIN_RUNS_PER_HOUR, raw));
+  return { runsPerHour, source: `measured(중앙값 ${Math.round(medianGap)}분)`, samples: times.length };
+}
+
+// 실측 주기 조회(best-effort) — 실패하면 선언값으로 조용히 폴백한다(배급 자체를 막지 않는다).
+async function fetchRunsPerHour() {
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/distribution_run_log?select=run_at&channel=eq.${CHANNEL}` +
+      `&order=run_at.desc&limit=${CADENCE_SAMPLE_SIZE}`,
+      { headers: REQUEST_HEADERS }
+    );
+    if (!res.ok) return { runsPerHour: CONFIGURED_RUNS_PER_HOUR, source: 'configured(조회실패)', samples: 0 };
+    const rows = await res.json();
+    return estimateRunsPerHourFromLog(rows.map((r) => r.run_at));
+  } catch {
+    return { runsPerHour: CONFIGURED_RUNS_PER_HOUR, source: 'configured(예외)', samples: 0 };
+  }
 }
 
 // 목표 대비 진행률에 따라 요구 점수를 부드럽게 올린다(하드 컷오프 아님) — 목표를 채웠어도
@@ -837,10 +903,17 @@ exports.handler = async function (event) {
 
   try {
     // 이번 실행에서 몇 건을 시도할지 미리 계산(운영 로그 가시성 + 루프 조건에 사용)
-    const [articleCount, postedStatsNow] = await Promise.all([fetchTodayArticleCount(), fetchTodayPostedStats()]);
+    const runStartedAt = Date.now();
+    const [articleCount, postedStatsNow, cadence] = await Promise.all([
+      fetchTodayArticleCount(), fetchTodayPostedStats(), fetchRunsPerHour(),
+    ]);
     const dailyTarget = computeDailyTarget(articleCount);
-    const postsThisRun = computePostsThisRun(dailyTarget, postedStatsNow.total);
-    console.log(`DISTRIBUTION_RUN_PLAN[${CHANNEL}]: articles=${articleCount} dailyTarget=${dailyTarget} postedToday=${postedStatsNow.total} postsThisRun=${postsThisRun}`);
+    const postsThisRun = computePostsThisRun(dailyTarget, postedStatsNow.total, new Date(), cadence.runsPerHour);
+    console.log(
+      `DISTRIBUTION_RUN_PLAN[${CHANNEL}]: articles=${articleCount} dailyTarget=${dailyTarget}` +
+      ` postedToday=${postedStatsNow.total} postsThisRun=${postsThisRun}` +
+      ` | 주기 ${cadence.runsPerHour.toFixed(2)}회/시 ${cadence.source} 표본${cadence.samples}`
+    );
 
     const results = [];
     for (let i = 0; i < postsThisRun; i++) {
@@ -852,6 +925,17 @@ exports.handler = async function (event) {
       }
       if (i < postsThisRun - 1) {
         const gapMs = Math.round(MIN_GAP_MS + Math.random() * (MAX_GAP_MS - MIN_GAP_MS));
+        // 시간 예산 가드 — 대기 + 다음 게시까지 갔을 때 예산을 넘길 것 같으면 지금 멈춘다.
+        // 넘긴 채로 진행하면 Netlify가 15분에서 실행을 끊어, 컨테이너는 만들었지만 publish를
+        // 못 한 상태로 죽을 수 있다(그러면 Claude 비용은 쓰고 게시는 안 된다).
+        const elapsed = Date.now() - runStartedAt;
+        if (elapsed + gapMs + PER_POST_ESTIMATE_MS > RUN_BUDGET_MS) {
+          console.log(
+            `DISTRIBUTION_RUN_BUDGET_STOP[${CHANNEL}]: ${i + 1}건 게시 후 중단` +
+            `(경과 ${Math.round(elapsed / 1000)}초 + 대기 ${Math.round(gapMs / 1000)}초가 예산 ${RUN_BUDGET_MS / 60000}분 초과)`
+          );
+          break;
+        }
         console.log(`DISTRIBUTION_GAP[${CHANNEL}]: 다음 게시까지 ${Math.round(gapMs / 1000)}초 대기`);
         await new Promise((r) => setTimeout(r, gapMs));
       }
@@ -893,5 +977,7 @@ exports.handler = async function (event) {
 exports._testUtils = {
   computeDailyTarget, computePostsThisRun, computeAdaptiveMinDistributionScore,
   truncateAtSentenceBoundary, buildTopicUrl, THREADS_MAX_CHARS,
-  MAX_POSTS_PER_RUN, RUNS_PER_HOUR, MIN_GAP_MS, MAX_GAP_MS,
+  MAX_POSTS_PER_RUN, CONFIGURED_RUNS_PER_HOUR, MIN_GAP_MS, MAX_GAP_MS,
+  estimateRunsPerHourFromLog, RUN_BUDGET_MS, PER_POST_ESTIMATE_MS,
+  MIN_RUNS_PER_HOUR, MAX_RUNS_PER_HOUR,
 };
