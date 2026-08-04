@@ -93,6 +93,10 @@ async function run(scenario) {
     }
     if (method === 'POST' && url.includes('anthropic.com')) {
       if (s.claudeFails) return { ok: false, text: async () => 'claude api error' };
+      // claudeHook: 호출마다 'EMPTY'(빈 응답 재현) 또는 null(정상)을 돌려주게 해서
+      // "첫 후보에서만 실패" 같은 시나리오를 만든다(2026-08-04 실측 사고 재현용).
+      const hook = s.claudeHook ? s.claudeHook() : null;
+      if (hook === 'EMPTY') return jsonRes({ content: [], stop_reason: 'end_turn', usage: { input_tokens: 100, output_tokens: 0 } });
       return jsonRes({ content: [{ type: 'text', text: JSON.stringify({ text: s.claudeText || '배경과 쟁점을 설명하는 문장입니다. '.repeat(4) }) }] });
     }
     if (method === 'POST' && url.includes('/rest/v1/threads_posts')) {
@@ -648,6 +652,64 @@ async function main() {
     check(
       '33c) dedup 저장 실패 시 skip_log에 기록 + 게시된 Post ID 보존',
       first?.reason === 'dedup_save_failed' && !!row && !!row.detail?.postId
+    );
+  }
+
+  // 34) 후보 단위 실패 시 다른 후보로 재시도하는지(2026-08-04 실측 사고 회귀 테스트)
+  //     사고: Claude가 빈 응답을 한 번 주자(claude_failed) 후보가 165건 남아 있는데도
+  //     그 실행이 0건으로 끝났다. 어떤 실패든 무조건 break였기 때문이다.
+  {
+    // 첫 Claude 호출만 실패하고 그 뒤로는 성공하게 만든다.
+    let claudeCalls = 0;
+    const t1 = makeTopic('t-fail-first', '실패할 후보', '경제', 500);
+    const t2 = makeTopic('t-ok-second', '성공할 후보', '사회', 490);
+    const { body, patched } = await run({
+      pool: [t1, t2], articleCount: 250, postedTotal: 25,
+      claudeHook: () => { claudeCalls++; return claudeCalls === 1 ? 'EMPTY' : null; },
+    });
+    const posted = body.results.filter((r) => r.ok);
+    check(
+      '34) Claude가 첫 후보에서 빈 응답이어도 다른 후보로 재시도해 게시한다',
+      posted.length === 1 && posted[0].topicId === 't-ok-second' && patched.length === 1
+    );
+    check(
+      '34b) 실패한 후보를 다시 고르지 않는다(같은 실패 반복 방지)',
+      body.results.filter((r) => r.reason === 'claude_failed').length === 1
+    );
+  }
+
+  // 35) 시스템성 실패(threads_api_failed)는 재시도하지 않고 중단하는지
+  //     계정·API 차원의 문제라 다른 후보로도 실패한다 — 재시도는 Claude 비용만 낭비한다.
+  {
+    const t1 = makeTopic('t-api-1', '후보1', '경제', 500);
+    const t2 = makeTopic('t-api-2', '후보2', '사회', 490);
+    const { body } = await run({ pool: [t1, t2], threadsApiFails: true });
+    check(
+      '35) threads_api_failed는 재시도 없이 즉시 중단(비용 낭비 방지)',
+      body.results.length === 1 && body.results[0].reason === 'threads_api_failed'
+    );
+  }
+
+  // 36) 후보 단위 실패가 계속되면 재시도 상한에서 멈추는지(무한 재시도 방지)
+  {
+    const pool = [1, 2, 3, 4, 5, 6].map((n) => makeTopic('t-allfail-' + n, '후보' + n, '경제', 500 - n));
+    const { body } = await run({ pool, claudeFails: true });
+    const { MAX_CANDIDATE_RETRIES } = require(path)._testUtils;
+    check(
+      `36) 후보 단위 실패가 반복되면 최초 1회 + 재시도 ${MAX_CANDIDATE_RETRIES}회에서 멈춤`,
+      body.results.length === MAX_CANDIDATE_RETRIES + 1 && body.results.every((r) => r.reason === 'claude_failed')
+    );
+  }
+
+  // 37) 품질 미달 등 "다시 시도해도 같은" 사유는 재시도하지 않는지
+  {
+    const thin = makeTopic('t-thin-2', '빈약', '경제', 100, {
+      ai_context: { draft: { lead: '짧음', blocks: [{ axis: 'a', content: '짧다' }] }, evidence: { sources: [{ url: 'https://x.com' }] } },
+    });
+    const { body } = await run({ pool: [thin] });
+    check(
+      '37) 품질 미달은 재시도 없이 1회로 종료(결과가 달라지지 않는 사유)',
+      body.results.length === 1 && body.results[0].skipped === true
     );
   }
 

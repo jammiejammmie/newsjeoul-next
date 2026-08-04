@@ -145,6 +145,12 @@ const MAX_RUNS_PER_HOUR = 4;   // 15분에 1회보다 빠르다고는 보지 않
 // 실제보다 짧으면 가드가 "한 건 더 가능"이라 판단한 뒤 그 건이 예산을 넘겨 죽는다.
 const RUN_BUDGET_MS = 12 * 60 * 1000;
 const PER_POST_ESTIMATE_MS = 45 * 1000; // Claude 호출 + 컨테이너 3초 대기 + publish 왕복 + 지연 여유
+
+// 후보 단위 실패(Claude 빈 응답 등) 시 다른 후보로 재시도할 최대 횟수 — 실행당 누적이다.
+// 2로 잡은 이유: 재시도마다 Claude 호출 비용이 다시 나가므로 무한정 돌 수 없고, 한 실행에서
+// 연속 3번(최초 1 + 재시도 2) 실패한다면 후보 개별 문제가 아니라 API/프롬프트 차원의 문제라
+// 보고 멈추는 편이 낫다.
+const MAX_CANDIDATE_RETRIES = 2;
 // 테스트에서만 오버라이드 가능(운영 기본값은 2~3분) — 실제 분 단위 대기를 mock 테스트에서
 // 그대로 기다리면 테스트가 몇 분씩 걸리므로, 테스트 전용 환경변수로만 짧게 조정할 수 있게 열어둔다.
 const MIN_GAP_MS = Number(process.env.POST_GAP_MIN_MS) || 2 * 60 * 1000; // 2분
@@ -522,14 +528,17 @@ async function logHardFailure(topic, reason, errorMessage, extra) {
   }]);
 }
 
-async function selectCandidate() {
-  const [pool, recentCategories, producedStats, postedStats, articleCount] = await Promise.all([
+// excludeIds: 이번 실행에서 이미 시도했다가 실패한 Topic들. 같은 후보를 다시 골라 같은 실패를
+// 반복하는 것을 막는다(2026-08-04 — 아래 attemptOnePost/handler 주석 참고).
+async function selectCandidate(excludeIds = new Set()) {
+  const [poolRaw, recentCategories, producedStats, postedStats, articleCount] = await Promise.all([
     fetchCandidatePool(),
     fetchRecentPostedCategories(RECENT_HISTORY_WINDOW),
     fetchTodayProducedStats(),
     fetchTodayPostedStats(),
     fetchTodayArticleCount(),
   ]);
+  const pool = poolRaw.filter((t) => !excludeIds.has(t.id));
   const dailyTarget = computeDailyTarget(articleCount);
   const adaptiveMinScore = computeAdaptiveMinDistributionScore(dailyTarget, postedStats.total);
   const baseDetail = { dailyTarget, todayArticleCount: articleCount, todayProducedTotal: producedStats.total, todayPostedTotal: postedStats.total };
@@ -750,9 +759,21 @@ Threads는 전체 500자 제한이 있고 뒤에 마무리 문장과 링크가 �
   });
   if (!res.ok) throw new Error('Claude API 에러: ' + await res.text());
   const data = await res.json();
-  const rawText = data.content.filter((b) => b.type === 'text').map((b) => b.text).join('');
+  const rawText = (data.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('');
   const match = rawText.match(/\{[\s\S]*\}/);
-  if (!match) throw new Error('포스팅 본문 파싱 실패: ' + rawText.slice(0, 200));
+  if (!match) {
+    // 2026-08-04: 실제로 rawText가 빈 문자열인 실패가 관측됐다(skip_log claude_failed,
+    // "포스팅 본문 파싱 실패: " — 콜론 뒤가 비어 있었다). 원문만 찍으면 빈 문자열이라
+    // 아무 단서가 없으므로, 응답의 구조 자체를 남긴다(stop_reason·블록 타입·길이).
+    // 다음 발생 시 "모델이 빈 응답을 줬는가 / 형식이 달라졌는가"를 바로 구분할 수 있다.
+    const shape = {
+      stop_reason: data.stop_reason ?? null,
+      blockTypes: (data.content || []).map((b) => b.type),
+      rawLen: rawText.length,
+      usage: data.usage ? { in: data.usage.input_tokens, out: data.usage.output_tokens } : null,
+    };
+    throw new Error(`포스팅 본문 파싱 실패(응답구조 ${JSON.stringify(shape)}): ` + rawText.slice(0, 200));
+  }
   const parsed = JSON.parse(match[0]);
 
   // 링크를 먼저 확보한다 — 마무리 문구+링크의 길이를 재고, 남은 만큼만 본문에 배정한다.
@@ -800,9 +821,9 @@ async function publishPost(containerId) {
 // 후보 선정 → Claude 문구 생성 → 게시 → dedup 기록 → 상세 로그, 1건 전체 흐름.
 // 이 함수 자체는 실패해도 throw하지 않는다 — 결과를 {ok, reason, ...} 객체로 반환해 호출자(핸들러
 // 루프)가 다음 시도를 계속할지 멈출지 판단하게 한다(품질 미달/후보 없음이면 억지로 채우지 않고 중단).
-async function attemptOnePost() {
+async function attemptOnePost(excludeIds = new Set()) {
   // 1. 후보 선정(Editorial Score 품질 게이트 + Distribution Score 배급 우선순위) — Claude 호출 전
-  const { topic, reason, detail } = await selectCandidate();
+  const { topic, reason, detail } = await selectCandidate(excludeIds);
   if (!topic) {
     console.log(`DISTRIBUTION_SKIP[${CHANNEL}](${reason}):`, JSON.stringify(detail));
     return { ok: false, skipped: true, reason, detail };
@@ -824,7 +845,9 @@ async function attemptOnePost() {
     const reason = genErr instanceof ComposeError ? 'compose_failed' : 'claude_failed';
     console.error(`DISTRIBUTION_SKIP[${CHANNEL}](${reason}):`, genErr.message);
     await logHardFailure(topic, reason, genErr.message);
-    return { ok: false, reason, error: genErr.message };
+    // topicId를 함께 돌려준다 — 호출자(핸들러 루프)가 이 후보를 제외하고 다른 후보로
+    // 재시도할 수 있어야 한다. 없으면 같은 후보를 다시 골라 같은 실패를 반복한다.
+    return { ok: false, reason, error: genErr.message, topicId: topic.id };
   }
   console.log('포스팅 내용:\n', text);
 
@@ -844,7 +867,7 @@ async function attemptOnePost() {
   } catch (postErr) {
     console.error(`DISTRIBUTION_SKIP[${CHANNEL}](threads_api_failed, Claude 비용은 이미 발생):`, postErr.message);
     await logHardFailure(topic, 'threads_api_failed', postErr.message);
-    return { ok: false, reason: 'threads_api_failed', error: postErr.message };
+    return { ok: false, reason: 'threads_api_failed', error: postErr.message, topicId: topic.id };
   }
 
   // 4. 핵심 dedup 기록(실패해도 게시 자체는 이미 성공 — Post ID를 결과에 보존)
@@ -916,12 +939,41 @@ exports.handler = async function (event) {
     );
 
     const results = [];
+    const failedTopicIds = new Set(); // 이번 실행에서 실패한 후보 — 같은 후보를 다시 고르지 않게 제외
+    let candidateRetries = 0;
+
     for (let i = 0; i < postsThisRun; i++) {
-      const result = await attemptOnePost();
+      const result = await attemptOnePost(failedTopicIds);
       results.push(result);
+
       if (!result.ok) {
+        // 2026-08-04: 예전엔 어떤 실패든 무조건 break였다. 그래서 Claude가 빈 응답을 한 번
+        // 주면(실측: 07:12 실행, claude_failed "본문 파싱 실패" — 응답 텍스트가 빈 문자열)
+        // 후보가 165건이나 남아 있는데도 그 실행이 0건으로 끝났다.
+        //
+        // 사유를 두 부류로 나눈다:
+        //  · 중단해야 하는 것 — 다시 시도해도 결과가 같다(후보 없음/품질 미달/배급 문턱 미달),
+        //    또는 계정·API 차원의 문제라 다음 후보로도 실패한다(threads_api_failed,
+        //    dedup_save_failed는 이미 게시된 뒤의 저장 실패라 계속 진행하면 상태가 더 꼬인다).
+        //  · 다음 후보로 넘어가야 하는 것 — 그 후보에 국한된 문제(claude_failed/compose_failed/
+        //    duplicate_topic). 실패한 후보를 제외하고 다른 후보로 재시도한다.
+        const perCandidate = ['claude_failed', 'compose_failed', 'duplicate_topic'].includes(result.reason);
+        // 재시도도 Claude 호출과 시간을 쓴다. 게시 사이 대기(gap)와 달리 이 경로는 곧바로 다시
+        // 시도하므로, 예산 검사를 여기에도 둬야 실행이 15분 한도에 걸려 강제 종료되지 않는다.
+        const elapsedNow = Date.now() - runStartedAt;
+        const budgetLeft = elapsedNow + PER_POST_ESTIMATE_MS <= RUN_BUDGET_MS;
+        if (perCandidate && candidateRetries < MAX_CANDIDATE_RETRIES && budgetLeft) {
+          candidateRetries++;
+          if (result.topicId) failedTopicIds.add(result.topicId);
+          console.log(
+            `DISTRIBUTION_RETRY[${CHANNEL}]: ${result.reason} — 이 후보를 제외하고 다른 후보로 재시도` +
+            ` (${candidateRetries}/${MAX_CANDIDATE_RETRIES}, 제외 ${failedTopicIds.size}건)`
+          );
+          i--; // 이번 시도는 게시 건수로 세지 않는다(재시도이므로 목표 건수를 소모하지 않음)
+          continue;
+        }
         console.log(`DISTRIBUTION_RUN_STOP[${CHANNEL}]: ${i + 1}번째 시도에서 중단(사유: ${result.reason})`);
-        break; // 후보 없음/품질 미달/실패 — 억지로 채우지 않고 이번 실행 종료
+        break; // 후보 없음/품질 미달/시스템 문제 — 억지로 채우지 않고 이번 실행 종료
       }
       if (i < postsThisRun - 1) {
         const gapMs = Math.round(MIN_GAP_MS + Math.random() * (MAX_GAP_MS - MIN_GAP_MS));
@@ -979,5 +1031,5 @@ exports._testUtils = {
   truncateAtSentenceBoundary, buildTopicUrl, THREADS_MAX_CHARS,
   MAX_POSTS_PER_RUN, CONFIGURED_RUNS_PER_HOUR, MIN_GAP_MS, MAX_GAP_MS,
   estimateRunsPerHourFromLog, RUN_BUDGET_MS, PER_POST_ESTIMATE_MS,
-  MIN_RUNS_PER_HOUR, MAX_RUNS_PER_HOUR,
+  MIN_RUNS_PER_HOUR, MAX_RUNS_PER_HOUR, MAX_CANDIDATE_RETRIES,
 };
