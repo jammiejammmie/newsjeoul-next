@@ -911,6 +911,14 @@ export async function getInterestTags() {
 //   plan.event_type         — 형식 라벨의 근거
 // 없는 것을 만들지 않고, 있는 것을 시안의 3층 구조에 맞게 배치한다.
 
+// 읽을 거리 선정 파라미터.
+// 값의 근거(2026-08-05 실측): 발행 토픽 중 블록 5개 이상이 130건인데 importance_score
+// 상위 40건 창에는 23건만 들어왔다. 창을 넓히고 깊이순으로 뽑아야 공들인 글이 노출된다.
+const FEATURE_POOL_SIZE = 120     // 후보 풀(넓게 받아 깊이순으로 다시 정렬한다)
+const FEATURE_MIN_BLOCKS = 4      // 이보다 얇으면 '기획·해설'로 내보내지 않는다
+const FEATURE_MAX_AGE_DAYS = 14   // 2주 넘은 글은 기획이라도 홈 이 칸에 두지 않는다
+const FEATURE_ROTATION_HOURS = 3  // 회전 주기. 후보가 많아 버킷마다 다른 조합이 나온다
+
 /** event_type → 형식 라벨. 시안의 기획/해설/데이터 세 갈래를 실제 사건유형에 매핑한다. */
 const FEATURE_KICKER: Record<string, string> = {
   '규제·정책': '해설',
@@ -955,22 +963,47 @@ function firstSentence(text: string, max = 92): string {
  * lead나 블록이 없으면 카드의 3층 구조를 채울 수 없으므로 아예 내보내지 않는다.
  */
 export async function getFeatureReads(
-  { excludeTopicSlugs = [], limit = 3 }: { excludeTopicSlugs?: string[]; limit?: number } = {}
+  { excludeTopicSlugs = [], limit = 3, now = Date.now() }:
+  { excludeTopicSlugs?: string[]; limit?: number; now?: number } = {}
 ): Promise<FeatureRead[]> {
   const exclude = new Set(excludeTopicSlugs)
   try {
+    // ★ importance_score 상위 40건에서 고르면 안 된다(2026-08-05 실측으로 확인).
+    //   신선도 감쇠 도입 후 importance_score는 "지금 뉴스로서 얼마나 무거운가"에 가까워졌다.
+    //   그 순서로 40건만 보면 블록 5개짜리 기획 130건 중 23건만 후보가 되고 107건은
+    //   영원히 이 칸에 못 나온다. 기획·해설은 '최신 뉴스'가 아니라 '공들인 글'을 보여주는 칸이다.
+    //
+    //   그래서 (1) 최근 생성된 발행 글을 넓게 받고 (2) 본문 깊이(블록 수)로 순위를 매기고
+    //   (3) 시간 버킷으로 회전시킨다. 회전이 없으면 점수가 바뀔 때까지 같은 3장이 고정된다.
+    //   created_at을 쓰는 이유: updated_at은 무게 재계산마다 갱신돼 편집 신선도를 나타내지 못한다.
+    const since = new Date(now - FEATURE_MAX_AGE_DAYS * 86400000).toISOString()
     const { data, error } = await client()
       .from('topics')
-      .select('slug, name, category, importance_score, draft:ai_context->draft, plan:ai_context->plan')
+      .select('slug, name, category, importance_score, created_at, draft:ai_context->draft, plan:ai_context->plan')
       .eq('status', 'active')
       .eq('editorial_status', 'published')
+      .gte('created_at', since)
       .order('importance_score', { ascending: false })
-      .limit(40)
+      .limit(FEATURE_POOL_SIZE)
     if (error || !data) return []
+
+    // 본문이 깊은 순 → 같으면 무게순. 정렬을 DB에서 못 하는 이유는 블록 수가 jsonb 배열 길이라서다.
+    const ranked = (data as any[])
+      .filter((t) => Array.isArray(t.draft?.blocks) && t.draft.blocks.length >= FEATURE_MIN_BLOCKS)
+      .sort((a, b) =>
+        (b.draft.blocks.length - a.draft.blocks.length) ||
+        ((b.importance_score ?? 0) - (a.importance_score ?? 0))
+      )
+
+    // 시간 버킷 회전 — Hero와 같은 방식. 후보가 많으므로 매 버킷마다 다른 조합이 나온다.
+    const bucket = Math.floor(now / (FEATURE_ROTATION_HOURS * 3600000))
+    const rotated = ranked.length
+      ? ranked.map((_, i) => ranked[(bucket + i) % ranked.length])
+      : []
 
     const out: FeatureRead[] = []
     const seenCategory = new Map<string, number>()
-    for (const t of data as any[]) {
+    for (const t of rotated) {
       if (exclude.has(t.slug)) continue
       const d = t.draft || {}
       const hook = firstSentence(d.lead || '')

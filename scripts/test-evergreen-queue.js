@@ -21,31 +21,46 @@ const topic = (name, score, extra = {}) => ({
   created_at: new Date().toISOString(), updated_at: new Date().toISOString(), ...extra,
 })
 
-console.log('\n① toSlug — URL 규칙')
+const { normalizeSlug, dedupeKey } = detect
 
-t('1. 연도·날짜를 URL에 넣지 않는다(§6.1)', () => {
-  // 입력에 연도가 있어도 슬러그에 남으면 해마다 URL이 갈린다.
-  const s = detect.toSlug('갤럭시 Z 폴드8')
-  assert.ok(!/20\d\d/.test(s), `연도가 남았다: ${s}`)
+console.log('\n① normalizeSlug — URL 규칙')
+
+// 슬러그는 모델이 만들고 코드가 검증한다. 원래는 한글→영문 하드코딩 사전으로 만들었는데
+// 실측(2026-08-05)에서 감지 39건 중 37건이 슬러그를 못 만들어 탈락했고, 살아남은 2건이
+// '2026'(연도)과 'fifa'였다. 즉 감지 파이프라인이 사실상 작동하지 않았다.
+
+t('1. ★ 연도를 제거한다 (§6.1 — 연도가 붙으면 해마다 URL이 갈려 색인 자산이 리셋된다)', () => {
+  assert.strictEqual(normalizeSlug('tax-reform-2026'), 'tax-reform')
+  assert.strictEqual(normalizeSlug('2026-tax-reform'), 'tax-reform')
+  assert.strictEqual(normalizeSlug('ev-subsidy-2025-2026'), 'ev-subsidy')
+  assert.strictEqual(normalizeSlug('galaxy-1999-fold'), 'galaxy-fold')
 })
 
-t('2. 한글 이름도 영문 슬러그로 변환된다', () => {
-  assert.ok(detect.toSlug('갤럭시 Z 폴드8').includes('galaxy'), detect.toSlug('갤럭시 Z 폴드8'))
-  assert.ok(detect.toSlug('전기차 보조금').includes('subsidy'), detect.toSlug('전기차 보조금'))
-  assert.ok(detect.toSlug('청년 월세').includes('youth'), detect.toSlug('청년 월세'))
-})
-
-t('3. 슬러그에 한글·공백·특수문자가 남지 않는다', () => {
-  for (const n of ['알 수 없는 제품명', '가나다 라마바', 'A/B 테스트!! (신형)', '트럼프 이란 보복']) {
-    const s = detect.toSlug(n)
-    assert.ok(!/[가-힣\s]/.test(s), `${n} → ${s}`)
-    assert.ok(/^[a-z0-9-]*$/.test(s), `${n} → ${s}`)
+t("2. ★ 숫자만인 슬러그를 거부한다 ('2026' 사건)", () => {
+  for (const bad of ['2026', '2026-2027', '123', '--2026--']) {
+    assert.strictEqual(normalizeSlug(bad), null, `${bad}가 통과했다`)
   }
 })
 
-t('4. 슬러그를 만들 수 없는 이름은 빈 문자열이 된다 (버려질 수 있게)', () => {
-  // 전부 한글인 이름은 영문 매핑에 없으면 슬러그가 비어야 한다 — 억지로 만들면 URL이 의미불명이 된다.
-  assert.strictEqual(detect.toSlug('가나다'), '')
+t('3. 정상 슬러그는 그대로 통과한다 (제품 모델 숫자는 연도가 아니므로 남는다)', () => {
+  assert.strictEqual(normalizeSlug('galaxy-z-fold8'), 'galaxy-z-fold8')
+  assert.strictEqual(normalizeSlug('youth-monthly-rent'), 'youth-monthly-rent')
+  assert.strictEqual(normalizeSlug('iphone17-pro'), 'iphone17-pro')
+})
+
+t('4. 한글이 남은 값은 거부하고, 공백·기호는 정규화한다', () => {
+  assert.strictEqual(normalizeSlug('청년월세'), null, '한글이 슬러그로 통과했다')
+  assert.strictEqual(normalizeSlug('Youth Monthly Rent'), 'youth-monthly-rent')
+  assert.strictEqual(normalizeSlug('  --ev--subsidy--  '), 'ev-subsidy')
+  assert.strictEqual(normalizeSlug('ab'), null, '너무 짧은 슬러그가 통과했다')
+  assert.strictEqual(normalizeSlug(''), null)
+  assert.strictEqual(normalizeSlug(null), null)
+})
+
+t('4b. dedupeKey로 같은 이름을 한 번만 판정한다 (매 3시간 재판정·재과금 방지)', () => {
+  assert.strictEqual(dedupeKey('갤럭시 Z 폴드8'), dedupeKey('갤럭시Z폴드8'))
+  assert.strictEqual(dedupeKey('Tax Reform'), dedupeKey('taxreform'))
+  assert.notStrictEqual(dedupeKey('전기차 보조금'), dedupeKey('청년월세'))
 })
 
 console.log('\n② tokensOf — 불용어 제거')

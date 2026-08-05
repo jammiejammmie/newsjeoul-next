@@ -48,22 +48,31 @@ async function sb(method, path, body, extraHeaders) {
   return text ? JSON.parse(text) : null;
 }
 
-/** 허브 slug로 쓸 수 있게 정규화. 연도는 넣지 않는다(§6.1 — URL에 날짜 금지). */
-function toSlug(name) {
-  const map = {
-    '갤럭시': 'galaxy', '아이폰': 'iphone', '아우디': 'audi', '기아': 'kia', '현대': 'hyundai',
-    '테슬라': 'tesla', '삼성': 'samsung', '엘지': 'lg', '보조금': 'subsidy', '전기차': 'ev',
-    '청년': 'youth', '월세': 'monthly-rent', '엑셀': 'excel', '보험': 'insurance',
-    '연금': 'pension', '대출': 'loan', '카드': 'card', '적금': 'savings', '세금': 'tax',
-  };
-  let s = String(name || '').trim();
-  for (const [ko, en] of Object.entries(map)) s = s.split(ko).join(' ' + en + ' ');
-  s = s.toLowerCase()
-    .replace(/[^a-z0-9가-힣\s-]/g, ' ')
-    .trim().replace(/\s+/g, '-').replace(/-+/g, '-');
-  // 남은 한글은 슬러그에 쓸 수 없다 — 음절을 버리고 영문·숫자만 남긴다.
-  s = s.replace(/[가-힣]/g, '').replace(/-+/g, '-').replace(/^-|-$/g, '');
-  return s.slice(0, 60);
+/**
+ * 모델이 준 slug를 검증·정규화한다. 통과하지 못하면 null(그 후보를 큐에 넣지 않는다).
+ *
+ * ★ 왜 코드로 슬러그를 만들지 않는가(2026-08-05 실측):
+ *   원래는 한글→영문 하드코딩 사전으로 만들었다. 그 결과 감지된 39건 중 37건이
+ *   슬러그를 만들지 못해 탈락하고, 살아남은 2건은 '2026'(연도!)과 'fifa'였다.
+ *   사전에 없는 한글은 음절을 버리므로 대부분 빈 문자열이 된다 — 감지가 사실상 작동하지 않았다.
+ *   번역은 모델이 훨씬 잘한다('세제개편안'→'tax-reform'). 대신 규칙 위반은 여기서 막는다.
+ */
+function normalizeSlug(raw) {
+  let s = String(raw || '').toLowerCase().trim()
+    .replace(/[^a-z0-9-]/g, '-')      // 한글·공백·기호는 모두 하이픈으로
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+  // 연도 제거 — URL에 날짜를 넣지 않는다(§6.1). 모델이 넣어도 여기서 떼낸다.
+  s = s.replace(/\b(19|20)\d{2}\b/g, '').replace(/-+/g, '-').replace(/^-|-$/g, '');
+  if (s.length < 3 || s.length > 60) return null;
+  // 숫자만인 슬러그는 의미가 없다('2026' 사건).
+  if (/^[0-9-]+$/.test(s)) return null;
+  return s;
+}
+
+/** 이름 기준 중복 판정 키 — 같은 후보를 매 3시간 재판정하지 않기 위해 쓴다. */
+function dedupeKey(name) {
+  return String(name || '').replace(/\s+/g, '').toLowerCase();
 }
 
 function tokensOf(name) {
@@ -183,9 +192,16 @@ ${list}
 - title: 적합할 때만. 허브 제목(연도·날짜 넣지 마라). 예: '갤럭시 Z 폴드8', '청년월세 특별지원'
 - kind: 적합할 때만. product | car | policy | program 중 하나
 - category: 적합할 때만. 짧은 분야명. 예: '모바일', '신차', '청년지원', '오피스'
+- slug: 적합할 때만. URL로 쓸 영문 소문자 식별자(하이픈 구분).
+  ★ 연도·날짜를 절대 넣지 마라. 'tax-reform-2026'이 아니라 'tax-reform'이다.
+    (연도가 붙으면 해마다 URL이 바뀌어 누적된 검색 자산이 리셋된다.)
+  ★ 숫자만으로 만들지 마라. '2026' 같은 값은 무의미하다.
+  ★ 한글을 음차하지 말고 뜻으로 옮겨라: '청년월세 특별지원'→'youth-monthly-rent',
+    '전기차 구매 보조금'→'ev-subsidy', '갤럭시 Z 폴드8'→'galaxy-z-fold8',
+    '세제개편안'→'tax-reform'. 제품 모델명의 숫자는 남겨도 된다(fold8).
 
 설명 없이 JSON만 반환해라(코드블록 없이):
-{"results":[{"index":1,"suitable":true,"reason":"...","title":"...","kind":"product","category":"모바일"}]}`;
+{"results":[{"index":1,"suitable":true,"reason":"...","title":"...","slug":"galaxy-z-fold8","kind":"product","category":"모바일"}]}`;
 
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -217,43 +233,44 @@ exports.handler = async function (event) {
       sb('GET', `topics?status=eq.active&updated_at=gte.${encodeURIComponent(since)}` +
         `&select=id,name,category,importance_score,created_at,updated_at&order=importance_score.desc&limit=300`),
       sb('GET', 'hubs?select=slug,title,config'),
-      sb('GET', 'evergreen_queue?select=hub_slug,status'),
+      sb('GET', 'evergreen_queue?select=hub_slug,suggested_title,status'),
     ]);
 
     // 이미 있는 허브·큐는 다시 만들지 않는다.
-    const existingSlugs = new Set([
-      ...hubs.map((h) => h.slug),
-      // done/skipped도 제외한다 — 한 번 판정한 것을 매 3시간 재판정하면 비용만 든다.
-      ...queued.map((q) => q.hub_slug),
+    // 슬러그는 판정 단계(모델)에서 나오므로, 판정 전 중복 제거는 **이름**으로 한다.
+    // done/skipped도 제외한다 — 한 번 판정한 것을 매 3시간 재판정하면 비용만 든다.
+    const existingSlugs = new Set(hubs.map((h) => h.slug));
+    const judgedNames = new Set([
+      ...queued.map((q) => dedupeKey(q.suggested_title)),
+      ...hubs.map((h) => dedupeKey(h.title)),
     ]);
     const existingKeywords = hubs.map((h) => h.title).filter(Boolean);
 
-    // 3개 규칙 실행 → 같은 slug는 우선순위 높은 쪽만 남긴다.
+    // 3개 규칙 실행 → 같은 이름은 우선순위 높은 쪽만 남긴다.
     const raw = [
       ...detectKeywordClusters(topics),
       ...detectHighScore(topics, existingKeywords),
       ...detectRepeatSurge(topics),
     ];
-    const bySlug = new Map();
+    const byName = new Map();
     for (const c of raw) {
-      const slug = toSlug(c.name);
-      // 슬러그를 만들 수 없는 이름(한글만·너무 짧음)은 URL을 만들 수 없으니 버린다.
-      if (!slug || slug.length < 3) continue;
-      if (existingSlugs.has(slug)) continue;
-      const prev = bySlug.get(slug);
-      if (!prev || c.priority > prev.priority) bySlug.set(slug, { ...c, hub_slug: slug });
+      const key = dedupeKey(c.name);
+      if (!key || key.length < 2) continue;
+      if (judgedNames.has(key)) continue;
+      const prev = byName.get(key);
+      if (!prev || c.priority > prev.priority) byName.set(key, c);
     }
 
-    const candidates = [...bySlug.values()]
+    const candidates = [...byName.values()]
       .sort((a, b) => b.priority - a.priority)
       .slice(0, MAX_CANDIDATES_PER_RUN);
 
     const stats = {
       topicsScanned: topics.length,
       detected: raw.length,
-      afterDedup: bySlug.size,
+      afterDedup: byName.size,
       judged: candidates.length,
-      queued: 0, skipped: 0,
+      queued: 0, skipped: 0, badSlug: 0,
     };
 
     if (!candidates.length) {
@@ -267,9 +284,11 @@ exports.handler = async function (event) {
     for (const v of verdicts) {
       const c = candidates[(v.index ?? 0) - 1];
       if (!c) continue;
-      if (v.suitable && v.title && v.kind) {
+      const slug = v.suitable ? normalizeSlug(v.slug) : null;
+      if (v.suitable && v.title && v.kind && slug && !existingSlugs.has(slug)) {
+        existingSlugs.add(slug); // 같은 실행 안에서 두 후보가 같은 슬러그를 내는 경우 방어
         rows.push({
-          hub_slug: c.hub_slug,
+          hub_slug: slug,
           suggested_title: String(v.title).slice(0, 120),
           category: String(v.category || c.category || '').slice(0, 40) || null,
           kind: ['product', 'car', 'policy', 'program'].includes(v.kind) ? v.kind : 'product',
@@ -281,9 +300,12 @@ exports.handler = async function (event) {
           status: 'pending',
         });
       } else {
-        // 부적합도 기록한다 — 무엇이 왜 걸러졌는지 봐야 규칙을 고칠 수 있다.
+        // 부적합·슬러그 실패도 기록한다 — 무엇이 왜 걸러졌는지 봐야 규칙을 고칠 수 있다.
+        // hub_slug는 NOT NULL이므로 안정적인 대체값을 넣는다. unique 인덱스는
+        // pending/processing에만 걸려 있어 skipped끼리는 충돌하지 않는다.
+        if (v.suitable && !slug) stats.badSlug++;
         rows.push({
-          hub_slug: c.hub_slug,
+          hub_slug: `skip-${dedupeKey(c.name).slice(0, 40) || 'unknown'}`.slice(0, 60),
           suggested_title: c.name.slice(0, 120),
           trigger_topic_id: c.trigger_topic_id,
           trigger_reason: c.trigger_reason,
@@ -291,7 +313,7 @@ exports.handler = async function (event) {
           keywords: c.keywords,
           priority: 0,
           status: 'skipped',
-          error_message: String(v.reason || '에버그린 실체가 아님').slice(0, 300),
+          error_message: String(v.suitable && !slug ? `슬러그 생성 실패(모델값: ${v.slug})` : (v.reason || '에버그린 실체가 아님')).slice(0, 300),
         });
         if (skippedSamples.length < 5) skippedSamples.push(`${c.name}: ${v.reason}`);
       }
@@ -322,6 +344,6 @@ exports.handler = async function (event) {
 };
 
 exports._testUtils = {
-  toSlug, tokensOf, detectKeywordClusters, detectHighScore, detectRepeatSurge,
+  normalizeSlug, dedupeKey, tokensOf, detectKeywordClusters, detectHighScore, detectRepeatSurge,
   CLUSTER_MIN_TOPICS, HIGH_SCORE_MIN, STOPWORDS,
 };
