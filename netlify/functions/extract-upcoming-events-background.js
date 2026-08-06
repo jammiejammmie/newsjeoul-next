@@ -48,6 +48,47 @@ async function supabaseUpsert(table, rows) {
   if (!res.ok) throw new Error(`Supabase upsert ${table} 실패: ` + await res.text());
 }
 
+/**
+ * 같은 사건 판정 — lib/home-modules.ts의 isSameEvent와 같은 규칙이다(런타임이 달라 각각 구현).
+ * 한쪽만 고치면 화면과 저장이 어긋나므로 둘을 함께 바꿔야 한다.
+ *
+ * ★ 왜 필요한가(2026-08-06 실측): unique 제약이 (topic_id, event_date, title) 완전 일치라
+ *   같은 사건이 Topic·표현·날짜가 조금씩 달라지면 전부 별개 행으로 들어왔다. 그 결과 홈
+ *   캘린더 6칸 중 3칸이 "수도권 신규 5만 호 공급안 발표"로 채워졌다.
+ */
+function titleTokens(title) {
+  return new Set(
+    String(title || '')
+      .replace(/[()[\]{}"'`~!?.,:;·/\\-]/g, ' ')
+      .split(/\s+/)
+      .map((w) => w.replace(/[은는이가을를의에서와과로도만]$/, ''))
+      .filter((w) => w.length >= 2)
+  );
+}
+
+function isSameEvent(a, b, threshold = 0.7) {
+  const ta = titleTokens(a), tb = titleTokens(b);
+  if (!ta.size || !tb.size) return false;
+  let shared = 0;
+  for (const w of ta) if (tb.has(w)) shared++;
+  return shared / (ta.size + tb.size - shared) >= threshold;
+}
+
+/** 이번 실행에서 뽑은 일정 중, 서로 겹치거나 이미 저장된 것과 겹치는 항목을 뺀다. */
+function dropDuplicates(rows, existing) {
+  const kept = [];
+  const near = (a, b) => Math.abs(Date.parse(a + 'T00:00:00Z') - Date.parse(b + 'T00:00:00Z')) <= 10 * 86400000;
+  const dropped = [];
+  for (const r of rows) {
+    const clashWith = [...existing, ...kept].find(
+      (k) => near(k.event_date, r.event_date) && isSameEvent(k.title, r.title)
+    );
+    if (clashWith) { dropped.push(`${r.event_date} ${r.title} ← ${clashWith.event_date} ${clashWith.title}`); continue; }
+    kept.push(r);
+  }
+  return { kept, dropped };
+}
+
 function bodyTextOf(topic) {
   const d = topic.ai_context?.draft || {};
   const blocks = (d.blocks || []).map((b) => b.content || '').join('\n');
@@ -148,7 +189,8 @@ exports.handler = async function (event) {
   const isDry = event.queryStringParameters?.dry === 'true';
 
   try {
-    const todayIso = new Date().toISOString().slice(0, 10);
+    // KST 기준 오늘. UTC 날짜를 쓰면 00:00~09:00 KST 사이에 어제 날짜로 판정한다.
+    const todayIso = new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10);
     const since = new Date(Date.now() - LOOKBACK_HOURS * 3600000).toISOString();
     const topics = await supabaseGet(
       'topics',
@@ -156,7 +198,7 @@ exports.handler = async function (event) {
       `&select=id,name,summary,ai_context&order=importance_score.desc&limit=${BATCH_SIZE}`
     );
 
-    const stats = { considered: topics.length, extracted: 0, saved: 0, failed: 0 };
+    const stats = { considered: topics.length, extracted: 0, saved: 0, failed: 0, duplicates: 0 };
     const rejectReasons = {};
     const samples = [];
     const rows = [];
@@ -180,20 +222,29 @@ exports.handler = async function (event) {
       }
     }
 
-    if (rows.length && !isDry) {
-      await supabaseUpsert('upcoming_events', rows);
-      stats.saved = rows.length;
+    // 이미 저장된 다가올 일정과 대조해 같은 사건을 다시 넣지 않는다.
+    const alreadySaved = await supabaseGet(
+      'upcoming_events',
+      `?event_date=gte.${todayIso}&select=event_date,title&order=event_date.asc&limit=500`
+    ).catch(() => []);
+    const { kept, dropped } = dropDuplicates(rows, alreadySaved || []);
+    stats.duplicates = rows.length - kept.length;
+
+    if (kept.length && !isDry) {
+      await supabaseUpsert('upcoming_events', kept);
+      stats.saved = kept.length;
     }
 
     console.log(
       `UPCOMING_EXTRACT_DONE${isDry ? '[dry]' : ''}: 대상 ${stats.considered} → 모델추출 ${stats.extracted}` +
-      ` → 검증통과 ${rows.length} → 저장 ${stats.saved}, 실패 ${stats.failed}` +
-      ` | 반려 ${JSON.stringify(rejectReasons)}`
+      ` → 검증통과 ${rows.length} → 중복제외 ${stats.duplicates} → 저장 ${stats.saved}, 실패 ${stats.failed}` +
+      ` | 반려 ${JSON.stringify(rejectReasons)}` +
+      (dropped.length ? ` | 중복예시 ${JSON.stringify(dropped.slice(0, 3))}` : '')
     );
 
     return {
       statusCode: 200, headers,
-      body: JSON.stringify({ ok: true, dry: isDry, ...stats, validated: rows.length, rejectReasons, samples }),
+      body: JSON.stringify({ ok: true, dry: isDry, ...stats, validated: rows.length, rejectReasons, dropped: dropped.slice(0, 5), samples }),
     };
   } catch (e) {
     console.error('UPCOMING_EXTRACT_ERROR:', e.message);
@@ -201,4 +252,4 @@ exports.handler = async function (event) {
   }
 };
 
-exports._testUtils = { validateEvents, VALID_KINDS, MAX_DAYS_AHEAD };
+exports._testUtils = { validateEvents, isSameEvent, dropDuplicates, VALID_KINDS, MAX_DAYS_AHEAD };

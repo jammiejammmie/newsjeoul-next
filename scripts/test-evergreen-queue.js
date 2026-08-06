@@ -108,9 +108,62 @@ t('9. 모든 감지 결과에 근거(trigger_detail)가 있다', () => {
   }
 })
 
-t(`10. high_score_no_hub은 ${detect.HIGH_SCORE_MIN}g 미만을 잡지 않는다`, () => {
-  assert.strictEqual(detect.detectHighScore([topic('무거운 이슈', detect.HIGH_SCORE_MIN - 1)], []).length, 0)
-  assert.strictEqual(detect.detectHighScore([topic('무거운 이슈', detect.HIGH_SCORE_MIN)], []).length, 1)
+t(`10. high_score_no_hub은 뉴스성 카테고리에서 ${detect.HIGH_SCORE_MIN}g 미만을 잡지 않는다`, () => {
+  const news = (score) => topic('무거운 이슈', score, { category: '정치/국제' })
+  assert.strictEqual(detect.detectHighScore([news(detect.HIGH_SCORE_MIN - 1)], []).length, 0)
+  assert.strictEqual(detect.detectHighScore([news(detect.HIGH_SCORE_MIN)], []).length, 1)
+})
+
+// ── 2026-08-06 감지 0건 사고 회귀 테스트 ────────────────────────────────────
+// 감지가 28시간 동안 0건이었던 두 원인을 각각 고정한다. 하나라도 되돌아가면 여기서 걸린다.
+
+t('10-a. ★ 카테고리 성향 판정 — 복합 카테고리를 조각으로 읽는다', () => {
+  const { categoryStance } = detect
+  for (const c of ['Technology', 'IT/보안', '산업/기술', '경제/기업', 'Lifestyle', 'Automobile', 'Health'])
+    assert.strictEqual(categoryStance(c), 'evergreen', `${c}가 에버그린으로 안 잡혔다`)
+  for (const c of ['정치', '정치/국제', '국제/중동', '사회/사건사고', '북한/안보', '스포츠', 'Society'])
+    assert.strictEqual(categoryStance(c), 'news', `${c}가 뉴스로 안 잡혔다`)
+  // 뉴스 조각이 같거나 많으면 뉴스로 본다 — 정치 맥락의 경제 기사는 허브 후보가 아니다.
+  assert.strictEqual(categoryStance('정치/경제'), 'news')
+  assert.strictEqual(categoryStance('국제/경제'), 'news')
+  assert.strictEqual(categoryStance(null), 'neutral')
+  assert.strictEqual(categoryStance('처음보는분류'), 'neutral')
+})
+
+t('10-b. ★ IT·소비재·생활 카테고리는 완화된 무게 기준으로 통과한다', () => {
+  // 실제 사고: 감쇠 도입 후 상위 토픽이 398g까지 내려가 500g 기준이 도달 불가능해졌다.
+  const score = 300 // 500g 미만이지만 실제 상위권인 무게
+  for (const cat of ['Technology', 'Lifestyle', 'Automobile', '산업/기술']) {
+    assert.strictEqual(
+      detect.detectHighScore([topic('신제품 출시', score, { category: cat })], []).length, 1,
+      `${cat} ${score}g이 감지되지 않았다 — 완화 기준이 안 먹었다`
+    )
+  }
+  // 뉴스성 카테고리는 완화하지 않는다.
+  assert.strictEqual(
+    detect.detectHighScore([topic('공방 격화', score, { category: '정치/국제' })], []).length, 0,
+    '뉴스성 카테고리에 완화 기준이 잘못 적용됐다'
+  )
+})
+
+t('10-c. ★ 무게 산식이 또 바뀌어도 감지가 죽지 않는다 (상대 기준)', () => {
+  // 전체 무게가 절대 기준보다 훨씬 낮게 내려간 상황을 만든다.
+  const decayed = Array.from({ length: 20 }, (_, i) => topic(`이슈${i}`, 200 - i * 5))
+  const bars = detect.computeScoreBars(decayed)
+  assert.ok(bars.evergreen <= 200, `상대 기준이 안 내려갔다: ${JSON.stringify(bars)}`)
+  assert.ok(bars.evergreen >= detect.HIGH_SCORE_FLOOR, `바닥(${detect.HIGH_SCORE_FLOOR}) 밑으로 내려갔다`)
+  const hits = detect.detectHighScore(decayed, [], bars)
+  assert.ok(hits.length > 0, '전체 무게가 낮아지자 감지가 0건이 됐다 — 사고 재발')
+  // 뉴스성 기준은 상대 기준으로도 완화되지 않는다.
+  assert.strictEqual(bars.news, detect.HIGH_SCORE_MIN)
+})
+
+t('10-d. ★ 판정 예산이 뉴스성 후보에 먼저 가지 않는다 (우선순위 보정)', () => {
+  const W = detect.PRIORITY_WEIGHT
+  // 같은 무게라면 에버그린 성향이 앞선다.
+  assert.ok(500 * W.evergreen > 500 * W.news, '에버그린 후보가 뉴스 후보를 못 앞선다')
+  // 무게가 2배 높은 뉴스 후보보다도 앞서야 12칸 독식이 풀린다.
+  assert.ok(400 * W.evergreen > 800 * W.news, '뉴스 후보가 여전히 판정 예산을 독식한다')
 })
 
 t('11. ★ 이미 허브가 있는 키워드는 다시 감지하지 않는다 (중복 허브 방지)', () => {
@@ -249,6 +302,102 @@ t('26. 4포맷 키가 HubEvergreen과 일치한다', () => {
     assert.ok(docs.FORMAT_INTENT[f], `${f} 문서 성격 정의 없음`)
     assert.ok(gen.EVERGREEN_LABELS.product[f], `${f} 라벨 없음`)
   }
+})
+
+console.log('\n⑤ 문서 생성 배분·구제 — 2026-08-06 빈 허브 사고 회귀 테스트')
+
+// 사고: 파일럿 5개 중 excel 0건 · ev-subsidy 2건인 채로 32시간이 지났다.
+// 원인은 남은 목록을 앞에서부터 잘라 쓴 것(앞 허브가 다 찰 때까지 뒤 허브는 0건).
+const mkTodo = (pairs) => pairs.flatMap(([hub, n]) =>
+  Array.from({ length: n }, (_, i) => ({ hubSlug: hub, title: `${hub}-${i}`, format: 'howto' })))
+
+t('27. ★ 문서가 가장 적은 허브부터 채운다 (빈 허브 방치 방지)', () => {
+  const todo = mkTodo([['galaxy', 16], ['audi', 16], ['excel', 16], ['ev', 14]])
+  const counts = new Map([['galaxy', 16], ['audi', 16], ['excel', 0], ['ev', 2]])
+  const batch = docs.balanceByHub(todo, counts).slice(0, 8)
+  const byHub = batch.reduce((a, t2) => ({ ...a, [t2.hubSlug]: (a[t2.hubSlug] || 0) + 1 }), {})
+  assert.ok(!byHub.galaxy && !byHub.audi, `이미 찬 허브가 또 배정됐다: ${JSON.stringify(byHub)}`)
+  assert.ok((byHub.excel || 0) >= 4, `빈 허브가 우선 배정되지 않았다: ${JSON.stringify(byHub)}`)
+  assert.strictEqual(batch.length, 8)
+})
+
+t('28. 어느 허브도 굶지 않는다 (수평이 맞으면 번갈아 배정)', () => {
+  const todo = mkTodo([['a', 10], ['b', 10], ['c', 10]])
+  const batch = docs.balanceByHub(todo, new Map([['a', 5], ['b', 5], ['c', 5]])).slice(0, 9)
+  const byHub = batch.reduce((a, t2) => ({ ...a, [t2.hubSlug]: (a[t2.hubSlug] || 0) + 1 }), {})
+  assert.deepStrictEqual(byHub, { a: 3, b: 3, c: 3 }, JSON.stringify(byHub))
+})
+
+t('29. 같은 입력이면 같은 순서가 나온다 (재현 가능)', () => {
+  const mk = () => mkTodo([['b', 3], ['a', 3]])
+  const one = docs.balanceByHub(mk(), new Map()).map((x) => x.title).join(',')
+  const two = docs.balanceByHub(mk(), new Map()).map((x) => x.title).join(',')
+  assert.strictEqual(one, two)
+})
+
+t('30. ★ 응답이 잘려도 완결된 블록은 살린다 (생성 슬롯 낭비 방지)', () => {
+  // max_tokens로 마지막 블록이 끊긴 실제 형태.
+  const truncated = '{"lead":"이 문서는 무엇을 해결한다","blocks":[' +
+    '{"heading":"첫 단계","content":"본문 하나입니다."},' +
+    '{"heading":"둘째 단계","content":"본문 둘입니다."},' +
+    '{"heading":"셋째 단계","content":"본문이 여기서 끊'
+  const parsed = docs.parseDocumentJson(truncated, 'max_tokens')
+  assert.strictEqual(parsed.blocks.length, 2, JSON.stringify(parsed.blocks))
+  assert.strictEqual(parsed.lead, '이 문서는 무엇을 해결한다')
+  assert.ok(parsed.blocks.every((b) => b.heading && b.content))
+})
+
+t('31. 정상 JSON은 그대로 파싱한다', () => {
+  const ok = JSON.stringify({ lead: 'L', blocks: [{ heading: 'H', content: 'C' }], sourceNote: 'S' })
+  assert.deepStrictEqual(docs.parseDocumentJson(ok, 'end_turn').blocks, [{ heading: 'H', content: 'C' }])
+})
+
+t('32. 건질 게 없으면 실패로 남긴다 (빈 문서를 저장하지 않는다)', () => {
+  assert.throws(() => docs.parseDocumentJson('완전히 망가진 응답', 'max_tokens'))
+})
+
+t('33. 토큰 상한이 한국어 장문을 감당할 만큼 올라가 있다', () => {
+  assert.ok(docs.MAX_TOKENS >= 8000, `max_tokens=${docs.MAX_TOKENS} — 3500에서 다시 내려갔다`)
+})
+
+console.log('\n⑥ 캘린더 중복 — 2026-08-06 홈 6칸 중 3칸 중복 사고 회귀 테스트')
+
+const upcoming = require(path.join(__dirname, '..', 'netlify', 'functions', 'extract-upcoming-events-background.js'))._testUtils
+
+t('34. ★ 표현이 조금 다른 같은 사건을 같은 것으로 본다', () => {
+  assert.ok(upcoming.isSameEvent('수도권 신규 주택 5만 호 공급안 발표', '수도권 신규 5만 호 공급안 발표'))
+  assert.ok(upcoming.isSameEvent('2차 부처 업무보고 재개', '2차 부처 업무보고 재개'))
+})
+
+t('35. 다른 사건을 잘못 합치지 않는다', () => {
+  assert.ok(!upcoming.isSameEvent('수도권 신규 주택 공급안 발표', '전기차 보조금 신청 마감'))
+  assert.ok(!upcoming.isSameEvent('청년월세 신청 마감', '청년내일저축 신청 시작'))
+})
+
+t('36. ★ 실제 사고 데이터가 1건으로 접힌다', () => {
+  const rows = [
+    { event_date: '2026-08-12', title: '수도권 신규 주택 5만 호 공급안 발표' },
+    { event_date: '2026-08-12', title: '수도권 신규 5만 호 공급안 발표' },
+    { event_date: '2026-08-13', title: '수도권 신규 주택 5만 호 공급안 발표' },
+    { event_date: '2026-08-09', title: '2차 부처 업무보고 재개' },
+  ]
+  const { kept } = upcoming.dropDuplicates(rows, [])
+  assert.strictEqual(kept.length, 2, JSON.stringify(kept.map((k) => k.title)))
+})
+
+t('37. 이미 저장된 일정과 겹치면 다시 넣지 않는다', () => {
+  const existing = [{ event_date: '2026-08-12', title: '수도권 신규 주택 5만 호 공급안 발표' }]
+  const { kept } = upcoming.dropDuplicates(
+    [{ event_date: '2026-08-13', title: '수도권 신규 5만 호 공급안 발표' }], existing)
+  assert.strictEqual(kept.length, 0)
+})
+
+t('38. 날짜가 멀면 같은 제목이라도 별개 일정으로 둔다 (반복 일정 보존)', () => {
+  const { kept } = upcoming.dropDuplicates([
+    { event_date: '2026-08-12', title: '청년월세 신청 마감' },
+    { event_date: '2026-11-30', title: '청년월세 신청 마감' },
+  ], [])
+  assert.strictEqual(kept.length, 2)
 })
 
 console.log(`\n총 ${pass + fail}건 · 통과 ${pass} · 실패 ${fail}`)

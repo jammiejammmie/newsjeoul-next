@@ -252,6 +252,52 @@ t('25. DB가 없어도 예외를 던지지 않고 빈 값을 돌려준다 (홈�
   }
 })
 
+// ── ④ KST 기준 · 캘린더 중복 접기 (2026-08-06 수정) ─────────────────────────
+// 표시 계층(lib/home-modules.ts)과 저장 계층(extract-upcoming-events)이 같은 규칙을 써야
+// 한다. 한쪽만 고치면 화면과 DB가 어긋나므로, 두 구현이 같은 답을 내는지 여기서 확인한다.
+console.log('\n④ KST 기준 · 캘린더 중복 접기')
+
+const { loadTsModule } = require(path.join(__dirname, 'lib', 'load-topics-module.js'))
+const home = loadTsModule('lib/home-modules.ts')
+
+t('26. ★ kstToday는 UTC 자정이 아니라 KST 자정에 날짜가 바뀐다', () => {
+  // 2026-08-06 01:00 KST = 2026-08-05 16:00 UTC. UTC 기준이면 8월 5일로 잘못 센다.
+  assert.strictEqual(home.kstToday(new Date('2026-08-05T16:00:00Z')), '2026-08-06')
+  // 2026-08-05 23:59 KST = 14:59 UTC — 아직 5일이어야 한다.
+  assert.strictEqual(home.kstToday(new Date('2026-08-05T14:59:00Z')), '2026-08-05')
+  // 09:00 KST에 리셋되던 예전 동작이 아님을 고정한다.
+  assert.notStrictEqual(home.kstToday(new Date('2026-08-05T16:00:00Z')),
+    new Date('2026-08-05T16:00:00Z').toISOString().slice(0, 10))
+})
+
+t('27. ★ 표시 계층 dedupe가 실제 사고 데이터를 접는다', () => {
+  const events = [
+    { date: '2026-08-09', title: '2차 부처 업무보고 재개' },
+    { date: '2026-08-12', title: '수도권 신규 주택 5만 호 공급안 발표' },
+    { date: '2026-08-12', title: '수도권 신규 5만 호 공급안 발표' },
+    { date: '2026-08-13', title: '수도권 신규 주택 5만 호 공급안 발표' },
+  ]
+  const kept = home.dedupeEvents(events)
+  assert.strictEqual(kept.length, 2, JSON.stringify(kept.map((k) => k.title)))
+  // 가장 이른 날짜를 남긴다 — 먼저 닥치는 일정이 캘린더에서 의미 있다.
+  assert.strictEqual(kept[1].date, '2026-08-12')
+})
+
+t('28. ★ 표시 계층과 저장 계층의 판정이 일치한다 (구현 드리프트 방지)', () => {
+  const { isSameEvent: saveSide } = require(
+    path.join(__dirname, '..', 'netlify', 'functions', 'extract-upcoming-events-background.js')
+  )._testUtils
+  const pairs = [
+    ['수도권 신규 주택 5만 호 공급안 발표', '수도권 신규 5만 호 공급안 발표'],
+    ['청년월세 신청 마감', '청년내일저축 신청 시작'],
+    ['전기차 보조금 공고', '전기차 보조금 공고'],
+    ['갤럭시 폴드8 출시', '아우디 Q9 출시'],
+  ]
+  for (const [a, b] of pairs) {
+    assert.strictEqual(home.isSameEvent(a, b), saveSide(a, b), `판정 불일치: "${a}" vs "${b}"`)
+  }
+})
+
 ;(async () => {
   for (const [name, fn] of asyncQueue) {
     try { await fn(); pass++; console.log(`  ok   ${name}`) }

@@ -20,8 +20,81 @@ const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
 const LOOKBACK_HOURS = 96;        // 감지 대상 토픽 범위
 const SURGE_WINDOW_HOURS = 24;    // 규칙 3의 반복 판정 창
 const CLUSTER_MIN_TOPICS = 3;     // 규칙 1의 집중 기준(지시: 3건 이상)
-const HIGH_SCORE_MIN = 500;       // 규칙 2의 기준(지시: 500g 이상)
+const HIGH_SCORE_MIN = 500;       // 규칙 2의 기준(지시: 500g 이상) — 뉴스성 카테고리에 적용
 const MAX_CANDIDATES_PER_RUN = 12; // 판정에 쓰는 Claude 호출 상한(비용 통제)
+
+// ── 2026-08-06: 감지 0건 사고 대응 ──────────────────────────────────────────
+// 증상: 파이프라인 가동 후 28시간(감지 9회 이상) 동안 evergreen_queue에 pending 0건,
+//       자동 생성 허브 0개. 원인은 두 가지가 겹친 것이다.
+//
+//  (1) HIGH_SCORE_MIN=500이 **도달 불가능한 값**이 됐다.
+//      2026-08-05 Weight Engine에 신선도 감쇠(ce1ec67)가 들어가면서 전체 무게가 내려갔다.
+//      실측(2026-08-06 홈): 1위 398g · 2위 378g · 3위 362g — 상위 어느 토픽도 500g에 닿지
+//      않는다. 즉 규칙 2(high_score_no_hub)는 감쇠 도입 시점부터 구조적으로 0건이었다.
+//      고정 임계값이 다른 엔진의 산식 변경에 조용히 무력화된 것이다.
+//
+//  (2) 판정 예산 12칸을 정치·국제 토픽이 매번 다 먹었다.
+//      priority가 등장 빈도·무게로만 정해져서, 뉴스 회전이 빠른 정치·국제 키워드가 항상
+//      상위를 차지했다. 판정된 이름은 status=skipped로 영구 기록돼 다시 판정하지 않으므로
+//      (비용 통제상 의도된 동작), 매 회차 12칸이 "어차피 부적합 판정될 것"으로 채워지고
+//      IT·소비재·생활 후보는 순번이 오지 않았다.
+//
+// 대응: 카테고리 성향을 보고 (a) 무게 기준을 달리 적용하고 (b) 판정 순번을 조정한다.
+//       뉴스성 카테고리를 버리지는 않는다 — 최종 적합성 판정은 여전히 모델 게이트가 한다.
+const HIGH_SCORE_MIN_EVERGREEN = 250; // 에버그린 성향 카테고리에 적용하는 완화 기준
+const HIGH_SCORE_FLOOR = 120;         // 상대 기준이 아무리 내려가도 이 밑으로는 안 내려간다
+const PRIORITY_WEIGHT = { evergreen: 1.5, neutral: 1, news: 0.4 };
+
+// 카테고리 조각별 성향. 실제 DB에 있는 33종을 기준으로 만들었다(영문·한글·'A/B' 복합 혼재).
+const EVERGREEN_SEGMENTS = new Set([
+  'technology', 'it', 'business', 'economy', 'lifestyle', 'automobile', 'health', 'science', 'crypto',
+  '기술', '산업', '기업', '경제', '물가', '보안', '생활', '자동차', '건강', '과학', '유통', '소비', '부동산',
+]);
+const NEWS_SEGMENTS = new Set([
+  'society', 'entertainment', 'sports', 'politics',
+  '정치', '국제', '사회', '사건사고', '사고', '재난', '중동', '북한', '안보',
+  '날씨', '기후', '지역', '행정', '스포츠', '사법', '연예',
+]);
+
+/**
+ * 카테고리 성향 판정. 'A/B' 복합 카테고리는 조각별로 세어 뉴스 쪽이 같거나 많으면 뉴스로 본다.
+ * 예: '정치/경제'는 뉴스(정치 맥락의 경제 기사다), '경제/기업'은 에버그린, '산업/기술'은 에버그린.
+ */
+function categoryStance(category) {
+  const segs = String(category || '').split(/[/·,|]/).map((s) => s.trim().toLowerCase()).filter(Boolean);
+  if (!segs.length) return 'neutral';
+  let ever = 0, news = 0;
+  for (const s of segs) {
+    if (EVERGREEN_SEGMENTS.has(s)) ever++;
+    else if (NEWS_SEGMENTS.has(s)) news++;
+  }
+  if (!ever && !news) return 'neutral';
+  return ever > news ? 'evergreen' : 'news';
+}
+
+/** 카테고리 성향별 무게 기준. bars가 없으면 기존 상수를 쓴다(테스트·단독 호출 호환). */
+function scoreBarFor(category, bars) {
+  const stance = categoryStance(category);
+  const b = bars || { evergreen: HIGH_SCORE_MIN_EVERGREEN, neutral: HIGH_SCORE_MIN, news: HIGH_SCORE_MIN };
+  return b[stance] ?? HIGH_SCORE_MIN;
+}
+
+/**
+ * 무게 기준을 이번 실행의 실제 분포에서도 뽑는다 — 산식이 또 바뀌어도 규칙이 조용히 죽지 않게.
+ * 상위 15% 지점과 절대 기준 중 **낮은 쪽**을 쓴다. 뉴스성 카테고리는 완화하지 않는다.
+ */
+function computeScoreBars(topics) {
+  const scores = topics.map((t) => t.importance_score ?? 0)
+    .filter((n) => Number.isFinite(n) && n > 0).sort((a, b) => b - a);
+  const p85 = scores.length ? scores[Math.min(scores.length - 1, Math.floor(scores.length * 0.15))] : 0;
+  const dynamic = Math.max(HIGH_SCORE_FLOOR, Math.round(p85));
+  return {
+    evergreen: Math.min(HIGH_SCORE_MIN_EVERGREEN, dynamic),
+    neutral: Math.min(HIGH_SCORE_MIN, dynamic),
+    news: HIGH_SCORE_MIN,
+    _dynamic: dynamic,
+  };
+}
 
 // 토픽 이름에서 실체 후보를 뽑을 때 버릴 말. 뉴스 문장에 흔하지만 검색 대상 실체가 아니다.
 const STOPWORDS = new Set([
@@ -112,15 +185,16 @@ function detectKeywordClusters(topics) {
 }
 
 // ── 규칙 2: 무게 500g 이상인데 허브가 없다 ──────────────────────────────────
-function detectHighScore(topics, existingKeywords) {
+function detectHighScore(topics, existingKeywords, bars) {
   return topics
-    .filter((t) => (t.importance_score ?? 0) >= HIGH_SCORE_MIN)
+    .filter((t) => (t.importance_score ?? 0) >= scoreBarFor(t.category, bars))
     // 이미 허브가 커버하는 키워드가 제목에 있으면 새 허브가 필요 없다.
     .filter((t) => !existingKeywords.some((k) => (t.name || '').includes(k)))
     .map((t) => ({
       name: t.name,
       trigger_reason: 'high_score_no_hub',
-      trigger_detail: `무게 ${Math.round(t.importance_score)}g(기준 ${HIGH_SCORE_MIN}g 이상)인데 담당 허브가 없다`,
+      trigger_detail: `무게 ${Math.round(t.importance_score)}g(${t.category || '분류없음'} 기준 ` +
+        `${scoreBarFor(t.category, bars)}g 이상)인데 담당 허브가 없다`,
       trigger_topic_id: t.id,
       keywords: tokensOf(t.name).slice(0, 3),
       priority: Math.round(t.importance_score ?? 0),
@@ -173,7 +247,12 @@ async function judgeCandidates(cands) {
 - 정부 제도·지원금·정책 프로그램(신청·자격·금액을 검색한다)
 - 소프트웨어·서비스(사용법을 검색한다)
 - 자격증·시험·채용 전형
+- 생활·소비 항목(요금제, 보험, 대출·청약, 세금 신고, 구독 서비스 등 매년 다시 찾아보는 것)
 → 공통점: 6개월 뒤에도 같은 걸 검색한다.
+
+★ IT·기술·소비재·생활·금융 영역의 실체는 뉴스 기사에서 감지됐다는 이유로 탈락시키지 마라.
+  판단 기준은 "어떤 카테고리의 기사에서 나왔는가"가 아니라 "6개월 뒤에도 검색되는가"다.
+  예: '전기요금 누진제'는 요금 인상 뉴스에서 감지돼도 계속 검색되는 실체이므로 적합하다.
 
 허브로 부적합한 것(suitable: false):
 - 특정 사건·사고·재난 (지나가면 검색이 사라진다)
@@ -247,9 +326,10 @@ exports.handler = async function (event) {
     const existingKeywords = hubs.map((h) => h.title).filter(Boolean);
 
     // 3개 규칙 실행 → 같은 이름은 우선순위 높은 쪽만 남긴다.
+    const bars = computeScoreBars(topics);
     const raw = [
       ...detectKeywordClusters(topics),
-      ...detectHighScore(topics, existingKeywords),
+      ...detectHighScore(topics, existingKeywords, bars),
       ...detectRepeatSurge(topics),
     ];
     const byName = new Map();
@@ -261,15 +341,31 @@ exports.handler = async function (event) {
       if (!prev || c.priority > prev.priority) byName.set(key, c);
     }
 
-    const candidates = [...byName.values()]
-      .sort((a, b) => b.priority - a.priority)
+    // 판정 예산(12칸) 배분 — 카테고리 성향으로 순번을 조정한다. 뉴스성 후보를 버리는 게
+    // 아니라 뒤로 미루는 것이다(적합 판정은 여전히 모델이 한다). 이 보정이 없으면 회전이
+    // 빠른 정치·국제 키워드가 매 회차 12칸을 다 먹고, 한 번 판정된 이름은 영구 skipped라
+    // IT·소비재·생활 후보에 순번이 영영 오지 않는다.
+    const ranked = [...byName.values()].map((c) => {
+      const stance = categoryStance(c.category);
+      return { ...c, stance, rankScore: c.priority * PRIORITY_WEIGHT[stance] };
+    });
+    const candidates = ranked
+      .sort((a, b) => b.rankScore - a.rankScore)
       .slice(0, MAX_CANDIDATES_PER_RUN);
+
+    const stanceTally = (list) => list.reduce((acc, c) => {
+      const s = c.stance || categoryStance(c.category);
+      acc[s] = (acc[s] || 0) + 1; return acc;
+    }, {});
 
     const stats = {
       topicsScanned: topics.length,
       detected: raw.length,
       afterDedup: byName.size,
       judged: candidates.length,
+      scoreBars: bars,
+      stanceDetected: stanceTally(ranked),
+      stanceJudged: stanceTally(candidates),
       queued: 0, skipped: 0, badSlug: 0,
     };
 
@@ -327,7 +423,9 @@ exports.handler = async function (event) {
 
     console.log(
       `EVERGREEN_DETECT_DONE${isDry ? '[dry]' : ''}: 토픽 ${stats.topicsScanned} → 감지 ${stats.detected}` +
-      ` → 중복제외 ${stats.afterDedup} → 판정 ${stats.judged} → 큐 ${stats.queued}, 부적합 ${stats.skipped}`
+      ` → 중복제외 ${stats.afterDedup} → 판정 ${stats.judged} → 큐 ${stats.queued}, 부적합 ${stats.skipped}` +
+      ` | 무게기준 ${JSON.stringify(bars)} | 성향(감지) ${JSON.stringify(stats.stanceDetected)}` +
+      ` | 성향(판정) ${JSON.stringify(stats.stanceJudged)}`
     );
     return {
       statusCode: 200, headers,
@@ -345,5 +443,7 @@ exports.handler = async function (event) {
 
 exports._testUtils = {
   normalizeSlug, dedupeKey, tokensOf, detectKeywordClusters, detectHighScore, detectRepeatSurge,
-  CLUSTER_MIN_TOPICS, HIGH_SCORE_MIN, STOPWORDS,
+  categoryStance, scoreBarFor, computeScoreBars,
+  CLUSTER_MIN_TOPICS, HIGH_SCORE_MIN, HIGH_SCORE_MIN_EVERGREEN, HIGH_SCORE_FLOOR,
+  PRIORITY_WEIGHT, STOPWORDS,
 };

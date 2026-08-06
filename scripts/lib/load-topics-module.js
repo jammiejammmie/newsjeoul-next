@@ -13,12 +13,16 @@ const fs = require('fs');
 const path = require('path');
 const tsc = require('typescript');
 
-function loadTopicsModule() {
-  const tsPath = path.resolve(__dirname, '../../lib/topics.ts');
+/**
+ * lib/*.ts를 같은 방식으로 불러온다(supabase는 스텁). 순수 함수 테스트 전용.
+ * loadTopicsModule은 이 함수의 얇은 래퍼다 — 대상 파일만 다르다.
+ */
+function loadTsModule(relPath) {
+  const tsPath = path.resolve(__dirname, '../..', relPath);
   const source = fs.readFileSync(tsPath, 'utf8');
   const { outputText } = tsc.transpileModule(source, {
     compilerOptions: { module: tsc.ModuleKind.CommonJS, target: tsc.ScriptTarget.ES2020 },
-    fileName: 'topics.ts',
+    fileName: path.basename(tsPath),
   });
 
   const stubRequire = (id) => {
@@ -34,4 +38,8 @@ function loadTopicsModule() {
   return mod.exports;
 }
 
-module.exports = { loadTopicsModule };
+function loadTopicsModule() {
+  return loadTsModule('lib/topics.ts');
+}
+
+module.exports = { loadTopicsModule, loadTsModule };

@@ -2,6 +2,7 @@ import type { MetadataRoute } from 'next'
 import { createClient } from '@supabase/supabase-js'
 import { ROUTABLE_CONTENT_TYPES } from '@/lib/content-types'
 import { ALL_HUBS } from '@/lib/hubs'
+import { TOOL_ROUTES } from '@/lib/tools'
 
 export const revalidate = 1800  // 30분마다 재생성 (pipeline이 3시간 주기이므로 충분)
 
@@ -14,9 +15,17 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // 데이터가 고정됐다. 갱신되지 않는 페이지를 changeFrequency:'daily'로 계속 광고하면 크롤러에
   // 잘못된 신호를 준다. 페이지 자체(app/election)와 polls_kr 데이터는 그대로 남겨뒀다 —
   // 갱신을 재개하면 이 줄만 되살리면 된다.
+  // 2026-08-06: 도구 라우트를 레지스트리(lib/tools)에서 읽어 넣는다. 전에는 여기에 `/`와
+  // `/topic`만 하드코딩돼 있어 /tools/ev-subsidy가 색인 대상에서 통째로 빠져 있었다 —
+  // 구조화 데이터까지 갖춘 검색 착륙지인데 사이트맵에 없으면 크롤러가 늦게 찾는다.
   const staticRoutes: MetadataRoute.Sitemap = [
     { url: `${BASE_URL}/`,      changeFrequency: 'daily', priority: 1.0 },
     { url: `${BASE_URL}/topic`, changeFrequency: 'daily', priority: 0.9 },
+    ...TOOL_ROUTES.map((t) => ({
+      url: `${BASE_URL}/tools/${t.slug}`,
+      changeFrequency: t.changeFrequency,
+      priority: 0.8,
+    })),
   ]
 
   // 토픽 허브(설계서 §10.5) — 검색 착륙지이자 권위 누적 단위이므로 우선순위를 높게 둔다.

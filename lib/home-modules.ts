@@ -18,9 +18,22 @@ function client() {
 // ── ① 색인 카운터 ───────────────────────────────────────────────────────────
 export type IndexCounts = { published: number; active: number; todayPublished: number }
 
+/**
+ * KST(UTC+9) 기준 오늘 날짜 'YYYY-MM-DD'.
+ *
+ * ★ 2026-08-06 추가. 이 파일이 쓰던 `new Date().toISOString().slice(0,10)`은 **UTC 날짜**라
+ *   한국 사용자 기준으로 매일 09:00 KST에 "오늘"이 바뀌었다. 00:00~09:00 KST에 발행된 글은
+ *   전날로 집계되고, 오전 9시에 카운터가 리셋되는 것처럼 보였다.
+ *   서버가 어느 타임존에서 돌든 같은 값이 나와야 하므로 오프셋을 직접 더한다.
+ */
+export function kstToday(now: Date = new Date()): string {
+  return new Date(now.getTime() + 9 * 3600 * 1000).toISOString().slice(0, 10)
+}
+
 /** 실제 색인 대상 수. 시안의 "오늘 색인 12,481건" 자리에 들어가는 값이다. */
 export async function getIndexCounts(): Promise<IndexCounts> {
-  const todayStart = new Date().toISOString().slice(0, 10) + 'T00:00:00'
+  // 오프셋(+09:00)을 명시한다 — 오프셋 없는 문자열은 DB 세션 타임존에 따라 해석이 갈린다.
+  const todayStart = `${kstToday()}T00:00:00+09:00`
   try {
     const supabase = client()
     const [pub, act, today] = await Promise.all([
@@ -104,13 +117,59 @@ export type UpcomingEvent = {
   daysLeft: number
 }
 
+/** 제목 비교용 토큰. 조사·기호를 떼고 2자 이상만 남긴다. */
+function titleTokens(title: string): Set<string> {
+  return new Set(
+    String(title || '')
+      .replace(/[()[\]{}"'`~!?.,:;·/\\-]/g, ' ')
+      .split(/\s+/)
+      .map((w) => w.replace(/[은는이가을를의에서와과로도만]$/, ''))
+      .filter((w) => w.length >= 2)
+  )
+}
+
+/**
+ * 같은 사건인가? 토큰 자카드 유사도로 판정한다.
+ *
+ * ★ 왜 필요한가(2026-08-06 실측): 홈 캘린더 6칸 중 3칸이 같은 사건이었다 —
+ *   "08.12 수도권 신규 주택 5만 호 공급안 발표" / "08.12 수도권 신규 5만 호 공급안 발표" /
+ *   "08.13 수도권 신규 주택 5만 호 공급안 발표".
+ *   DB의 unique 제약이 (topic_id, event_date, title)이라, 다른 Topic에서 뽑히거나 모델이
+ *   제목을 한 단어 다르게 쓰거나 날짜가 하루 어긋나면 전부 별개 행으로 통과한다.
+ *   완전 일치 제약으로는 막을 수 없는 종류의 중복이므로 의미 기준으로 접는다.
+ */
+export function isSameEvent(a: string, b: string, threshold = 0.7): boolean {
+  const ta = titleTokens(a), tb = titleTokens(b)
+  if (!ta.size || !tb.size) return false
+  let shared = 0
+  for (const w of ta) if (tb.has(w)) shared++
+  return shared / (ta.size + tb.size - shared) >= threshold
+}
+
+/** 유사 제목이 ±10일 안에 겹치면 하나로 접는다. 가장 이른 날짜(=먼저 닥치는 일정)를 남긴다. */
+export function dedupeEvents<T extends { date: string; title: string }>(events: T[]): T[] {
+  const kept: T[] = []
+  for (const e of events) {
+    const dup = kept.find(
+      (k) =>
+        Math.abs(Date.parse(k.date + 'T00:00:00Z') - Date.parse(e.date + 'T00:00:00Z')) <= 10 * 86400000 &&
+        isSameEvent(k.title, e.title)
+    )
+    if (!dup) kept.push(e)
+  }
+  return kept
+}
+
 /**
  * 앞으로의 일정. upcoming_events에서 읽는다(오늘 이후만).
  * source_quote가 없는 행은 제외한다 — 근거 없는 일정은 표시하지 않는다는 규칙을
  * 저장 시점(추출 함수)과 표시 시점(여기) 양쪽에서 지킨다.
+ *
+ * 중복 접기는 표시 시점에서도 한 번 더 한다 — 저장 시점만 고치면 **이미 쌓인** 중복 행은
+ * 계속 화면에 남는다. 읽는 쪽에서 접어야 배포 즉시 화면이 정상이 된다.
  */
 export async function getUpcomingEvents(limit = 6): Promise<UpcomingEvent[]> {
-  const today = new Date().toISOString().slice(0, 10)
+  const today = kstToday()
   try {
     const supabase = client()
     const { data } = await supabase
@@ -119,9 +178,10 @@ export async function getUpcomingEvents(limit = 6): Promise<UpcomingEvent[]> {
       .gte('event_date', today)
       .not('source_quote', 'is', null)
       .order('event_date', { ascending: true })
-      .limit(limit)
+      // 중복을 접으면 건수가 줄므로 넉넉히 받아 온 뒤 자른다.
+      .limit(limit * 5)
     const todayMs = Date.parse(today + 'T00:00:00Z')
-    return (data || []).map((e: any) => ({
+    const mapped = (data || []).map((e: any) => ({
       id: e.id,
       date: e.event_date,
       title: e.title,
@@ -130,6 +190,7 @@ export async function getUpcomingEvents(limit = 6): Promise<UpcomingEvent[]> {
       topicName: e.topics?.name ?? null,
       daysLeft: Math.max(0, Math.round((Date.parse(e.event_date + 'T00:00:00Z') - todayMs) / 86400000)),
     }))
+    return dedupeEvents(mapped).slice(0, limit)
   } catch {
     return []
   }

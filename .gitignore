@@ -32,6 +32,8 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# 템플릿은 값이 비어 있으므로 커밋한다 — 새 머신에서 무엇을 채워야 하는지가 저장소에 있어야 한다.
+!.env.local.example
 
 # vercel
 .vercel
