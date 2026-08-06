@@ -71,7 +71,7 @@ suggested_axis_weights의 6개 값 합은 반드시 1.0이어야 한다.`;
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
-    body: JSON.stringify({ model: 'claude-sonnet-5', max_tokens: 2000, messages: [{ role: 'user', content: prompt }] }),
+    body: JSON.stringify({ model: 'claude-sonnet-5', max_tokens: 4000 /* 2026-08-06: sonnet-5 adaptive thinking이 max_tokens를 함께 소진한다 — 잘림 여유 확보 */, messages: [{ role: 'user', content: prompt }] }),
   });
   if (!res.ok) throw new Error('Claude API 에러: ' + await res.text());
   const data = await res.json();

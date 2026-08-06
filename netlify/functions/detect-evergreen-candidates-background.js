@@ -27,17 +27,20 @@ const MAX_CANDIDATES_PER_RUN = 12; // 판정에 쓰는 Claude 호출 상한(비�
 // 증상: 파이프라인 가동 후 28시간(감지 9회 이상) 동안 evergreen_queue에 pending 0건,
 //       자동 생성 허브 0개. 원인은 두 가지가 겹친 것이다.
 //
-//  (1) HIGH_SCORE_MIN=500이 **도달 불가능한 값**이 됐다.
-//      2026-08-05 Weight Engine에 신선도 감쇠(ce1ec67)가 들어가면서 전체 무게가 내려갔다.
-//      실측(2026-08-06 홈): 1위 398g · 2위 378g · 3위 362g — 상위 어느 토픽도 500g에 닿지
-//      않는다. 즉 규칙 2(high_score_no_hub)는 감쇠 도입 시점부터 구조적으로 0건이었다.
-//      고정 임계값이 다른 엔진의 산식 변경에 조용히 무력화된 것이다.
+//  (1) [주원인] 판정 예산 12칸을 뉴스성 토픽이 다 먹었다.
+//      실측(2026-08-06, 최근 96시간 토픽 155건 / scripts/check-evergreen-detection.js):
+//      가중치 없이 정렬하면 12칸이 **뉴스 10 · 에버그린 2**로 채워진다. 상위가 '논란'
+//      '폭염' '사고' '사건' '화재' '사망' 같은 Society 토큰이다.
+//      판정된 이름은 status=skipped로 영구 기록돼 다시 판정하지 않으므로(비용 통제상 의도된
+//      동작), 매 회차 예산이 "어차피 부적합 판정될 것"에 소모되고 IT·소비재·생활 후보는
+//      순번이 영영 오지 않았다.
 //
-//  (2) 판정 예산 12칸을 정치·국제 토픽이 매번 다 먹었다.
-//      priority가 등장 빈도·무게로만 정해져서, 뉴스 회전이 빠른 정치·국제 키워드가 항상
-//      상위를 차지했다. 판정된 이름은 status=skipped로 영구 기록돼 다시 판정하지 않으므로
-//      (비용 통제상 의도된 동작), 매 회차 12칸이 "어차피 부적합 판정될 것"으로 채워지고
-//      IT·소비재·생활 후보는 순번이 오지 않았다.
+//  (2) [보조 원인] HIGH_SCORE_MIN=500이 규칙 2를 거의 닫아 놨다.
+//      같은 실측에서 500g을 넘긴 토픽은 155건 중 2건뿐이다(최고 647g · 중앙 286g).
+//      즉 규칙 2는 0건은 아니었지만 후보를 사실상 공급하지 못했고, 그 2건마저 판정 순번에서
+//      뉴스 토큰에 밀렸다. 기준 완화 후 같은 데이터에서 56건이 나온다.
+//      ※ 홈 화면에 보이는 '398g' 같은 값은 감쇠가 반영된 표시용 무게로, 여기서 쓰는
+//        importance_score와 다른 값이다 — 둘을 섞어 보면 진단을 틀린다.
 //
 // 대응: 카테고리 성향을 보고 (a) 무게 기준을 달리 적용하고 (b) 판정 순번을 조정한다.
 //       뉴스성 카테고리를 버리지는 않는다 — 최종 적합성 판정은 여전히 모델 게이트가 한다.
@@ -285,7 +288,15 @@ ${list}
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
-    body: JSON.stringify({ model: 'claude-sonnet-5', max_tokens: 2500, messages: [{ role: 'user', content: prompt }] }),
+    // 2026-08-06: sonnet-5는 thinking 생략 시 adaptive thinking이 켜지고, max_tokens는
+    // thinking+텍스트 합계 상한이다. 후보 12건 판정 JSON은 그 자체로 2000토큰에 육박해서
+    // thinking이 조금만 붙어도 잘린다 — 판정이 통째로 실패하면 그 회차 감지가 0건이 된다.
+    body: JSON.stringify({
+      model: 'claude-sonnet-5',
+      thinking: { type: 'disabled' },
+      max_tokens: 4000,
+      messages: [{ role: 'user', content: prompt }],
+    }),
   });
   if (!res.ok) throw new Error('Claude API 에러: ' + await res.text());
   const data = await res.json();

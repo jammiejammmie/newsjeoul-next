@@ -75,7 +75,15 @@ ELIGIBLE인 경우에만 자연스럽고 짧은(1~2문장) 답변 초안을 작�
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
-    body: JSON.stringify({ model: 'claude-sonnet-5', max_tokens: 300, messages: [{ role: 'user', content: prompt }] }),
+    // 2026-08-06: sonnet-5는 thinking 생략 시 adaptive thinking이 켜지고, max_tokens는
+    // thinking+텍스트 합계 상한이다. 300토큰은 이 파이프라인에서 가장 좁은 예산이라
+    // thinking이 켜지면 거의 확실히 본문이 0바이트로 온다(전 파이프라인 공통 수정).
+    body: JSON.stringify({
+      model: 'claude-sonnet-5',
+      thinking: { type: 'disabled' },
+      max_tokens: 800,
+      messages: [{ role: 'user', content: prompt }],
+    }),
   });
   if (!res.ok) throw new Error('Claude API 에러: ' + await res.text());
   const data = await res.json();

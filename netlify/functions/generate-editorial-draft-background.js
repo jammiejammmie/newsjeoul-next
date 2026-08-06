@@ -149,7 +149,11 @@ async function claudeGenerate(prompt) {
       },
       body: JSON.stringify({
         model: 'claude-sonnet-5',
-        max_tokens: 8000, // 2026-07-11: 3000으로는 1400~2300자 구조화 출력이 잘려서(stop_reason=max_tokens)
+        // 2026-08-06: 여기는 본문 품질이 중요한 장문 생성이라 thinking을 끄지 않는다.
+        // 대신 예산을 늘린다 — sonnet-5는 thinking 생략 시 adaptive thinking이 켜지고
+        // max_tokens는 thinking+텍스트 **합계** 상한이다. 8000은 2300자 본문(약 3000토큰)에
+        // thinking이 붙으면 다시 잘릴 수 있는 값이었다(아래 2026-07-11 주석과 같은 증상 재발).
+        max_tokens: 16000, // 2026-07-11: 3000으로는 1400~2300자 구조화 출력이 잘려서(stop_reason=max_tokens)
                            // 매번 파싱 실패하던 것으로 확인 — 여유있게 상향
         messages: [{ role: 'user', content: prompt }],
       }),

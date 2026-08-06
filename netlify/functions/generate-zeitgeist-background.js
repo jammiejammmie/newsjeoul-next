@@ -54,7 +54,10 @@ ${list}
     },
     body: JSON.stringify({
       model: 'claude-sonnet-5',
-      max_tokens: 500,
+      // 2026-08-06: sonnet-5는 thinking 생략 시 adaptive thinking이 켜지고, max_tokens는
+      // thinking+텍스트 합계 상한이다(전 파이프라인 공통 수정).
+      thinking: { type: 'disabled' },
+      max_tokens: 1000,
       messages: [{ role: 'user', content: prompt }],
     }),
   });

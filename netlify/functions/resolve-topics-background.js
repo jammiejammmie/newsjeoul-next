@@ -89,7 +89,11 @@ ${candidateList}
     },
     body: JSON.stringify({
       model: 'claude-sonnet-5',
-      max_tokens: 1000,
+      // 2026-08-06: sonnet-5는 thinking 생략 시 adaptive thinking이 켜지고, max_tokens는
+      // thinking+텍스트 합계 상한이다. 토픽 연결은 구조화 JSON이라 추론 여유가 필요 없다.
+      // (이 단계는 과거 504로도 자주 실패했던 곳이라 실패 요인을 하나라도 더 줄인다)
+      thinking: { type: 'disabled' },
+      max_tokens: 1600,
       messages: [{ role: 'user', content: prompt }]
     })
   });

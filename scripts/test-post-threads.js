@@ -50,6 +50,7 @@ async function run(scenario) {
   const postedIds = new Set();
   const skipLogRows = [];
   const runLogRows = [];
+  const claudeRequests = [];
 
   global.fetch = async (url, opts = {}) => {
     const method = opts.method || 'GET';
@@ -92,6 +93,7 @@ async function run(scenario) {
       return { ok: true, text: async () => '' };
     }
     if (method === 'POST' && url.includes('anthropic.com')) {
+      claudeRequests.push(JSON.parse(opts.body));
       if (s.claudeFails) return { ok: false, text: async () => 'claude api error' };
       // claudeHook: 호출마다 'EMPTY'(빈 응답 재현) 또는 null(정상)을 돌려주게 해서
       // "첫 후보에서만 실패" 같은 시나리오를 만든다(2026-08-04 실측 사고 재현용).
@@ -124,7 +126,7 @@ async function run(scenario) {
   const mod = freshHandler();
   const res = await mod.handler({ httpMethod: 'POST', headers: { 'x-admin-key': 'real-admin-key' } });
   const body = JSON.parse(res.body);
-  return { res, body, patched, first: body.results?.[0], skipLogRows, runLogRows };
+  return { res, body, patched, first: body.results?.[0], skipLogRows, runLogRows, claudeRequests };
 }
 
 async function main() {
@@ -710,6 +712,28 @@ async function main() {
     check(
       '37) 품질 미달은 재시도 없이 1회로 종료(결과가 달라지지 않는 사유)',
       body.results.length === 1 && body.results[0].skipped === true
+    );
+  }
+
+  // ── 2026-08-06 claude_failed 70건 사고 회귀 테스트 ──────────────────────────
+  // 증상: 응답이 {"stop_reason":"max_tokens","blockTypes":["thinking"],"rawLen":0}.
+  // claude-sonnet-5는 thinking을 생략하면 adaptive thinking이 켜지고, max_tokens는
+  // thinking+텍스트 합계 상한이라 800토큰을 thinking이 다 먹어 본문이 0바이트로 왔다.
+  {
+    const t = makeTopic('t-cfg', '설정검증', '경제', 500);
+    const { claudeRequests } = await run({ pool: [t] });
+    const req = claudeRequests[0];
+    check(
+      '38) ★ 본문 생성 호출이 thinking을 명시적으로 끈다 (thinking이 max_tokens를 삼키던 사고)',
+      req && req.thinking && req.thinking.type === 'disabled'
+    );
+    check(
+      '39) ★ max_tokens가 800에서 올라가 있다 (잘림 여유)',
+      req && req.max_tokens >= 2000
+    );
+    check(
+      '40) budget_tokens를 보내지 않는다 (sonnet-5에서 제거된 파라미터 — 400을 낸다)',
+      req && req.thinking.budget_tokens === undefined && req.budget_tokens === undefined
     );
   }
 

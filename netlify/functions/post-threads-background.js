@@ -752,10 +752,27 @@ Threads는 전체 500자 제한이 있고 뒤에 마무리 문장과 링크가 �
   "text": "Threads에 올릴 본문(위 1~2번 구조, ${BODY_TARGET_CHARS}자 이내, 문단 구분 포함, 마무리 문장/링크 제외)"
 }`;
 
+  // ★ 2026-08-06: 게시 실패의 최대 원인 수정.
+  //   실측(distribution_skip_log 최근 200건 중 claude_failed 70건): 응답이 전부
+  //   {"stop_reason":"max_tokens","blockTypes":["thinking"],"rawLen":0} 형태였다.
+  //   원인은 두 가지가 겹친 것이다.
+  //    (1) claude-sonnet-5는 thinking 파라미터를 **생략하면 adaptive thinking이 켜진다**.
+  //        이 호출은 thinking을 지정한 적이 없어서 계속 thinking을 하고 있었다.
+  //    (2) max_tokens는 thinking과 응답 텍스트를 **합친** 총량의 상한이다.
+  //        800토큰을 thinking이 다 써버려 text 블록이 0개인 응답이 돌아왔고,
+  //        파싱이 실패해 그 회차 게시가 통째로 버려졌다.
+  //   대응: 이 호출은 500자 내외 본문 + 고정 JSON 한 덩어리를 받는 짧은 정형 출력이라
+  //   추론 여유가 필요 없다. thinking을 명시적으로 끄고, 그래도 잘리지 않도록 상한을 올린다.
+  //   (budget_tokens는 sonnet-5에서 제거돼 400을 낸다 — 쓰지 말 것)
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
-    body: JSON.stringify({ model: 'claude-sonnet-5', max_tokens: 800, messages: [{ role: 'user', content: prompt }] }),
+    body: JSON.stringify({
+      model: 'claude-sonnet-5',
+      max_tokens: 2000,
+      thinking: { type: 'disabled' },
+      messages: [{ role: 'user', content: prompt }],
+    }),
   });
   if (!res.ok) throw new Error('Claude API 에러: ' + await res.text());
   const data = await res.json();

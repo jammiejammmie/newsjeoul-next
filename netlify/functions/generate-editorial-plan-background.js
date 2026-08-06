@@ -125,7 +125,11 @@ ${ruleSummaries}
     },
     body: JSON.stringify({
       model: 'claude-sonnet-5',
-      max_tokens: 600,
+      // 2026-08-06: sonnet-5는 thinking 생략 시 adaptive thinking이 켜지고 max_tokens는
+      // thinking+텍스트 합계 상한이다. 600토큰짜리 에디터 배정(구조화 JSON)에서 thinking이
+      // 예산을 먹으면 배정이 실패하고 Topic이 pending에 남는다(실측 pending 75건).
+      thinking: { type: 'disabled' },
+      max_tokens: 1200,
       messages: [{ role: 'user', content: prompt }],
     }),
   });

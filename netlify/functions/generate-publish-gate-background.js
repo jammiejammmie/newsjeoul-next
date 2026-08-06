@@ -100,7 +100,13 @@ async function claudeJudge(prompt) {
     },
     body: JSON.stringify({
       model: 'claude-sonnet-5',
-      max_tokens: 500,
+      // 2026-08-06: thinking 명시 필수. sonnet-5는 이 필드를 생략하면 adaptive thinking이
+      // 켜지고, max_tokens는 thinking+텍스트 **합계** 상한이다. 500토큰짜리 분류 호출에서
+      // thinking이 예산을 삼키면 text 블록이 0개로 와서 게이트 판정이 통째로 실패한다
+      // (published 중 gate_status='pending_gate' 19건이 그 흔적). 분류는 추론 여유가
+      // 필요 없으므로 끈다. budget_tokens는 sonnet-5에서 제거됨 — 쓰면 400.
+      thinking: { type: 'disabled' },
+      max_tokens: 1000,
       messages: [{ role: 'user', content: prompt }],
     }),
     signal: AbortSignal.timeout(60000),

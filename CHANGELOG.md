@@ -110,10 +110,18 @@ PostgREST는 DDL을 지원하지 않고 이 세션에는 Supabase 관리 자격�
    실패 사유를 종류별로 로그에 남겨 다음엔 원인을 바로 좁힐 수 있게 했다.
 
 3. **에버그린 감지 28시간 0건**
-   두 원인이 겹쳤다. (a) `HIGH_SCORE_MIN=500`이 2026-08-05 신선도 감쇠(ce1ec67) 도입 후
-   **도달 불가능한 값**이 됐다 — 실측 상위 토픽이 398g다. 규칙 2는 감쇠 시점부터 구조적으로
-   0건이었다. (b) 판정 예산 12칸을 회전 빠른 정치·국제 키워드가 매번 독식했고, 판정된 이름은
-   영구 skipped라 IT·소비재·생활 후보에 순번이 오지 않았다.
+   두 원인이 겹쳤다. **(a) 주원인 — 판정 예산 12칸을 뉴스성 토픽이 독식했다.** 실측(최근
+   96시간 토픽 155건)에서 가중치 없이 정렬하면 12칸이 뉴스 10 · 에버그린 2로 채워진다.
+   상위가 '논란' '폭염' '사고' '사건' '화재' '사망' 같은 Society 토큰이다. 판정된 이름은
+   영구 skipped라, 매 회차 예산이 "어차피 부적합 판정될 것"에 소모되고 IT·소비재·생활
+   후보는 순번이 영영 오지 않았다.
+   **(b) 보조 원인 — `HIGH_SCORE_MIN=500`이 규칙 2를 거의 닫아 놨다.** 500g을 넘긴 토픽이
+   155건 중 2건뿐이었고(최고 647g · 중앙 286g), 그 2건마저 판정 순번에서 밀렸다.
+
+   > 조사 중 정정한 것: 처음에는 홈에 보이는 무게(1위 398g)를 근거로 "500g은 도달 불가"라고
+   > 판단했는데, 홈 값은 감쇠가 반영된 **표시용 무게**이고 감지가 쓰는 `importance_score`는
+   > 별개 값이었다(실측 최고 647g). 두 값을 섞어 보면 진단이 틀린다. 실측 스크립트
+   > `scripts/check-evergreen-detection.js`를 남겨 다음엔 추측 없이 바로 확인하게 했다.
    → 카테고리 성향(`categoryStance`)을 도입해 에버그린 성향은 완화 기준(250g)·우선순위 가중
    1.5배, 뉴스성은 기존 기준 유지·가중 0.4배. 추가로 **이번 실행의 무게 분포에서 상대 기준을
    같이 뽑아** 산식이 또 바뀌어도 규칙이 조용히 죽지 않게 했다.
@@ -136,9 +144,68 @@ PostgREST는 DDL을 지원하지 않고 이 세션에는 Supabase 관리 자격�
 7. **`.env.local.example` 추가** — 진단 스크립트가 전부 `.env.local`을 직접 읽는데(dotenv 미사용)
    머신마다 경로가 달라 새 머신에서 매번 막혔다. `.gitignore`의 `.env*`에 예외를 넣어 커밋한다.
 
-회귀 테스트: `test-evergreen-queue` 43건, `test-home-modules` 28건, `test-hubs` 79건,
-`test-post-threads` 73건 전부 통과. 표시 계층(TS)과 저장 계층(JS)의 중복 판정이 같은 답을
-내는지 확인하는 드리프트 방지 테스트를 포함했다.
+8. **[요청 범위 밖에서 발견] Claude 호출이 파이프라인 전체에서 간헐적으로 실패하고 있었다**
+   Threads 배급 로그를 보다 발견했다. `distribution_skip_log` 최근 200건 중 **70건이
+   `claude_failed`**이고, 전부 같은 모양이었다:
+   `{"stop_reason":"max_tokens","blockTypes":["thinking"],"rawLen":0}`.
+
+   원인은 **`claude-sonnet-5`는 `thinking` 파라미터를 생략하면 adaptive thinking이 켜지고,
+   `max_tokens`는 thinking과 응답 텍스트를 합친 총량의 상한**이라는 것이다. 저장소의
+   sonnet-5 호출 13곳이 전부 `thinking`을 지정한 적이 없었고, 그중 다수가 `max_tokens`
+   300~1200이었다. thinking이 예산을 삼킨 회차는 text 블록이 0개로 돌아와 파싱이 실패했다.
+
+   같은 결함이 이번에 고친 허브 문서 생성(2번)과 **동일한 실패율 지문**을 남겼다 —
+   Threads 35%, 허브 문서 40%. 서로 다른 두 증상이 사실 하나의 원인이었다.
+
+   → 구조화 JSON을 받는 8곳(publish-gate·editorial-plan·zeitgeist·scan-comments·
+   resolve-topics·insights·evergreen-detect·post-threads)은 `thinking: {type:'disabled'}`를
+   명시하고 예산도 올렸다. 본문 품질이 중요한 장문 생성(editorial-draft 등 5곳)은 thinking을
+   유지하고 예산만 2배로 늘렸다. `budget_tokens`는 sonnet-5에서 제거된 파라미터라 쓰지 않는다.
+
+   추정 피해: `published` 중 `gate_status='pending_gate'` 19건, `pending` 75건,
+   `planned` 165건 중 일부는 이 실패가 원인일 가능성이 높다(확정 아님 — 재실행 후 재측정 필요).
+
+회귀 테스트: `test-post-threads` 76건, `test-evergreen-queue` 43건, `test-hubs` 79건,
+`test-home-modules` 28건 전부 통과(총 226건). 표시 계층(TS)과 저장 계층(JS)의 중복 판정이
+같은 답을 내는지 확인하는 드리프트 방지 테스트, 그리고 Claude 호출 파라미터가 되돌아가지
+않는지 확인하는 테스트(38~40번)를 포함했다.
+
+---
+
+## 이어서 할 일 (2026-08-06 17:xx KST, 노트북 → 데스크탑 인계)
+
+**데스크탑에서 시작할 때 순서대로:**
+
+1. `git pull` — 이 커밋들을 받는다.
+2. `.env.local`을 만든다. **커밋되지 않으므로 머신마다 새로 만들어야 한다.**
+   ```
+   npm i -g netlify-cli && netlify login          # 이미 했으면 생략
+   cp .env.local.example .env.local
+   netlify env:list --context production --json   # ADMIN_KEY / ANON_KEY를 여기서 복사
+   ```
+   `ADMIN_KEY`와 `NEXT_PUBLIC_SUPABASE_ANON_KEY` 두 개만 채우면 모든 진단 스크립트가 돈다.
+3. 아래를 확인한다(전부 이번 수정의 결과 측정이다).
+
+**측정해야 할 것 — 수정 전 기준값과 함께**
+
+| 항목 | 수정 전(2026-08-06 17시) | 확인 방법 |
+|---|---|---|
+| Claude 실패율 | skip_log 200건 중 claude_failed **70건** | `node scripts/check-distribution-health.js` |
+| Threads 오늘 게시 | 목표 23 대비 **12건** | 같은 스크립트의 실행 이력 |
+| 허브 문서 | **55 / 80** (excel 3, ev-subsidy 5) | `node scripts/check-hub-docs.js`* 또는 홈 허브 링크 |
+| 발행 적체 | pending 75 · planned 165 · pending_gate 19 | `node scripts/check-publish-throughput.js` |
+| evergreen 큐 | pending **0건**, 자동 생성 허브 **0개** | `node scripts/check-evergreen-detection.js` |
+
+\* `check-hub-docs.js`는 아직 없다 — 필요하면 `check-evergreen-detection.js`를 참고해 만들면 된다.
+
+**아직 안 끝난 것**
+- 허브 문서 25건 남음(excel 13 · ev-subsidy 11 · youth 1). 3시간마다 8건씩 자동으로 채워지므로
+  **8/7 오전 중 완료 예상.** 급하면 `ADMIN_KEY`로 직접 호출:
+  `curl -X POST -H "x-admin-key: $ADMIN_KEY" "https://newsjeoul.co.kr/.netlify/functions/generate-hub-documents-background?limit=20"`
+- evergreen 자동 감지가 실제로 pending을 만드는지 미확인. 다음 감지는 매 3시간 :15(UTC).
+  수정 후 첫 실행 결과를 `check-evergreen-detection.js`로 대조할 것.
+- `incident_2026_08_03_node_insights_repair.sql` 여전히 미적용(좀비 토픽 28건).
+- `supabase/scoring_engine_migration.sql` — 2026-07-13자 미커밋·미참조 파일, 삭제 여부 미정.
 
 ### 2026-07-30 — 긴급: 팩트 오류 토픽("이준석 대통령") 발견 및 대응
 

@@ -97,7 +97,7 @@ async function claudeGenerate(prompt) {
     },
     body: JSON.stringify({
       model: 'claude-sonnet-5',
-      max_tokens: 2000,
+      max_tokens: 4000 /* 2026-08-06: sonnet-5 adaptive thinking이 max_tokens를 함께 소진한다 — 잘림 여유 확보 */,
       messages: [{ role: 'user', content: prompt }],
     }),
     signal: AbortSignal.timeout(60000),
