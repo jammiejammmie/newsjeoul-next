@@ -192,16 +192,19 @@ PostgREST는 DDL을 지원하지 않고 이 세션에는 Supabase 관리 자격�
 |---|---|---|
 | Claude 실패율 | skip_log 200건 중 claude_failed **70건** | `node scripts/check-distribution-health.js` |
 | Threads 오늘 게시 | 목표 23 대비 **12건** | 같은 스크립트의 실행 이력 |
-| 허브 문서 | **55 / 80** (excel 3, ev-subsidy 5) | `node scripts/check-hub-docs.js`* 또는 홈 허브 링크 |
+| 허브 문서 | **80 / 80 완료** (5개 허브 전부 16건) | 홈 "추적 중인 허브" 링크로 육안 확인 |
 | 발행 적체 | pending 75 · planned 165 · pending_gate 19 | `node scripts/check-publish-throughput.js` |
 | evergreen 큐 | pending **0건**, 자동 생성 허브 **0개** | `node scripts/check-evergreen-detection.js` |
 
 \* `check-hub-docs.js`는 아직 없다 — 필요하면 `check-evergreen-detection.js`를 참고해 만들면 된다.
 
-**아직 안 끝난 것**
-- 허브 문서 25건 남음(excel 13 · ev-subsidy 11 · youth 1). 3시간마다 8건씩 자동으로 채워지므로
-  **8/7 오전 중 완료 예상.** 급하면 `ADMIN_KEY`로 직접 호출:
+**끝난 것**
+- 허브 문서 **80/80 완료**(2026-08-06 18:15 KST). thinking 수정 직후 생성 속도가
+  회당 3~5건 → 6분에 9건으로 올라가면서 남은 25건이 한 번에 끝났다. 수정 효과의 첫 실측이다.
+- 문서 생성 수동 트리거가 필요하면:
   `curl -X POST -H "x-admin-key: $ADMIN_KEY" "https://newsjeoul.co.kr/.netlify/functions/generate-hub-documents-background?limit=20"`
+
+**아직 안 끝난 것**
 - evergreen 자동 감지가 실제로 pending을 만드는지 미확인. 다음 감지는 매 3시간 :15(UTC).
   수정 후 첫 실행 결과를 `check-evergreen-detection.js`로 대조할 것.
 - `incident_2026_08_03_node_insights_repair.sql` 여전히 미적용(좀비 토픽 28건).
