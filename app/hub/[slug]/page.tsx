@@ -140,25 +140,27 @@ export default async function HubPage({ params }: { params: Promise<{ slug: stri
     description: hub.definition,
     category: hub.category,
     url: `${BASE}/hub/${hub.slug}`,
+    // image는 Product류 스키마의 권장 필드다(Search Console "판매자 목록 — image 필드 누락").
+    // 실제 제품 사진을 보유하지 않으므로 이 허브의 대표 이미지(OG 카드)를 쓴다 —
+    // 우리가 실제로 발행하는 이미지이고, 페이지 메타데이터가 쓰는 것과 같은 URL이다.
+    image: `${BASE}/og?type=weight&title=${encodeURIComponent(hub.title)}`,
     additionalProperty: hub.specs.map((s) => ({ '@type': 'PropertyValue', name: s.label, value: s.value })),
     ...(hub.schema.brand ? { brand: { '@type': 'Brand', name: hub.schema.brand } } : {}),
     ...(hub.schema.releaseDate ? { releaseDate: hub.schema.releaseDate } : {}),
     ...(hub.schema.provider ? { provider: { '@type': 'GovernmentOrganization', name: hub.schema.provider } } : {}),
     ...(hub.schema.applicationCategory ? { applicationCategory: hub.schema.applicationCategory } : {}),
     ...(hub.schema.operatingSystem ? { operatingSystem: hub.schema.operatingSystem } : {}),
-    // 가격이 확정되지 않은 실체(예: 국내 가격 미공시 신차)는 Offer를 넣지 않는다 —
-    // 추정치를 구조화 데이터로 선언하면 검색엔진에 잘못된 정보를 주는 셈이다.
-    ...(typeof hub.schema.price === 'number'
-      ? {
-          offers: {
-            '@type': 'Offer',
-            price: hub.schema.price,
-            priceCurrency: hub.schema.currency ?? 'KRW',
-            availability: 'https://schema.org/InStock',
-            url: `${BASE}/hub/${hub.slug}`,
-          },
-        }
-      : {}),
+    // Offer를 발행하지 않는다 — 2026-08-07 Search Console 대응.
+    //
+    // 이전에는 hub.schema.price가 있으면 Offer를 붙였다(폴드8이 유일). 그 순간 Google은 이
+    // 페이지를 "판매자 목록(merchant listing)" 후보로 판정하고 hasMerchantReturnPolicy와
+    // shippingDetails를 요구한다 — 그게 Search Console 경고의 실제 원인이었다.
+    //
+    // 뉴스저울은 이 제품을 팔지 않는다. 반품 정책도 배송 조건도 존재하지 않으므로 채울 수 있는
+    // 값이 없고, 지어내면 그건 허위 마크업이라 수동 조치 대상이 된다. 우리가 파는 물건이 아니라는
+    // 사실을 스키마가 그대로 반영하는 게 맞다 — 그래서 필드를 채우는 대신 Offer를 뗐다.
+    // 가격은 헤더 stats와 스펙표에 본문으로 계속 보인다(사용자가 보는 정보는 줄지 않는다).
+    // 이 결정은 "추정치를 구조화 데이터로 선언하지 않는다"는 기존 원칙의 연장이다.
   }
   const faqSchema = {
     '@context': 'https://schema.org',
@@ -179,12 +181,18 @@ export default async function HubPage({ params }: { params: Promise<{ slug: stri
     datePublished: meta.createdAt,
     dateModified: meta.updatedAt,
     author: personSchema,
+    // 2026-08-07 Search Console "탐색경로(심각) — item 필드 누락" 수정.
+    //
+    // 이전에는 hub.breadcrumb(['신제품·가전','모바일'])를 중간 항목으로 넣으면서 item을 주지
+    // 않았다. 그 분류는 허브 전용 표기라 대응하는 페이지가 없다 — 실측으로 /category/신제품·가전,
+    // /category/모바일, /category/신차 모두 404다. 그래서 URL을 붙이는 대신 항목을 뺐다.
+    // 없는 URL을 지어 붙이면 경고는 사라져도 404를 구조화 데이터로 선언하게 된다.
+    // 화면의 시각적 breadcrumb는 분류를 그대로 보여준다(아래 렌더링부) — 표시와 선언은 별개다.
     breadcrumb: {
       '@type': 'BreadcrumbList',
       itemListElement: [
         { '@type': 'ListItem', position: 1, name: '홈', item: BASE },
-        ...hub.breadcrumb.map((b, i) => ({ '@type': 'ListItem', position: i + 2, name: b })),
-        { '@type': 'ListItem', position: hub.breadcrumb.length + 2, name: hub.title, item: `${BASE}/hub/${hub.slug}` },
+        { '@type': 'ListItem', position: 2, name: hub.title, item: `${BASE}/hub/${hub.slug}` },
       ],
     },
   }

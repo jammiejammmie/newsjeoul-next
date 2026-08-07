@@ -182,6 +182,14 @@ export type HubConfig = {
   schema: {
     /** product·car */
     brand?: string
+    /**
+     * 참고용 가격. 2026-08-07부터 **구조화 데이터로 나가지 않는다**.
+     *
+     * 이 값으로 Offer를 발행하면 Google이 페이지를 판매자 목록(merchant listing)으로 보고
+     * hasMerchantReturnPolicy·shippingDetails를 요구한다. 뉴스저울은 판매자가 아니라
+     * 채울 값이 없으므로 Offer 자체를 내보내지 않는다(app/hub/[slug]/page.tsx 주석 참고).
+     * 가격을 화면에 보이려면 stats나 specs에 넣는다.
+     */
     price?: number
     currency?: 'KRW'
     releaseDate?: string

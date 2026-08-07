@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { getGenericContentBySlug } from '@/lib/generic-content'
 import ContentDetail from '@/components/content/ContentDetail'
-import { generateProductSchema } from '@/lib/schema/product'
+import { generateArticleSchema } from '@/lib/schema/article'
 
 export const dynamic = 'force-dynamic'
 
@@ -26,8 +26,14 @@ export default async function ReviewPage({ params }: { params: Promise<{ slug: s
   const item = await getGenericContentBySlug(TABLE, slug)
   if (!item) notFound()
 
-  // 평점 데이터가 아직 콘텐츠 모델에 없어 aggregateRating은 비워둔다.
-  const jsonLd = generateProductSchema({ name: item.title, description: item.summary })
+  // 평점 데이터가 콘텐츠 모델에 없으므로 Product가 아니라 Article로 선언한다(2026-08-07).
+  // 이 페이지는 실제로 편집 콘텐츠다 — 평점 없는 Product는 제품 스니펫 자격 미달로 매번
+  // Search Console 경고를 냈고, 평점을 지어내는 것은 허위 마크업이라 선택지가 아니었다.
+  const jsonLd = generateArticleSchema({
+    headline: item.title,
+    description: item.summary,
+    url: `${BASE}/review/${item.slug}`,
+  })
 
   return (
     <>

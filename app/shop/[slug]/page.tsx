@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { getGenericContentBySlug } from '@/lib/generic-content'
 import ContentDetail from '@/components/content/ContentDetail'
-import { generateProductSchema } from '@/lib/schema/product'
+import { generateArticleSchema } from '@/lib/schema/article'
 
 export const dynamic = 'force-dynamic'
 
@@ -26,7 +26,13 @@ export default async function ShopPage({ params }: { params: Promise<{ slug: str
   const item = await getGenericContentBySlug(TABLE, slug)
   if (!item) notFound()
 
-  const jsonLd = generateProductSchema({ name: item.title, description: item.summary })
+  // review 페이지와 같은 이유로 Article이다(2026-08-07) — 평점도 재고·배송 조건도 없는
+  // 편집 콘텐츠이므로, Product로 선언하면 채울 수 없는 필드를 요구받는다.
+  const jsonLd = generateArticleSchema({
+    headline: item.title,
+    description: item.summary,
+    url: `${BASE}/shop/${item.slug}`,
+  })
 
   return (
     <>
