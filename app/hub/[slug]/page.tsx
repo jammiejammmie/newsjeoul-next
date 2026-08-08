@@ -116,7 +116,9 @@ export default async function HubPage({ params }: { params: Promise<{ slug: stri
   const trend = hub.trend
   const maxTrend = trend ? Math.max(...trend.points.map((p) => p.value)) : 0
   const slots = hub.affiliate.allowed ? hub.affiliate.slots : []
-  const hasLiveAffiliate = slots.some((a) => a.targetUrl)
+  // 실제 목적지가 연결된 첫 슬롯. 화면의 고지 문구와 Offer의 url이 같은 사실을 근거로 삼는다.
+  const primaryAffiliate = slots.find((a) => a.targetUrl)
+  const hasLiveAffiliate = Boolean(primaryAffiliate)
 
   // ── 구조화 데이터 (설계서 §10.5: 허브 = Product/FAQPage, 저자 = Person) ──
   const personSchema = {
@@ -150,17 +152,41 @@ export default async function HubPage({ params }: { params: Promise<{ slug: stri
     ...(hub.schema.provider ? { provider: { '@type': 'GovernmentOrganization', name: hub.schema.provider } } : {}),
     ...(hub.schema.applicationCategory ? { applicationCategory: hub.schema.applicationCategory } : {}),
     ...(hub.schema.operatingSystem ? { operatingSystem: hub.schema.operatingSystem } : {}),
-    // Offer를 발행하지 않는다 — 2026-08-07 Search Console 대응.
+    // ── Offer ── 2026-08-08 Search Console "제품 스니펫" 오류 대응.
     //
-    // 이전에는 hub.schema.price가 있으면 Offer를 붙였다(폴드8이 유일). 그 순간 Google은 이
-    // 페이지를 "판매자 목록(merchant listing)" 후보로 판정하고 hasMerchantReturnPolicy와
-    // shippingDetails를 요구한다 — 그게 Search Console 경고의 실제 원인이었다.
+    // 경위: 08-07에 Offer를 뗐다(커밋 d8674a5). Offer가 있으면 Google이 이 페이지를
+    // "판매자 목록(merchant listing)" 후보로 보고 hasMerchantReturnPolicy·shippingDetails를
+    // 요구했기 때문이다. 그런데 그 조치가 경고를 오류로 바꿔놨다 —
+    // Product는 offers·review·aggregateRating 중 하나가 없으면 항목 자체가 '유효하지 않음'이 되어
+    // 리치 결과에서 완전히 빠진다(08-08 확인, 영향 URL: /hub/galaxy-z-fold8 1건).
+    // 판매자 목록의 두 필드는 '권장'이라 경고에 그쳤다. 경고를 지우려다 색인 자격을 잃은 셈이라 되돌린다.
     //
-    // 뉴스저울은 이 제품을 팔지 않는다. 반품 정책도 배송 조건도 존재하지 않으므로 채울 수 있는
-    // 값이 없고, 지어내면 그건 허위 마크업이라 수동 조치 대상이 된다. 우리가 파는 물건이 아니라는
-    // 사실을 스키마가 그대로 반영하는 게 맞다 — 그래서 필드를 채우는 대신 Offer를 뗐다.
-    // 가격은 헤더 stats와 스펙표에 본문으로 계속 보인다(사용자가 보는 정보는 줄지 않는다).
-    // 이 결정은 "추정치를 구조화 데이터로 선언하지 않는다"는 기존 원칙의 연장이다.
+    // review·aggregateRating은 대안이 아니다. 평점 데이터가 실제로 없고,
+    // 없는 평점을 지어내는 것은 Google 정책상 수동 조치 대상이다. 남는 선택지는 Offer뿐이다.
+    //
+    // 판매자 오인을 다시 부르지 않기 위해 seller를 명시한다 — 파는 쪽은 쿠팡이고 뉴스저울이 아니다.
+    // 그래서 반품·배송 조건을 우리가 선언할 이유가 없다는 사실이 마크업에 그대로 드러난다.
+    // 여전히 "추정치를 선언하지 않는다"는 원칙은 유지한다: price가 확정된 허브에만 Offer가 붙는다
+    // (가격 미공시 신차 등은 그대로 Offer 없음).
+    ...(typeof hub.schema.price === 'number'
+      ? {
+          offers: {
+            '@type': 'Offer',
+            price: hub.schema.price,
+            priceCurrency: hub.schema.currency ?? 'KRW',
+            availability: 'https://schema.org/InStock',
+            // 실제 구매 경로가 연결돼 있으면 그곳을, 아직이면 이 허브 페이지를 가리킨다.
+            // 목적지가 비어 있는 /go/{slot}은 404를 반환하므로(app/go/[slot]/route.ts)
+            // 링크가 붙기 전에 그 주소를 Offer에 선언하면 죽은 URL을 구조화 데이터로 내보내게 된다.
+            url: primaryAffiliate
+              ? `${BASE}/go/${primaryAffiliate.slot}`
+              : `${BASE}/hub/${hub.slug}`,
+            ...(primaryAffiliate
+              ? { seller: { '@type': 'Organization', name: '쿠팡' } }
+              : {}),
+          },
+        }
+      : {}),
   }
   const faqSchema = {
     '@context': 'https://schema.org',
