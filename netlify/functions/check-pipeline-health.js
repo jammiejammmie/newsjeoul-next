@@ -28,6 +28,14 @@ const STALE_THRESHOLD_MIN = {
 };
 const BACKLOG_ALERT_THRESHOLD = { pending: 40, planned: 60 }; // 정상 운영 중 관찰된 규모 대비 과도한 적체
 
+// 배급(Threads) 연속 실패 감지 기준. 2026-08-10 신설.
+// 계기: THREADS_ACCESS_TOKEN이 08-09 05:40 PDT에 만료돼 25회 실행 47건이 전부 실패했는데,
+// 이 함수가 생산 단계(articles~expansion)만 보고 배급은 안 보고 있어서 24시간 동안 아무도
+// 몰랐다. 생산이 멀쩡해도 배급이 죽으면 독자에게 도달하는 양은 0이다.
+// "시도는 하는데 전부 실패"를 잡는다 — 후보가 없어 조용한 시간대(시도 0)는 정상이므로 제외.
+const DISTRIBUTION_FAIL_WINDOW = 10;  // 최근 실행 10회(≈5시간) 표본
+const DISTRIBUTION_MIN_ATTEMPTS = 5;  // 이만큼 시도했는데 0건 성공이면 이상
+
 async function countHead(url) {
   const r = await fetch(url, { method: 'HEAD', headers: { ...HEADERS, Prefer: 'count=exact' } });
   if (!r.ok) return null;
@@ -44,6 +52,41 @@ async function latestOf(table, col) {
 function minutesSince(iso) {
   if (!iso) return Infinity;
   return (Date.now() - new Date(iso).getTime()) / 60000;
+}
+
+// 배급 채널이 "시도는 하는데 전부 실패"하고 있으면 사유까지 붙여서 문제로 올린다.
+// 사유(distribution_skip_log.detail.error)를 함께 보내야 알림만 보고 바로 대응할 수 있다 —
+// 토큰 만료인지 Claude 실패인지에 따라 조치가 완전히 다르다.
+async function checkDistribution(channel) {
+  const r = await fetch(
+    `${SUPABASE_URL}/rest/v1/distribution_run_log` +
+    `?select=run_at,posts_attempted,posts_succeeded&channel=eq.${channel}` +
+    `&order=run_at.desc&limit=${DISTRIBUTION_FAIL_WINDOW}`,
+    { headers: HEADERS }
+  );
+  if (!r.ok) return null;
+  const runs = await r.json();
+  if (!Array.isArray(runs) || !runs.length) return null;
+
+  const attempted = runs.reduce((s, v) => s + (v.posts_attempted || 0), 0);
+  const succeeded = runs.reduce((s, v) => s + (v.posts_succeeded || 0), 0);
+  if (succeeded > 0 || attempted < DISTRIBUTION_MIN_ATTEMPTS) return null;
+
+  let why = '';
+  try {
+    const f = await fetch(
+      `${SUPABASE_URL}/rest/v1/distribution_skip_log` +
+      `?select=reason,detail&channel=eq.${channel}&reason=neq.distribution_threshold` +
+      `&order=run_at.desc&limit=1`,
+      { headers: HEADERS }
+    );
+    if (f.ok) {
+      const [last] = await f.json();
+      if (last) why = ` — 최근 사유 ${last.reason}: ${String(last.detail?.error || '').slice(0, 200)}`;
+    }
+  } catch { /* 사유 조회 실패는 알림 자체를 막지 않는다 */ }
+
+  return `배급(${channel}): 최근 ${runs.length}회 실행에서 ${attempted}건 시도 전부 실패(성공 0)${why}`;
 }
 
 async function sendSlackAlert(problems, context) {
@@ -120,6 +163,9 @@ exports.handler = async function (event) {
     if (plannedCount !== null && plannedCount > BACKLOG_ALERT_THRESHOLD.planned) {
       problems.push(`Gate/장문 대기(planned) 백로그 ${plannedCount}건 — 기준(${BACKLOG_ALERT_THRESHOLD.planned}) 초과`);
     }
+
+    const distributionProblem = await checkDistribution('threads');
+    if (distributionProblem) problems.push(distributionProblem);
 
     if (problems.length) {
       await sendSlackAlert(problems, { pendingCount, plannedCount });
