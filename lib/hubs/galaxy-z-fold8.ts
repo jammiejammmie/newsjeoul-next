@@ -42,9 +42,12 @@ export const galaxyZFold8: HubConfig = {
     { label: '배터리', value: '4,800mAh' },
   ],
 
-  createdAt: '2026-08-07',
+  // 이 셋은 제품이 아니라 **허브 페이지**의 갱신 메타다(hubs 테이블이 정본, 아래는 폴백).
+  // createdAt은 페이지를 만든 날이므로 제품 출시일(8/7)과 다르다 — 파일럿 1호로 7월 18일에
+  // 만들었고 DB의 created_at도 그 값이다. 잠깐 8/7로 바꿨다가 되돌렸다.
+  createdAt: '2026-07-18',
   updatedAtFallback: '2026-08-10',
-  updateCountFallback: 1,
+  updateCountFallback: 15,
 
   // 실측으로 검증한 키워드 조합(articles 제목 기준 7건 매칭).
   // 'Z8'은 시리즈 통칭으로 기사에 자주 쓰이므로 함께 넣는다.
