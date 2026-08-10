@@ -35,6 +35,7 @@ const BACKLOG_ALERT_THRESHOLD = { pending: 40, planned: 60 }; // 정상 운영 �
 // "시도는 하는데 전부 실패"를 잡는다 — 후보가 없어 조용한 시간대(시도 0)는 정상이므로 제외.
 const DISTRIBUTION_FAIL_WINDOW = 10;  // 최근 실행 10회(≈5시간) 표본
 const DISTRIBUTION_MIN_ATTEMPTS = 5;  // 이만큼 시도했는데 0건 성공이면 이상
+const TOKEN_EXPIRY_WARN_DAYS = 14;    // 자동 갱신 주기가 30일이라, 여기 닿으면 2회 연속 실패한 것
 
 async function countHead(url) {
   const r = await fetch(url, { method: 'HEAD', headers: { ...HEADERS, Prefer: 'count=exact' } });
@@ -87,6 +88,31 @@ async function checkDistribution(channel) {
   } catch { /* 사유 조회 실패는 알림 자체를 막지 않는다 */ }
 
   return `배급(${channel}): 최근 ${runs.length}회 실행에서 ${attempted}건 시도 전부 실패(성공 0)${why}`;
+}
+
+// 토큰이 끊기기 "전에" 부른다. 연속 실패 감지는 이미 터진 뒤라 최소 몇 시간을 잃는다.
+// 만료된 토큰은 갱신이 불가능하므로(재발급만 가능) 남은 기간이 줄어드는 것 자체가 사고 신호다.
+async function checkThreadsToken() {
+  const r = await fetch(
+    `${SUPABASE_URL}/rest/v1/threads_credentials?select=expires_at,last_refreshed_at,refresh_error&id=eq.threads&limit=1`,
+    { headers: HEADERS }
+  );
+  if (!r.ok) return null;           // 테이블 도입 전에는 조용히 넘어간다
+  const [row] = await r.json();
+  if (!row) return null;
+
+  const out = [];
+  if (row.refresh_error) {
+    out.push(`Threads 토큰 자동 갱신 실패 — ${String(row.refresh_error).slice(0, 200)}`);
+  }
+  if (row.expires_at) {
+    const daysLeft = (new Date(row.expires_at).getTime() - Date.now()) / 86400000;
+    // 갱신 주기가 30일이라 두 번 연속 실패해야 이 선에 닿는다. 여기 닿으면 사람이 봐야 한다.
+    if (daysLeft <= TOKEN_EXPIRY_WARN_DAYS) {
+      out.push(`Threads 토큰 만료 ${Math.floor(daysLeft)}일 전(${row.expires_at}) — 자동 갱신이 밀리고 있다`);
+    }
+  }
+  return out.length ? out : null;
 }
 
 async function sendSlackAlert(problems, context) {
@@ -166,6 +192,9 @@ exports.handler = async function (event) {
 
     const distributionProblem = await checkDistribution('threads');
     if (distributionProblem) problems.push(distributionProblem);
+
+    const tokenProblems = await checkThreadsToken();
+    if (tokenProblems) problems.push(...tokenProblems);
 
     if (problems.length) {
       await sendSlackAlert(problems, { pendingCount, plannedCount });

@@ -71,8 +71,40 @@ const CHANNEL = 'threads'; // 두 번째 채널 어댑터를 만들 때는 그 �
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
+// 토큰은 threads_credentials(DB)가 정본이고 환경변수는 폴백이다. 2026-08-10 전환 —
+// Threads 장기 토큰은 60일 만료라 사람이 환경변수를 갈아끼우는 구조로는 반드시 다시 끊긴다
+// (실제로 08-09 만료로 24시간 전면 중단됐다). refresh-threads-token이 30일마다 DB의 토큰을
+// 연장하므로, 실행 시점마다 DB에서 읽어야 갱신분이 반영된다.
 const THREADS_USER_ID = process.env.THREADS_USER_ID;
-const THREADS_ACCESS_TOKEN = process.env.THREADS_ACCESS_TOKEN;
+const THREADS_ACCESS_TOKEN_ENV = process.env.THREADS_ACCESS_TOKEN;
+
+// 한 번의 함수 실행 안에서는 여러 건을 게시하므로 호출당 1회만 읽고 재사용한다.
+let cachedToken = null;
+async function getAccessToken() {
+  if (cachedToken) return cachedToken;
+  try {
+    const r = await fetch(
+      `${SUPABASE_URL}/rest/v1/threads_credentials?select=access_token,expires_at&id=eq.threads&limit=1`,
+      { headers: REQUEST_HEADERS }
+    );
+    if (r.ok) {
+      const [row] = await r.json();
+      if (row?.access_token) {
+        if (row.expires_at && new Date(row.expires_at).getTime() <= Date.now()) {
+          console.error(`THREADS_TOKEN: DB 토큰이 만료됨(${row.expires_at}) — 재발급 필요`);
+        }
+        cachedToken = row.access_token;
+        return cachedToken;
+      }
+    } else {
+      console.error(`THREADS_TOKEN: threads_credentials 조회 실패(${r.status}) — 환경변수로 폴백`);
+    }
+  } catch (e) {
+    console.error('THREADS_TOKEN: threads_credentials 조회 예외 — 환경변수로 폴백:', e.message);
+  }
+  cachedToken = THREADS_ACCESS_TOKEN_ENV || null;
+  return cachedToken;
+}
 const BASE_URL = 'https://newsjeoul.co.kr';
 const REQUEST_HEADERS = { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY };
 
@@ -820,7 +852,7 @@ Threads는 전체 500자 제한이 있고 뒤에 마무리 문장과 링크가 �
 
 // ── Threads API(텍스트 전용 — 이미지 없어도 정상, 이미지 필드는 애초에 참조하지 않는다) ──────
 async function createContainer(text) {
-  const params = new URLSearchParams({ media_type: 'TEXT', text, access_token: THREADS_ACCESS_TOKEN });
+  const params = new URLSearchParams({ media_type: 'TEXT', text, access_token: await getAccessToken() });
   const res = await fetch(`https://graph.threads.net/v1.0/${THREADS_USER_ID}/threads`, { method: 'POST', body: params });
   const data = await res.json();
   if (!res.ok || !data.id) throw new Error('createContainer 실패: ' + JSON.stringify(data));
@@ -828,7 +860,7 @@ async function createContainer(text) {
 }
 
 async function publishPost(containerId) {
-  const params = new URLSearchParams({ creation_id: containerId, access_token: THREADS_ACCESS_TOKEN });
+  const params = new URLSearchParams({ creation_id: containerId, access_token: await getAccessToken() });
   const res = await fetch(`https://graph.threads.net/v1.0/${THREADS_USER_ID}/threads_publish`, { method: 'POST', body: params });
   const data = await res.json();
   if (!res.ok || !data.id) throw new Error('publishPost 실패: ' + JSON.stringify(data));
@@ -926,9 +958,9 @@ exports.handler = async function (event) {
   const isDry = event.queryStringParameters?.dry === 'true';
 
   // 자격증명 확인 — Claude 호출보다 반드시 먼저(비용 보호)
-  if (!isDry && (!THREADS_USER_ID || !THREADS_ACCESS_TOKEN)) {
+  if (!isDry && (!THREADS_USER_ID || !(await getAccessToken()))) {
     console.error(`DISTRIBUTION_SKIP[${CHANNEL}](credential_missing)`);
-    return { statusCode: 500, headers, body: JSON.stringify({ reason: 'credential_missing', error: 'THREADS_USER_ID 또는 THREADS_ACCESS_TOKEN 환경변수 없음' }) };
+    return { statusCode: 500, headers, body: JSON.stringify({ reason: 'credential_missing', error: 'THREADS_USER_ID 없음, 또는 threads_credentials·THREADS_ACCESS_TOKEN 어느 쪽에도 토큰 없음' }) };
   }
 
   if (isDry) {
