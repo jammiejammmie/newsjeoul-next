@@ -1,18 +1,32 @@
-// check-pipeline-health.js — 파이프라인 정체 자동 감지 + Slack 알림
+// check-pipeline-health.js — 파이프라인 정체 자동 감지 + 이메일/Slack 알림
 // 근거: PM 지시(2026-07-22, Editorial Plan~Expansion 22시간 정체 사고 이후 — "운영자는 장애를
 // 발견하는 사람이 아니라 시스템이 먼저 알려주는 구조여야 한다").
 //
 // 각 단계의 마지막 성공 시각(topics.ai_context의 각 stage 타임스탬프, articles/stories/topics의
-// created_at)을 확인해 기대 주기(3시간)를 크게 넘겼거나 Editorial 백로그(pending/planned)가
-// 과도하게 쌓였으면 Slack Webhook으로 알린다. SLACK_WEBHOOK_URL이 없으면 조용히 콘솔 로그만
-// 남기고 끝난다(설정 전에도 배포에 문제 없도록).
+// created_at)을 확인해 기대 주기(3시간)를 크게 넘겼거나, Editorial 백로그(pending/planned)가
+// 과도하게 쌓였거나, 배급이 연속 실패하거나, Threads 토큰 만료가 임박하면 알린다.
+//
+// 전송 경로는 이메일(RESEND_API_KEY)과 Slack(SLACK_WEBHOOK_URL) 중 설정된 것 전부를 쓴다.
+// 둘 다 없으면 콘솔 로그만 남기고 끝난다(설정 전에도 배포에 문제 없도록).
+// 2026-08-10: 이메일을 주 경로로 추가 — Slack 워크스페이스가 없어 이 함수의 알림이 그동안
+// 사실상 콘솔에만 쌓이고 있었다. Threads 24시간 무발행을 아무도 모른 사고의 절반은 이것이다.
 //
 // 자주(15~30분) 돌아도 가벼운 읽기 전용 쿼리뿐이라 동기 함수로 충분 — Background 불필요.
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY;
 const SLACK_WEBHOOK_URL = process.env.SLACK_WEBHOOK_URL;
+// 이메일 알림(2026-08-10 추가). Slack 워크스페이스가 없어 알림이 콘솔에만 쌓이던 것을 대체한다.
+const RESEND_API_KEY = process.env.RESEND_API_KEY;
+const ALERT_EMAIL_TO = process.env.ALERT_EMAIL_TO || 'floweryarn@naver.com';
+// 도메인 인증 전에는 Resend가 제공하는 발신 주소만 쓸 수 있다. newsjeoul.co.kr을 인증하면
+// ALERT_EMAIL_FROM을 'alert@newsjeoul.co.kr' 같은 값으로 바꾸면 된다.
+const ALERT_EMAIL_FROM = process.env.ALERT_EMAIL_FROM || '뉴스저울 <onboarding@resend.dev>';
 const HEADERS = { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY };
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
 
 // 단계별 "이 시간이 지나면 이상"으로 볼 기준(분). 3시간 주기 + 여유(1.5배)를 기본으로 하되,
 // Weight/수집 체인처럼 사고가 실제로 났던 단계는 조금 더 타이트하게 잡는다.
@@ -115,25 +129,55 @@ async function checkThreadsToken() {
   return out.length ? out : null;
 }
 
-async function sendSlackAlert(problems, context) {
+// 알림은 설정된 경로로 전부 내보낸다. 둘 다 없으면 콘솔 로그로만 남기고 끝난다
+// (설정 전에도 배포에 문제 없도록). 2026-08-10: 이메일 경로 추가 —
+// Slack 워크스페이스가 없어서 알림이 사실상 콘솔에만 쌓이고 있었다. 알림은 도달해야 알림이다.
+async function sendAlert(problems, context) {
   console.error('PIPELINE_HEALTH_ALERT:', JSON.stringify({ problems, context }));
-  if (!SLACK_WEBHOOK_URL) {
-    console.error('PIPELINE_HEALTH_ALERT: SLACK_WEBHOOK_URL 미설정 — 콘솔 로그로만 남김');
-    return;
+
+  const lines = problems.map((p) => `• ${p}`);
+  const stamp = `(확인 시각: ${new Date().toISOString()})`;
+  const sent = [];
+
+  if (SLACK_WEBHOOK_URL) {
+    try {
+      await fetch(SLACK_WEBHOOK_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: ['🚨 *뉴스저울 파이프라인 이상 감지*', ...lines, stamp].join('\n') }),
+      });
+      sent.push('slack');
+    } catch (e) {
+      console.error('PIPELINE_HEALTH_ALERT: Slack 전송 실패:', e.message);
+    }
   }
-  const text = [
-    '🚨 *뉴스저울 파이프라인 이상 감지*',
-    ...problems.map((p) => `• ${p}`),
-    `(확인 시각: ${new Date().toISOString()})`,
-  ].join('\n');
-  try {
-    await fetch(SLACK_WEBHOOK_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text }),
-    });
-  } catch (e) {
-    console.error('PIPELINE_HEALTH_ALERT: Slack 전송 실패:', e.message);
+
+  if (RESEND_API_KEY && ALERT_EMAIL_TO) {
+    // 제목에 첫 번째 문제를 넣는다 — 메일함 목록만 보고도 무슨 일인지 알아야 한다.
+    const subject = `[뉴스저울] 파이프라인 이상 ${problems.length}건 — ${String(problems[0]).slice(0, 60)}`;
+    const html =
+      `<h2 style="margin:0 0 12px">🚨 뉴스저울 파이프라인 이상 감지</h2>` +
+      `<ul style="margin:0 0 12px;padding-left:18px;line-height:1.7">` +
+      problems.map((p) => `<li>${escapeHtml(p)}</li>`).join('') +
+      `</ul>` +
+      `<p style="color:#666;font-size:12px;margin:0">${escapeHtml(stamp)}</p>`;
+    try {
+      const r = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ from: ALERT_EMAIL_FROM, to: [ALERT_EMAIL_TO], subject, html }),
+      });
+      if (r.ok) sent.push('email');
+      else console.error('PIPELINE_HEALTH_ALERT: 이메일 전송 실패:', (await r.text()).slice(0, 300));
+    } catch (e) {
+      console.error('PIPELINE_HEALTH_ALERT: 이메일 전송 예외:', e.message);
+    }
+  }
+
+  if (!sent.length) {
+    console.error('PIPELINE_HEALTH_ALERT: 전송 경로 미설정(SLACK_WEBHOOK_URL·RESEND_API_KEY 둘 다 없음) — 콘솔 로그로만 남김');
+  } else {
+    console.log(`PIPELINE_HEALTH_ALERT: 전송 완료(${sent.join(', ')})`);
   }
 }
 
@@ -197,7 +241,7 @@ exports.handler = async function (event) {
     if (tokenProblems) problems.push(...tokenProblems);
 
     if (problems.length) {
-      await sendSlackAlert(problems, { pendingCount, plannedCount });
+      await sendAlert(problems, { pendingCount, plannedCount });
     } else {
       console.log('PIPELINE_HEALTH_OK:', new Date().toISOString());
     }
