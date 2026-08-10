@@ -36,13 +36,25 @@ function renderBody(body: string) {
   ))
 }
 
+/**
+ * 렌더링에 반드시 필요한 필드. 하나라도 없으면 페이지를 그릴 수 없다 —
+ * label은 .toUpperCase()로, body는 .split()으로 바로 쓰이기 때문이다.
+ */
+function isRenderable(d: any): boolean {
+  return Boolean(d?.angle && typeof d.label === 'string' && typeof d.body === 'string' && d.title)
+}
+
 async function getDraft(slug: string, angle: string) {
   const topic = await getTopicBySlug(slug)
   if (!topic) return null
   const drafts: any[] = topic.ai_context?.expansion_drafts || []
   const draft = drafts.find((d) => d.angle === angle)
-  if (!draft) return null
-  return { topic, draft, siblings: drafts.filter((d) => d.angle !== angle) }
+  // 2026-08-10: 필드가 빈 draft에서 500이 나고 있었다(실측 —
+  // /topic/lee-brazil-visit-economic-cooperation/compare). 크롤러에게 500은 "나중에 다시 와라"라
+  // 계속 재시도하게 만들고 사이트 신뢰도까지 깎는다. 그릴 수 없는 draft는 404로 처리한다.
+  if (!isRenderable(draft)) return null
+  // 형제 링크도 같은 이유로 그릴 수 있는 것만 남긴다 — 죽은 링크를 만들지 않는다.
+  return { topic, draft, siblings: drafts.filter((d) => d.angle !== angle && isRenderable(d)) }
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string; angle: string }> }): Promise<Metadata> {

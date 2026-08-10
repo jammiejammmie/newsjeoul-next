@@ -95,17 +95,26 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
     // Expansion Engine(PM 지시 2026-07-19) — 하나의 Topic이 여러 개의 실제 색인 대상 페이지가 되도록,
     // ai_context.expansion_drafts에 쌓인 각 앵글도 /topic/{slug}/{angle}로 별도 등록한다.
+    // 2026-08-10: 렌더링에 필요한 필드가 없는 draft는 사이트맵에서 뺀다.
+    // 실측으로 /topic/lee-brazil-visit-economic-cooperation/compare가 500을 반환하고 있었다 —
+    // angle만 있고 label·body가 비어 페이지가 그리다 터진 것이다. 페이지 쪽에서도 막았지만
+    // (app/topic/[slug]/[angle]/page.tsx), 애초에 그릴 수 없는 URL을 색인해 달라고 광고하면
+    // 크롤 예산만 쓰고 색인은 되지 않는다.
     const expansionRoutes: MetadataRoute.Sitemap = (topics || []).flatMap((t: any) =>
-      ((t.ai_context?.expansion_drafts || []) as any[]).map((d) => ({
-        url: `${BASE_URL}/topic/${t.slug}/${d.angle}`,
-        lastModified: d.generated_at ? new Date(d.generated_at) : (t.updated_at ? new Date(t.updated_at) : new Date()),
-        changeFrequency: 'weekly' as const,
-        priority: 0.75,
-      }))
+      ((t.ai_context?.expansion_drafts || []) as any[])
+        .filter((d) => d?.angle && d?.label && d?.title && d?.body)
+        .map((d) => ({
+          url: `${BASE_URL}/topic/${t.slug}/${d.angle}`,
+          lastModified: d.generated_at ? new Date(d.generated_at) : (t.updated_at ? new Date(t.updated_at) : new Date()),
+          changeFrequency: 'weekly' as const,
+          priority: 0.75,
+        }))
     )
 
+    // slug가 한글인 entity가 많다. <loc>은 인코딩된 URL이어야 하므로(sitemap 프로토콜)
+    // 여기서 인코딩한다 — 페이지의 canonical도 같은 형태로 맞춰뒀다(2026-08-10).
     const entityRoutes: MetadataRoute.Sitemap = (entities || []).map((e: any) => ({
-      url: `${BASE_URL}/entity/${e.slug}`,
+      url: `${BASE_URL}/entity/${encodeURIComponent(e.slug)}`,
       lastModified: e.updated_at ? new Date(e.updated_at) : new Date(),
       changeFrequency: 'weekly',
       priority: 0.8,

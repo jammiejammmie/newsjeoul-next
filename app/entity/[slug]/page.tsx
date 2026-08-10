@@ -16,6 +16,26 @@ const TYPE_LABEL: Record<string, string> = {
   product: '제품', technology: '기술', market: '시장', policy: '정책',
 }
 
+/**
+ * URL 세그먼트 → DB slug.
+ *
+ * 2026-08-10: 한글 slug를 가진 entity가 100% 404였다(실측 — 사이트맵의 entity 635개 중
+ * 200이 600개, 404가 35개인데 404는 전부 한글이고 200은 전부 영문이었다). 원인은 URL
+ * 세그먼트가 퍼센트 인코딩된 상태(%EC%82%B0...)로 넘어오는데 그대로 조회해 DB의 '산업부'와
+ * 맞지 않은 것이다. category 페이지는 이미 같은 이유로 decodeURIComponent를 쓰고 있었다
+ * (app/category/[name]/page.tsx) — entity만 빠져 있었다.
+ *
+ * 이미 디코딩된 값이 들어와도 '%'가 없으면 그대로 반환되므로 두 경우 모두 안전하다.
+ * 잘못된 퍼센트 시퀀스는 예외를 던지므로 원본을 그대로 쓴다(404가 나더라도 500은 막는다).
+ */
+function decodeSlug(raw: string): string {
+  try {
+    return decodeURIComponent(raw)
+  } catch {
+    return raw
+  }
+}
+
 async function getRelatedEntities(entityId: string) {
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -37,24 +57,27 @@ async function getRelatedEntities(entityId: string) {
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params
-  const entity = await getEntityBySlug(slug)
+  const entity = await getEntityBySlug(decodeSlug(slug))
   if (!entity) return { title: '뉴스저울', robots: { index: false, follow: false } }
 
   const title = `${entity.name} — 관련 이슈 정리 | 뉴스저울`
   const desc = entity.description || `${entity.name}와 관련된 최근 이슈와 흐름을 정리했습니다.`
+  // canonical·OG는 인코딩된 형태로 낸다 — 한글이 그대로 들어간 URL은 크롤러·XML에서
+  // 표기가 갈려 같은 페이지가 두 주소로 보일 수 있다.
+  const canonicalUrl = `${BASE}/entity/${encodeURIComponent(entity.slug)}`
 
   return {
     title,
     description: desc,
-    alternates: { canonical: `${BASE}/entity/${entity.slug}` },
-    openGraph: { title: entity.name, description: desc, url: `${BASE}/entity/${entity.slug}`, images: [{ url: `${BASE}/og?type=topic&title=${encodeURIComponent(entity.name)}`, width: 1200, height: 630 }] },
+    alternates: { canonical: canonicalUrl },
+    openGraph: { title: entity.name, description: desc, url: canonicalUrl, images: [{ url: `${BASE}/og?type=topic&title=${encodeURIComponent(entity.name)}`, width: 1200, height: 630 }] },
     twitter: { card: 'summary_large_image', title: entity.name, description: desc },
   }
 }
 
 export default async function EntityPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
-  const entity = await getEntityBySlug(slug)
+  const entity = await getEntityBySlug(decodeSlug(slug))
   if (!entity) notFound()
 
   const [topics, stories, relatedEntities, timeline] = await Promise.all([
@@ -69,11 +92,11 @@ export default async function EntityPage({ params }: { params: Promise<{ slug: s
     entityType: entity.type,
     description: entity.description,
     dateModified: entity.updated_at,
-    url: `${BASE}/entity/${entity.slug}`,
+    url: `${BASE}/entity/${encodeURIComponent(entity.slug)}`,
   })
   const breadcrumbLd = generateBreadcrumbSchema([
     { name: '뉴스저울', url: BASE },
-    { name: entity.name, url: `${BASE}/entity/${entity.slug}` },
+    { name: entity.name, url: `${BASE}/entity/${encodeURIComponent(entity.slug)}` },
   ])
 
   return (

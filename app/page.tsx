@@ -61,9 +61,12 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: TAGLINE,
     description: desc,
-    alternates: { canonical: BASE },
+    // 사이트맵은 루트를 `${BASE}/`로 싣는다. canonical이 슬래시 없는 `BASE`면 같은 페이지가
+    // 두 표기로 갈려 "표준 태그 없는 중복" 판정을 부른다 — 실측에서 사이트맵 전수 크롤링 중
+    // 유일하게 걸린 canonical 불일치가 이 홈이었다(2026-08-10).
+    alternates: { canonical: `${BASE}/` },
     openGraph: {
-      title: TAGLINE, description: desc, url: BASE, siteName: '뉴스저울',
+      title: TAGLINE, description: desc, url: `${BASE}/`, siteName: '뉴스저울',
       images: [{ url: ogImageUrl, width: 1200, height: 630 }], locale: 'ko_KR', type: 'website',
     },
     twitter: { card: 'summary_large_image', title: TAGLINE, description: desc, images: [ogImageUrl] },
