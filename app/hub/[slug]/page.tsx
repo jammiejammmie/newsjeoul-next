@@ -449,7 +449,6 @@ export default async function HubPage({ params }: { params: Promise<{ slug: stri
             <span style={{ font: '400 12.5px/1.6 Pretendard', color: 'var(--body)' }}>{hub.editor.statement}</span>
             <div style={{ display: 'flex', gap: 14, font: '500 11.5px/1 Pretendard', color: 'var(--mute)' }}>
               {hub.editor.hubCount != null && <span>담당 허브 {hub.editor.hubCount}개</span>}
-              {hub.editor.articleCount != null && <span>기사 {hub.editor.articleCount}건</span>}
             </div>
           </div>
 

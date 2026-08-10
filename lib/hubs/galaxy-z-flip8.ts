@@ -130,7 +130,6 @@ export const galaxyZFlip8: HubConfig = {
     beat: '모바일·가전',
     statement: '제조사 공식 스펙, 판매 데이터, 사용자 리뷰를 종합 분석합니다',
     hubCount: 7,
-    articleCount: 486,
   },
 
   related: [

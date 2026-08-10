@@ -131,7 +131,6 @@ export const excel: HubConfig = {
     beat: '오피스·생산성 도구',
     statement: '공식 기술 문서, 버전별 지원 현황, 사용자 질문을 종합 분석합니다',
     hubCount: 1,
-    articleCount: 164,
   },
 
   // 2026-08-10: 노트북 허브 2종을 추가해 크로스링크를 양방향으로 만들었다.

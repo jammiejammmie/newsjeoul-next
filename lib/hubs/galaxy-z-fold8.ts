@@ -175,7 +175,6 @@ export const galaxyZFold8: HubConfig = {
     beat: '모바일·가전',
     statement: '제조사 공식 스펙, 판매 데이터, 사용자 리뷰를 종합 분석합니다',
     hubCount: 7,
-    articleCount: 486,
   },
 
   // 2026-08-10: 플립8·S25 울트라·아이폰 17 프로·버즈4 허브가 실제로 생겨 링크가 살아났다.

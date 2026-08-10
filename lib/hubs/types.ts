@@ -124,8 +124,10 @@ export type HubEditor = {
    * 형식: '{출처1}, {출처2}, {출처3}를 종합 분석합니다'
    */
   statement: string
+  /** 실제 담당 허브 수와 맞춘다. 카드에 '담당 허브 N개'로 노출된다. */
   hubCount?: number
-  articleCount?: number
+  // articleCount는 2026-08-10 폐지. 실제로 센 값이 아니라 페르소나별로 박아둔
+  // 숫자였고(486/212/148/164), 확인되지 않은 수치를 신뢰 근거처럼 보여주는 꼴이었다.
 }
 
 export type HubSpec = { label: string; value: string }

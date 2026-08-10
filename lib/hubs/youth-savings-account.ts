@@ -126,7 +126,6 @@ export const youthSavingsAccount: HubConfig = {
     beat: '제도·지원금',
     statement: '정부 공고 원문, 지자체 시행 지침, 신청 사례를 종합 분석합니다',
     hubCount: 3,
-    articleCount: 212,
   },
 
   related: [
