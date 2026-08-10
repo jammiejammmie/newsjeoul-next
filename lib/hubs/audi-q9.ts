@@ -125,11 +125,9 @@ export const audiQ9: HubConfig = {
 
   editor: {
     name: '노정민',
-    beat: '모바일·가전',
-    years: '8년차',
-    statement:
-      '국내 인증·가격 공시가 나오기 전까지는 추정치임을 그대로 표기합니다. 확정되면 이 페이지를 먼저 고칩니다.',
-    hubCount: 12,
+    beat: '신차·자동차',
+    statement: '제조사 공식 스펙, 판매 데이터, 사용자 리뷰를 종합 분석합니다',
+    hubCount: 7,
     articleCount: 486,
   },
 

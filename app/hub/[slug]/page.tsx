@@ -125,7 +125,7 @@ export default async function HubPage({ params }: { params: Promise<{ slug: stri
     '@type': 'Person',
     '@id': `${BASE}/hub/${hub.slug}#editor`,
     name: hub.editor.name,
-    jobTitle: `${hub.editor.beat} 에디터${hub.editor.years ? ` · ${hub.editor.years}` : ''}`,
+    jobTitle: `${hub.editor.beat} 데이터 분석 에디터`,
     description: hub.editor.statement,
     worksFor: { '@type': 'Organization', name: '뉴스저울', url: BASE },
   }
@@ -363,7 +363,7 @@ export default async function HubPage({ params }: { params: Promise<{ slug: stri
           {/* 에버그린 4포맷 */}
           <section id="guides" style={{ scrollMarginTop: 12 }}>
             <div className="nj-hub-h2">
-              <h2>직접 써보고 쓴 가이드 <span className="sub">에디터 실사용 기록 · 계속 갱신</span></h2>
+              <h2>분석해 정리한 가이드 <span className="sub">공식 자료·사용자 리포트 종합 · 계속 갱신</span></h2>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', gap: '14px 20px' }}>
               {(['howto', 'troubleshoot', 'compare', 'buying'] as const).map((key) => (
@@ -440,12 +440,12 @@ export default async function HubPage({ params }: { params: Promise<{ slug: stri
           {/* 담당 에디터 */}
           <div className="nj-hub-card" style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
             <span style={{ font: '700 11px/1 Pretendard', color: 'var(--mute)', letterSpacing: '.06em' }}>이 페이지를 담당합니다</span>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <span style={{ font: '700 14.5px/1.2 Pretendard' }}>{hub.editor.name}</span>
-              <span style={{ font: '500 11.5px/1.3 Pretendard', color: 'var(--mute)' }}>
-                {hub.editor.beat}{hub.editor.years ? ` · ${hub.editor.years}` : ''}
-              </span>
-            </div>
+            {/* '{이름} — {분야} 데이터 분석 에디터' 한 줄. 연차(years) 표기는 2026-08-10 폐지 —
+                검증할 수 없는 경력 주장이라 신뢰 신호가 아니라 리스크였다. */}
+            <span style={{ font: '500 12.5px/1.45 Pretendard', color: 'var(--mute)' }}>
+              <b style={{ font: '700 14.5px/1.45 Pretendard', color: 'var(--ink)' }}>{hub.editor.name}</b>
+              {' — '}{hub.editor.beat} 데이터 분석 에디터
+            </span>
             <span style={{ font: '400 12.5px/1.6 Pretendard', color: 'var(--body)' }}>{hub.editor.statement}</span>
             <div style={{ display: 'flex', gap: 14, font: '500 11.5px/1 Pretendard', color: 'var(--mute)' }}>
               {hub.editor.hubCount != null && <span>담당 허브 {hub.editor.hubCount}개</span>}

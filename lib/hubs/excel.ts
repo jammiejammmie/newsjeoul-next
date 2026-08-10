@@ -129,10 +129,8 @@ export const excel: HubConfig = {
   editor: {
     name: '한도윤',
     beat: '오피스·생산성 도구',
-    years: '5년차',
-    statement:
-      '모든 가이드를 Microsoft 365 데스크톱에서 직접 실행해 확인합니다. 버전에 따라 안 되는 기능은 문서 안에 그대로 적습니다.',
-    hubCount: 7,
+    statement: '공식 기술 문서, 버전별 지원 현황, 사용자 질문을 종합 분석합니다',
+    hubCount: 1,
     articleCount: 164,
   },
 

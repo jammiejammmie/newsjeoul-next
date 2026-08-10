@@ -123,10 +123,8 @@ export const robotVacuum2026: HubConfig = {
   editor: {
     name: '노정민',
     beat: '모바일·가전',
-    years: '8년차',
-    statement:
-      '가전은 설치하고 두 달쯤 지나야 진짜 문제가 보입니다. 그 시점에 확인한 것을 이 페이지에 반영합니다.',
-    hubCount: 12,
+    statement: '제조사 공식 스펙, 판매 데이터, 사용자 리뷰를 종합 분석합니다',
+    hubCount: 7,
     articleCount: 486,
   },
 

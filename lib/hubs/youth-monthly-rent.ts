@@ -127,10 +127,8 @@ export const youthMonthlyRent: HubConfig = {
   editor: {
     name: '서지현',
     beat: '제도·지원금',
-    years: '6년차',
-    statement:
-      '공고 원문과 지자체 공지를 직접 대조해 확인합니다. 금액·기간이 바뀌면 이 페이지를 먼저 고치고 무엇이 바뀌었는지 남깁니다.',
-    hubCount: 9,
+    statement: '정부 공고 원문, 지자체 시행 지침, 신청 사례를 종합 분석합니다',
+    hubCount: 3,
     articleCount: 212,
   },
 

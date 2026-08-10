@@ -113,9 +113,16 @@ export type HubAffiliatePolicy =
 export type HubEditor = {
   name: string
   slug?: string
+  /** 담당 분야. 화면·JSON-LD에서 '{beat} 데이터 분석 에디터'로 렌더된다. */
   beat: string
-  years?: string
-  /** 실사용·검증 원칙 선언(§5.1). E-E-A-T 신호의 핵심이라 필수로 둔다. */
+  /**
+   * 분석 방법 선언(§5.1). E-E-A-T 신호의 핵심이라 필수로 둔다.
+   *
+   * 2026-08-10부터 **1인칭 실사용 주장을 쓰지 않는다**. 이전에는 '출시일에 개통해 메인
+   * 기기로 씁니다' 같은 문장을 썼는데, 뉴스저울 에디터는 실제로 기기를 구매해 쓰지 않으므로
+   * 검증할 수 없는 경험 주장이었다. 대신 무엇을 근거로 분석하는지를 밝힌다.
+   * 형식: '{출처1}, {출처2}, {출처3}를 종합 분석합니다'
+   */
   statement: string
   hubCount?: number
   articleCount?: number

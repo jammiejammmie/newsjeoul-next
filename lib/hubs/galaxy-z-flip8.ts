@@ -128,10 +128,8 @@ export const galaxyZFlip8: HubConfig = {
   editor: {
     name: '노정민',
     beat: '모바일·가전',
-    years: '8년차',
-    statement:
-      '출시일에 개통해 메인 기기로 씁니다. 스펙표에 없는 것은 쓰면서 확인하고, 바뀐 게 있으면 이 페이지를 먼저 고칩니다.',
-    hubCount: 12,
+    statement: '제조사 공식 스펙, 판매 데이터, 사용자 리뷰를 종합 분석합니다',
+    hubCount: 7,
     articleCount: 486,
   },
 

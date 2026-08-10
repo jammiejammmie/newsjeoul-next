@@ -120,10 +120,8 @@ export const galaxyBook5Pro: HubConfig = {
   editor: {
     name: '임세라',
     beat: '노트북·PC',
-    years: '7년차',
-    statement:
-      '노트북은 스펙표보다 오래 쓸 때 드러나는 것이 중요합니다. 실제로 며칠 들고 다니며 확인한 내용만 적습니다.',
-    hubCount: 6,
+    statement: '제조사 공식 스펙, 판매 데이터, 사용자 리뷰를 종합 분석합니다',
+    hubCount: 2,
     articleCount: 148,
   },
 
