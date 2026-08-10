@@ -5,6 +5,15 @@ import { audiQ9 } from './audi-q9'
 import { youthMonthlyRent } from './youth-monthly-rent'
 import { evSubsidy } from './ev-subsidy'
 import { excel } from './excel'
+// 2026-08-10 추가 8개
+import { galaxyZFlip8 } from './galaxy-z-flip8'
+import { galaxyS25Ultra } from './galaxy-s25-ultra'
+import { galaxyBook5Pro } from './galaxy-book5-pro'
+import { lgGram2026 } from './lg-gram-2026'
+import { iphone17Pro } from './iphone-17-pro'
+import { galaxyBuds4 } from './galaxy-buds4'
+import { robotVacuum2026 } from './robot-vacuum-2026'
+import { youthSavingsAccount } from './youth-savings-account'
 
 export type * from './types'
 
@@ -17,7 +26,12 @@ function client() {
 
 // 허브 레지스트리. 새 허브를 추가할 때 여기 한 줄만 넣으면 라우트·사이트맵·/go 리다이렉트가
 // 모두 따라온다(설계서 §11 기준 1년차 목표 허브 150~250개까지 이 구조로 감당 가능).
-const HUBS: HubConfig[] = [galaxyZFold8, audiQ9, youthMonthlyRent, evSubsidy, excel]
+const HUBS: HubConfig[] = [
+  galaxyZFold8, audiQ9, youthMonthlyRent, evSubsidy, excel,
+  // 2026-08-10 추가 — 모바일 4 / 노트북 2 / 생활가전 1 / 제도 1
+  galaxyZFlip8, galaxyS25Ultra, iphone17Pro, galaxyBuds4,
+  galaxyBook5Pro, lgGram2026, robotVacuum2026, youthSavingsAccount,
+]
 
 export const ALL_HUBS = HUBS
 export const HUB_SLUGS = HUBS.map((h) => h.slug)

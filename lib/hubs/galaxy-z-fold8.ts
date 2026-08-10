@@ -163,11 +163,15 @@ export const galaxyZFold8: HubConfig = {
     articleCount: 486,
   },
 
+  // 2026-08-10: 플립8·S25 울트라·아이폰 17 프로·버즈4 허브가 실제로 생겨 링크가 살아났다.
+  // 아직 없는 허브(워치8·One UI·요금제)는 그대로 둔다 — 화면에서 '준비 중'으로 표시되고
+  // 링크는 걸리지 않으므로 404가 생기지 않는다.
   related: [
-    { title: '갤럭시 Z 플립8', slug: 'galaxy-z-flip8', guideCount: 14 },
+    { title: '갤럭시 Z 플립8', slug: 'galaxy-z-flip8' },
+    { title: '갤럭시 S25 울트라', slug: 'galaxy-s25-ultra' },
+    { title: '아이폰 17 프로', slug: 'iphone-17-pro' },
+    { title: '갤럭시 버즈4', slug: 'galaxy-buds4' },
     { title: '갤럭시 워치8', slug: 'galaxy-watch8', guideCount: 9 },
-    { title: '아이폰 18 프로', slug: 'iphone-18-pro', guideCount: 11 },
-    { title: 'One UI 8.5', slug: 'one-ui-8-5', guideCount: 18 },
     { title: '통신사 요금제', slug: 'mobile-plans', guideCount: 26 },
   ],
 

@@ -136,7 +136,12 @@ export const excel: HubConfig = {
     articleCount: 164,
   },
 
+  // 2026-08-10: 노트북 허브 2종을 추가해 크로스링크를 양방향으로 만들었다.
+  // 엑셀을 찾아온 사람의 다음 질문이 "어떤 기기에서 돌릴까"인 경우가 있고,
+  // 반대로 노트북 허브에서도 "이걸로 무슨 작업을 하나"로 이어진다.
   related: [
+    { title: '갤럭시북5 프로', slug: 'galaxy-book5-pro' },
+    { title: 'LG 그램 2026', slug: 'lg-gram-2026' },
     { title: '구글 시트', slug: 'google-sheets' },
     { title: '파워포인트', slug: 'powerpoint' },
     { title: '홈택스', slug: 'hometax' },
