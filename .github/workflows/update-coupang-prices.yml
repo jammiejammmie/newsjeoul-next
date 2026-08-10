@@ -1,0 +1,70 @@
+name: 쿠팡 제휴 슬롯 가격 갱신 (매일 03:00 KST)
+
+# 왜 GitHub Actions인가 — 이 저장소는 2026-08-04부터 스케줄러를 Supabase pg_cron으로
+# 통일해 왔고(daily-news-morning 등에서 schedule을 걷어냈다), 그 원칙은 그대로다.
+# 다만 이 작업만은 pg_cron으로 할 수 없다:
+#   · pg_cron은 Postgres 안에서 SQL만 돌린다. Node 스크립트를 실행하지 못한다.
+#   · pg_cron이 호출하는 Netlify 함수는 서버리스라 git 저장소의 lib/hubs/*.ts를 고칠 수 없다.
+#     써도 다음 배포에 사라진다.
+# 제휴 슬롯의 targetUrl과 schema.price는 빌드에 들어가는 소스 파일이므로, 갱신하려면
+# 커밋이 필요하고 그건 GitHub Actions만 할 수 있다. 하루 1회라 스케줄 지연(이 저장소 실측
+# 기준 1.2배 수준)의 영향도 작다.
+#
+# 커밋은 변동이 있을 때만 생긴다. 스크립트가 상품을 고정해 두기 때문이다 —
+# 쿠팡 검색 순위는 호출마다 바뀌지만, 이전에 고른 상품이 여전히 검색에 잡히면 순위가
+# 밀렸어도 그대로 쓰고 가격만 본다(scripts/update-coupang-slots.js 참고).
+
+on:
+  schedule:
+    - cron: '0 18 * * *' # 18:00 UTC = 03:00 KST
+  workflow_dispatch:
+
+# push 권한이 필요하다(변동분 커밋).
+permissions:
+  contents: write
+
+concurrency:
+  group: coupang-prices
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 슬롯 갱신 (쿠팡 검색 API)
+        id: run
+        env:
+          COUPANG_ACCESS_KEY: ${{ secrets.COUPANG_ACCESS_KEY }}
+          COUPANG_SECRET_KEY: ${{ secrets.COUPANG_SECRET_KEY }}
+        run: |
+          set -o pipefail
+          node scripts/update-coupang-slots.js 2>&1 | tee run.log
+          # 요약을 잡 요약 페이지에 남긴다 — 무엇이 왜 바뀌었는지 나중에 추적할 수 있게.
+          {
+            echo '### 쿠팡 슬롯 갱신 결과'
+            echo '```'
+            tail -n 30 run.log
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: 변동분 커밋 (없으면 건너뜀)
+        run: |
+          rm -f run.log
+          if git diff --quiet -- lib/hubs && git diff --quiet --cached -- lib/hubs && [ -z "$(git status --porcelain lib/hubs)" ]; then
+            echo "변동 없음 — 커밋하지 않는다."
+            exit 0
+          fi
+          git config user.name  'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add lib/hubs
+          # 무엇이 바뀌었는지 파일 목록으로 남긴다. 상세 내역은 잡 요약에 있다.
+          CHANGED=$(git diff --cached --name-only | sed 's|lib/hubs/||' | tr '\n' ' ')
+          git commit -m "쿠팡 슬롯 가격 갱신 — ${CHANGED}" \
+                     -m "scripts/update-coupang-slots.js 자동 실행(매일 03:00 KST). 상품이 바뀌었거나 가격이 달라진 슬롯만 반영된다."
+          git push

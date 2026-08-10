@@ -111,9 +111,9 @@ export const galaxyBook5Pro: HubConfig = {
   affiliate: {
     allowed: true,
     slots: [
-      { slot: 'book5-body', label: '갤럭시북5 프로', network: 'coupang', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=8524610232&itemId=25325894640&vendorItemId=94112243243&traceid=V0-153-59873d5649e2e5c4&clickBeacon=5670a070-948c-11f1-b5c2-bb687dc57e2d%7E3&requestid=20260810162309150322760875&token=31850C%7CMIXED' },
-      { slot: 'book5-hub', label: 'USB-C 멀티허브', network: 'coupang', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=8223019655&itemId=23640678087&vendorItemId=90680537967&traceid=V0-153-fdac903e3a3e117f&clickBeacon=56dd44f0-948c-11f1-b7e3-d524ca3b3489%7E3&requestid=20260810162309866217168302&token=31850C%7CMIXED' },
-      { slot: 'book5-pouch', label: '노트북 파우치', network: 'coupang', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=9081520306&itemId=26679759705&vendorItemId=93651935759&traceid=V0-153-f7eddbc026992443&clickBeacon=57309510-948c-11f1-be39-4972f84769be%7E3&requestid=20260810162310411288596135&token=31850C%7CMIXED' },
+      { slot: 'book5-body', label: '갤럭시북5 프로', network: 'coupang', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=8524610232&itemId=25325894640&vendorItemId=94112243243&traceid=V0-153-59873d5649e2e5c4&clickBeacon=cfef95f0-9491-11f1-be6d-bc1f21969508%7E3&requestid=20260810170220472263958112&token=31850C%7CMIXED' },
+      { slot: 'book5-hub', label: 'USB-C 멀티허브', network: 'coupang', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=8223019655&itemId=23640678087&vendorItemId=90680537967&traceid=V0-153-fdac903e3a3e117f&clickBeacon=d04927a0-9491-11f1-92b8-204d26c0d287%7E3&requestid=20260810170221060083221985&token=31850C%7CMIXED' },
+      { slot: 'book5-pouch', label: '노트북 파우치', network: 'coupang', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=8700463499&itemId=25264874689&vendorItemId=92260713015&traceid=V0-153-136b42e21c46f041&requestid=20260810170349847132434318&token=31850C%7CGM' },
     ],
   },
 

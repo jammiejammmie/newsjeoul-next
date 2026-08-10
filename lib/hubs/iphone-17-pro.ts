@@ -111,9 +111,9 @@ export const iphone17Pro: HubConfig = {
   affiliate: {
     allowed: true,
     slots: [
-      { slot: 'ip17p-body', label: '아이폰 17 프로 자급제', network: 'coupang', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=9024167576&itemId=26462330287&vendorItemId=93437609640&traceid=V0-153-81d4af092486a31f&requestid=20260810162312690168606665&token=31850C%7CMIXED' },
-      { slot: 'ip17p-charger', label: '맥세이프 충전기', network: 'coupang', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=6328450053&itemId=13223580088&vendorItemId=87574774410&traceid=V0-153-3ee979b49ae9d58f&clickBeacon=58e7e200-948c-11f1-9752-c3780a8dd201%7E3&requestid=20260810162313292134556675&token=31850C%7CMIXED' },
-      { slot: 'ip17p-film', label: '아이폰 17 프로 보호필름', network: 'coupang', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=8309398022&itemId=26492355344&vendorItemId=93467212937&traceid=V0-153-864ded0bb2d85844&requestid=20260810162313808255248270&token=31850C%7CMIXED' },
+      { slot: 'ip17p-body', label: '아이폰 17 프로 자급제', network: 'coupang', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=9024167576&itemId=26462330287&vendorItemId=93437609640&traceid=V0-153-81d4af092486a31f&requestid=20260810170226738013566746&token=31850C%7CGM' },
+      { slot: 'ip17p-charger', label: '맥세이프 충전기', network: 'coupang', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=6328450053&itemId=13223580088&vendorItemId=87574774410&traceid=V0-153-3ee979b49ae9d58f&clickBeacon=d3f9faa0-9491-11f1-b4ab-9a86ba641646%7E3&requestid=20260810170227251322765272&token=31850C%7CMIXED' },
+      { slot: 'ip17p-film', label: '아이폰 17 프로 보호필름', network: 'coupang', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=8309398022&itemId=26492355344&vendorItemId=93467212937&traceid=V0-153-864ded0bb2d85844&requestid=20260810170228943098363685&token=31850C%7CGM' },
     ],
   },
 
