@@ -35,6 +35,14 @@ const LIMIT = 10 // 11 이상은 400 "limit is out of range"
 
 /** 슬롯 → 검색 조건. 허브 파일의 slot 값과 정확히 일치해야 한다. */
 const SLOT_QUERIES = {
+  // 폴드8 — 'fold8'과 '폴드8'을 함께 요구하지 않고 OR로 둔다(상품명 표기가 갈린다).
+  // 자급제 슬롯의 exclude에 'edge'가 있는 이유: '갤럭시 Z 폴드8 자급제' 검색 1위로 S25 Edge가
+  // 잡힌다(실측). 모델명 SM-F971N을 must의 대안으로 둬 정확도를 올린다.
+  'fold8-body':    { file: 'galaxy-z-fold8.ts',    kw: '삼성전자 갤럭시 Z Fold8 자급제',    must: [['폴드8', 'fold8', 'z폴드8', 'sm-f971'], ['자급제', 'sm-f971']], exclude: ['edge', 's25', '폴드7', 'fold7', '케이스', '필름', '스페셜에디션'] },
+  'fold8-case':    { file: 'galaxy-z-fold8.ts',    kw: '갤럭시 Z 폴드8 힌지보호 케이스',    must: [['폴드8', 'fold8', 'z폴드8'], ['케이스']], exclude: ['폴드7', 'fold7', '필름', '폴드6'] },
+  'fold8-charger': { file: 'galaxy-z-fold8.ts',    kw: '삼성 45W 고속충전기 EP-TA845',     must: [['45w'], ['충전']], exclude: ['무선', '보조배터리'] },
+  'fold8-film':    { file: 'galaxy-z-fold8.ts',    kw: '갤럭시 Z 폴드8 강화유리 보호필름',  must: [['폴드8', 'fold8', 'z폴드8', 'sm-f971'], ['필름', '강화유리']], exclude: ['폴드7', 'fold7', '폴드6', '케이스'] },
+
   'flip8-body':    { file: 'galaxy-z-flip8.ts',    kw: '갤럭시 Z 플립8 자급제',            must: [['플립8', 'flip8', 'z플립8'], ['자급제', 'sm-f']], exclude: ['플립7', 'flip7', '케이스', '필름'] },
   'flip8-case':    { file: 'galaxy-z-flip8.ts',    kw: '갤럭시 Z 플립8 케이스',            must: [['플립8', 'flip8', 'z플립8'], ['케이스']], exclude: ['플립7', 'flip7'] },
   'flip8-film':    { file: 'galaxy-z-flip8.ts',    kw: '갤럭시 Z 플립8 강화유리 필름',      must: [['플립8', 'flip8', 'z플립8'], ['필름', '강화유리']], exclude: ['플립7'] },

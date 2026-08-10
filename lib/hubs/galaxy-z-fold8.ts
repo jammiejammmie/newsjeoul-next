@@ -8,9 +8,10 @@ import type { HubConfig } from './types'
 //    검증·교체해야 한다. 아래 needsEditorVerification 주석이 붙은 필드가 그 대상이다.
 //  · 최신 소식은 시안의 더미가 아니라 articles 테이블을 실시간 조회한다(newsKeywords).
 //    실측 결과 이 키워드로 실제 기사 7건이 잡힌다.
-//  · 제휴 슬롯의 targetUrl은 전부 비어 있다. 검증되지 않은 추적 URL을 임의로 만들어 넣지
-//    않는다 — 잘못된 링크는 사용자를 엉뚱한 곳으로 보내고 제휴 약관 위반이 된다.
-//    실제 쿠팡 파트너스 링크를 여기에 채우면 즉시 활성화된다(§8.1 슬롯 방식).
+//  · 제휴 슬롯은 2026-08-10에 연결됐다. targetUrl은 손으로 적지 않고
+//    scripts/update-coupang-slots.js가 쿠팡 검색 API 결과로 채운다 — 검증되지 않은 추적
+//    URL을 임의로 만들어 넣지 않는다는 원칙(§8.1)은 그대로다. 링크를 갱신할 때도 스크립트를
+//    다시 돌린다.
 //
 // 에버그린 가이드 목록의 href는 아직 문서를 쓰지 않았으므로 비워뒀다. 링크 없이 제목만
 // 노출된다 — 존재하지 않는 URL로 보내면 404가 쌓이고 색인 품질이 떨어진다.
@@ -26,9 +27,11 @@ export const galaxyZFold8: HubConfig = {
   definition:
     '가격·물량·통신사 조건부터 실제 사용 설정법과 자주 나는 오류까지, 폴드8에 관해 검색되는 것을 이 한 페이지에 모았습니다. 에디터가 직접 사용하며 갱신합니다.',
 
-  // needsEditorVerification — 시안 값. 실제 발행 전 공식 발표·최저가 기준으로 검증 필요.
+  // needsEditorVerification — 아래 3개는 아직 시안 값이다. 실제 발행 전 공식 발표 기준으로
+  // 검증·교체해야 한다. 첫 항목만 2026-08-10에 쿠팡 실거래가로 교체했다(제휴 슬롯에 연결된
+  // 상품과 같은 값이라, 링크를 눌렀을 때 보이는 값과 페이지 표기가 어긋나지 않는다).
   stats: [
-    { label: '자급제 512GB', value: '238만원', note: '변동 없음' },
+    { label: '자급제 최저가', value: '238만원', note: '쿠팡 기준 · 08.10' },
     { label: '3차 완판까지', value: '12분', note: '역대 최단', emphasis: true },
     { label: '4차 물량 오픈', value: '8월 11일', note: 'D-7', emphasis: true },
     { label: '최대 지원금', value: '27만원', note: '통신사별 상이' },
@@ -142,14 +145,19 @@ export const galaxyZFold8: HubConfig = {
   ],
 
   // 가전·모바일은 종합몰 제휴 허용 카테고리(§8.3).
-  // targetUrl은 의도적으로 비워둔 상태다(위 주석 참고). 채우면 즉시 링크가 활성화된다.
+  // 2026-08-10 슬롯 재정의. 이전에는 4개 슬롯이 전부 targetUrl 없이 비어 있었고
+  // (/go/fold8-*이 전부 404 안내를 반환하고 있었다), 그중 'fold8-spen'은 채울 수가 없었다 —
+  // 쿠팡에 폴드8 전용 S펜이 없다(실측: 검색 결과가 전부 폴드3~7 호환품이다). 없는 상품을
+  // "폴드8 전용"이라는 라벨로 걸면 독자를 속이는 셈이라, 실재하는 보호필름으로 바꿨다.
+  // 나머지 신규 허브와 같은 레이어 구성이 된다: 본체 / 주변기기 / 소모품·보호.
+  // targetUrl은 scripts/update-coupang-slots.js가 채운다(수동 입력 금지).
   affiliate: {
     allowed: true,
     slots: [
-      { slot: 'fold8-512-self', label: '폴드8 512GB 자급제', network: 'coupang' },
-      { slot: 'fold8-spen', label: '폴드8 전용 S펜', network: 'coupang' },
-      { slot: 'fold8-case', label: '에디터가 쓰는 케이스', network: 'coupang' },
-      { slot: 'fold8-charger', label: '45W 고속 충전기', network: 'coupang' },
+      { slot: 'fold8-body', label: '갤럭시 Z 폴드8 자급제', network: 'coupang', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=9640170508&itemId=28803754031&vendorItemId=95739034503&traceid=V0-153-cc91bad335e9984e&requestid=20260810163729361286436853&token=31850C%7CGM' },
+      { slot: 'fold8-case', label: '폴드8 힌지보호 케이스', network: 'coupang', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=9638933758&itemId=28798920919&vendorItemId=95758159733&traceid=V0-153-09ea7f5823e5d848&clickBeacon=57ac90f0-948e-11f1-86b9-b7f11d91e379%7E3&requestid=20260810163730135119166278&token=31850C%7CMIXED' },
+      { slot: 'fold8-charger', label: '45W 고속 충전기', network: 'coupang', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=8135291576&itemId=23108354476&vendorItemId=95463844100&traceid=V0-153-b4b0914c9b819b2a&clickBeacon=58733c50-948e-11f1-9410-452a28d9897f%7E3&requestid=20260810163731356119166566&token=31850C%7CMIXED' },
+      { slot: 'fold8-film', label: '폴드8 보호필름', network: 'coupang', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=9651315124&itemId=28847170425&vendorItemId=95781243179&traceid=V0-153-572e32342187357b&clickBeacon=590bd2d0-948e-11f1-9770-910669d4b385%7E3&requestid=20260810163732367217164436&token=31850C%7CMIXED' },
     ],
   },
 
