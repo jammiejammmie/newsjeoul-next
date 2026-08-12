@@ -120,7 +120,14 @@ ${target.intent}
 분량을 채우는 것이 이 문서에서 가장 나쁜 실패다.
 ` : ''}
 문서 성격: ${FORMAT_INTENT[target.format] || FORMAT_INTENT.howto}
+${Array.isArray(target.facts) && target.facts.length ? `
+★★ 확인이 끝난 사실 — 아래 규칙 1번("모르는 것은 쓰지 마라")의 예외다. 사람이 출처를 확인해
+넘긴 값이므로 **그대로 본문에 써라**. 빼먹지 말고, 여기 없는 수치를 새로 지어내지도 마라:
+${target.facts.map((f) => `- ${f}`).join('\n')}
 
+(실측 근거: 이 지시가 없을 때 모델이 확인된 가격까지 전부 빼버려, 요금제 비교 문서에 금액이
+한 줄도 없는 일이 있었다. 확인된 값을 쓰지 않는 것도 잘못된 문서다.)
+` : ''}
 ★ 절대 규칙:
 1. **모르는 것은 쓰지 마라.** 구체적 금액·날짜·모델명·법조항이 확실하지 않으면 그 문장을
    쓰지 말고, 대신 "어디서 확인해야 하는지"를 알려줘라. 틀린 숫자는 독자를 잘못된 결정으로 이끈다.
@@ -242,6 +249,12 @@ async function collectTargets() {
             targets.push({
               hubSlug: h.slug, hubTitle: h.title, format, title,
               configSlug: typeof item === 'string' ? undefined : item?.slug,
+              // ★ 2026-08-12: 이 두 줄이 빠져 있었다. 프롬프트는 target.intent를 읽고 있었는데
+              // 여기서 담지 않아 **항상 undefined**였다 — 범위 지시가 한 번도 모델에 닿지 않았고,
+              // "intent를 줬는데도 문서가 겹친다"는 판단은 그 상태에서 내려진 것이다.
+              // 프롬프트에 필드를 쓰는 것과 그 필드를 채우는 것은 다른 일이라는 걸 잊지 말 것.
+              intent: typeof item === 'string' ? undefined : item?.intent,
+              facts: typeof item === 'string' ? undefined : item?.facts,
             });
           }
         }
@@ -260,6 +273,7 @@ async function collectTargets() {
       for (const item of h.config?.evergreen?.[format]?.items || []) {
         if (item?.title) targets.push({
           hubSlug: h.slug, hubTitle: h.title, format, title: item.title, configSlug: item.slug,
+          intent: item.intent, facts: item.facts,
         });
       }
     }

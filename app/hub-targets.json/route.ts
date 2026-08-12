@@ -16,8 +16,8 @@ export const revalidate = 3600
 export async function GET() {
   // intent는 생성 프롬프트에 그대로 들어간다(2026-08-12) — 제목이 비슷한 문서끼리 같은 내용을
   // 반복해 서로 순위를 갉아먹는 것을 막는 경계선이다. 없는 항목은 그대로 비운다.
-  const items = (list: { title: string; slug?: string; intent?: string }[]) =>
-    list.map((i) => ({ title: i.title, slug: i.slug, intent: i.intent }))
+  const items = (list: { title: string; slug?: string; intent?: string; facts?: string[] }[]) =>
+    list.map((i) => ({ title: i.title, slug: i.slug, intent: i.intent, facts: i.facts }))
 
   const payload = ALL_HUBS.map((h) => ({
     slug: h.slug,

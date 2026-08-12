@@ -210,6 +210,25 @@ check('1c) getHubConfig가 등록된 slug를 찾고 미등록은 null', !!getHub
   check('10) hub-targets.json이 intent를 내보냄', /intent:\s*i\.intent/.test(route));
   check('10b) 생성기가 intent를 프롬프트에 넣음', /target\.intent/.test(gen));
 
+  // ★ 2026-08-12 실제 사고: 프롬프트는 target.intent를 읽는데 collectTargets가 그 필드를 담지
+  // 않아 **항상 undefined**였다. 범위 지시가 한 번도 모델에 닿지 않았고, 그 상태로 "intent를
+  // 줬는데도 문서가 겹친다"는 잘못된 판단을 내렸다. 프롬프트가 필드를 쓰는 것과 파이프라인이
+  // 그 필드를 채우는 것은 다른 일이다 — 아래 두 검사가 그 연결을 고정한다.
+  const collect = gen.slice(gen.indexOf('async function collectTargets'));
+  check('10f) ★ collectTargets가 intent를 targets에 실제로 담음(프롬프트에 쓰는 것만으로는 안 된다)',
+    /intent:\s*(typeof item === 'string' \? undefined : )?item\??\.?intent/.test(collect));
+  check('10g) ★ collectTargets가 facts를 targets에 실제로 담음',
+    /facts:\s*(typeof item === 'string' \? undefined : )?item\??\.?facts/.test(collect));
+  check('10h) hub-targets.json이 facts를 내보내고 생성기가 프롬프트에 넣음',
+    /facts:\s*i\.facts/.test(route) && /target\.facts/.test(gen));
+
+  // facts는 "확인이 끝난 값"이라 출처·시점 없이 적으면 나중에 검증할 수 없다.
+  const factItems = ALL_HUBS.flatMap((h) =>
+    ['howto', 'troubleshoot', 'compare', 'buying'].flatMap((f) => h.evergreen[f].items))
+    .filter((i) => i.facts?.length);
+  check(`10i) facts에 확인 시점(날짜)이 적혀 있음(${factItems.length}개 항목)`,
+    factItems.every((i) => i.facts.some((f) => /\d{4}-\d{2}-\d{2}|\d{4}년/.test(f))));
+
   const allItems = ALL_HUBS.flatMap((h) =>
     ['howto', 'troubleshoot', 'compare', 'buying'].flatMap((f) => h.evergreen[f].items));
   const withIntent = allItems.filter((i) => i.intent);
