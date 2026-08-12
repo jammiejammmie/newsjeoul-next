@@ -110,8 +110,17 @@ async function generateDocument(target) {
   const prompt = `'${target.hubTitle}' 허브에 들어갈 가이드 문서를 써라.
 
 문서 제목: ${target.title}
+${target.intent ? `
+★★ 이 문서의 범위 — 아래 "문서 성격"보다 이 지시가 우선한다. 어기면 문서를 버린다.
+${target.intent}
+
+같은 허브에 제목이 비슷한 다른 문서가 이미 있다. 위 범위 밖의 절차를 설명하면 두 문서가 같은
+글이 되고, 검색에서 서로의 순위를 갉아먹는다. 범위 밖 주제는 "그건 별도 문서에서 다룬다" 한 줄로
+넘기고, 그 절차를 여기서 다시 쓰지 마라. 쓸 내용이 모자라면 블록 수를 줄여라 — 범위를 넓혀
+분량을 채우는 것이 이 문서에서 가장 나쁜 실패다.
+` : ''}
 문서 성격: ${FORMAT_INTENT[target.format] || FORMAT_INTENT.howto}
-${target.intent ? `\n★ 이 문서의 범위(반드시 지켜라): ${target.intent}\n` : ''}
+
 ★ 절대 규칙:
 1. **모르는 것은 쓰지 마라.** 구체적 금액·날짜·모델명·법조항이 확실하지 않으면 그 문장을
    쓰지 말고, 대신 "어디서 확인해야 하는지"를 알려줘라. 틀린 숫자는 독자를 잘못된 결정으로 이끈다.
@@ -132,7 +141,7 @@ ${target.intent ? `\n★ 이 문서의 범위(반드시 지켜라): ${target.int
   "sourceNote": "이 내용의 근거와 확인처 한 줄. 예: '지자체 공고 기준. 금액은 공고마다 바뀌므로 신청 전 확인 필요.'"
 }
 
-blocks는 3~6개. 각 블록 본문은 2~5문단.
+blocks는 ${target.intent ? '3~5개(범위가 좁으면 3개로 끝내라 — 늘리려고 범위를 넘지 마라)' : '3~6개'}. 각 블록 본문은 2~5문단.
 faq는 3~5개. 본문에서 답을 이미 다룬 질문을 골라 짧게 다시 답하는 자리다 — 새 사실을 지어내지 마라.
 질문은 "~하려면 어떻게 하나요"처럼 사람이 실제로 검색하는 말투로 써라(제목을 그대로 되풀이하지 마라).`;
 
@@ -270,6 +279,15 @@ exports.handler = async function (event) {
   const isDry = event.queryStringParameters?.dry === 'true';
   const limit = Math.min(Number(event.queryStringParameters?.limit) || MAX_DOCS_PER_RUN, 20);
   const onlyHub = event.queryStringParameters?.hub || null;
+  // force=true는 이미 있는 문서를 다시 만들어 덮어쓴다(2026-08-12 추가).
+  // 필요한 이유: 설정의 intent(문서 범위)를 고쳐도 기존 문서는 그대로 남는다. 범위를 잘못 잡아
+  // 옆 문서와 내용이 겹쳤을 때 고칠 방법이 없으면, 그 문서는 영원히 그 상태로 색인된다.
+  // 반드시 hub와 함께 써야 한다 — 전체 재생성은 문서 수만큼 Claude 호출이 나가므로,
+  // 실수로 254건을 다시 만드는 일이 없게 범위를 강제한다.
+  const force = event.queryStringParameters?.force === 'true';
+  if (force && !onlyHub) {
+    return { statusCode: 400, headers, body: JSON.stringify({ error: 'force=true는 hub 지정이 필요하다(전체 재생성 방지)' }) };
+  }
 
   try {
     let targets = await collectTargets();
@@ -285,7 +303,7 @@ exports.handler = async function (event) {
     const todo = balanceByHub(
       targets
         .map((t) => ({ ...t, slug: docSlug(t.title, t.format, t.configSlug) }))
-        .filter((t) => !have.has(`${t.hubSlug}|${t.slug}`)),
+        .filter((t) => force || !have.has(`${t.hubSlug}|${t.slug}`)),
       countByHub
     );
 
@@ -298,11 +316,19 @@ exports.handler = async function (event) {
       try {
         const doc = await generateDocument(t);
         if (!isDry) {
-          await sb('POST', 'hub_documents', [{
-            hub_slug: t.hubSlug, format: t.format, slug: t.slug, title: t.title,
-            lead: doc.lead, blocks: doc.blocks, source_note: doc.sourceNote,
-            status: 'published', generated_by: 'ai',
-          }], { Prefer: 'resolution=ignore-duplicates,return=minimal' });
+          // force일 때만 덮어쓴다. 평소에는 ignore-duplicates가 "이미 있으면 그대로 둔다"는
+          // 안전장치 역할을 한다(동시 실행이 같은 문서를 두 번 만들지 않게).
+          // 덮어쓰기는 unique(hub_slug, slug) 제약을 충돌 기준으로 지정해야 동작한다.
+          await sb(
+            'POST',
+            force ? 'hub_documents?on_conflict=hub_slug,slug' : 'hub_documents',
+            [{
+              hub_slug: t.hubSlug, format: t.format, slug: t.slug, title: t.title,
+              lead: doc.lead, blocks: doc.blocks, source_note: doc.sourceNote,
+              status: 'published', generated_by: 'ai',
+            }],
+            { Prefer: `resolution=${force ? 'merge' : 'ignore'}-duplicates,return=minimal` }
+          );
         }
         stats.created++;
         results.push({ hub: t.hubSlug, title: t.title, blocks: doc.blocks.length });
