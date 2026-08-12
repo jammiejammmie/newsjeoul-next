@@ -185,9 +185,9 @@ export const galaxyZFold8: HubConfig = {
     allowed: true,
     slots: [
       { slot: 'fold8-body', label: '갤럭시 Z 폴드8 자급제', network: 'coupang', kind: 'device', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=9640170508&itemId=28803754031&vendorItemId=95739034503&traceid=V0-153-cc91bad335e9984e&requestid=20260810170212442322761167&token=31850C%7CGM' },
-      { slot: 'fold8-case', label: '폴드8 힌지보호 케이스', network: 'coupang', kind: 'accessory', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=9637191727&itemId=28792525304&vendorItemId=95728144186&traceid=V0-153-e66bf11605b886d5&requestid=20260810170213142083229828&token=31850C%7CGM' },
-      { slot: 'fold8-charger', label: '45W 고속 충전기', network: 'coupang', kind: 'accessory', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=8135291576&itemId=23108354476&vendorItemId=95463844100&traceid=V0-153-b4b0914c9b819b2a&clickBeacon=af4c4540-94ec-11f1-91ab-8d09d44270c5%7E3&requestid=20260811035249804002847966&token=31850C%7CMIXED' },
-      { slot: 'fold8-film', label: '폴드8 보호필름', network: 'coupang', kind: 'accessory', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=9681559984&itemId=28950791631&vendorItemId=95881401776&traceid=V0-153-faae20ff97365d43&requestid=20260810170215166009569110&token=31850C%7CGM' },
+      { slot: 'fold8-case', label: '폴드8 힌지보호 케이스', network: 'coupang', kind: 'accessory', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=9678506385&itemId=28940743795&vendorItemId=95871673328&traceid=V0-153-fe439495aeea9f7a&requestid=20260813035747315146657492&token=31850C%7CGM' },
+      { slot: 'fold8-charger', label: '45W 고속 충전기', network: 'coupang', kind: 'accessory', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=9185657615&itemId=27096262289&vendorItemId=94064612468&traceid=V0-153-d0d67c9d5a60bfd5&requestid=20260813035748167150467509&token=31850C%7CGM' },
+      { slot: 'fold8-film', label: '폴드8 보호필름', network: 'coupang', kind: 'accessory', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=9651315124&itemId=28847170420&vendorItemId=95781243177&traceid=V0-153-572e32342187357b&clickBeacon=b68b46f0-967f-11f1-8ebc-02e7154a6e70%7E3&requestid=20260813035749194202443505&token=31850C%7CMIXED' },
     ],
   },
 
