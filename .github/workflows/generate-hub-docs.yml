@@ -1,0 +1,48 @@
+name: Generate hub documents (on-demand)
+
+# 목적: 허브 레지스트리에 새 항목을 넣은 직후, 3시간 주기 cron(nj-evergreen-3-docs)을 기다리지
+# 않고 문서 생성을 바로 돌린다. 새 문서를 12~18시간 뒤에야 볼 수 있으면 "넣었다"와 "나갔다"
+# 사이가 너무 벌어져서, 잘못 쓴 intent나 어긋난 slug를 한참 뒤에 발견하게 된다.
+#
+# ADMIN_KEY는 사람도 에이전트도 값을 보지 않는다 — 이미 저장된 GitHub Secret
+# (NEWSJEOUL_ADMIN_KEY, post-threads.yml·recover-pipeline.yml에서 쓰는 것과 같은 이름)을
+# Actions 실행 환경 안에서만 헤더로 흘려보낸다.
+#
+# 대상 함수는 Background Function이라 호출자는 202만 받는다. 실제 생성 결과는 응답이 아니라
+# hub_documents 테이블로 확인해야 한다.
+on:
+  push:
+    paths:
+      - '.github/workflows/generate-hub-docs.yml'
+  workflow_dispatch:
+    inputs:
+      hub:
+        description: '특정 허브만 생성(비우면 전체에서 문서가 가장 적은 허브부터 균형 배분)'
+        required: false
+        default: 'galaxy-z-fold8'
+      limit:
+        description: '이번 실행에서 만들 문서 수(함수 상한 20)'
+        required: false
+        default: '8'
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call generate-hub-documents-background
+        env:
+          ADMIN_KEY: ${{ secrets.NEWSJEOUL_ADMIN_KEY }}
+          HUB: ${{ github.event.inputs.hub || 'galaxy-z-fold8' }}
+          LIMIT: ${{ github.event.inputs.limit || '8' }}
+        run: |
+          URL="https://newsjeoul.co.kr/.netlify/functions/generate-hub-documents-background?limit=${LIMIT}"
+          if [ -n "$HUB" ]; then URL="${URL}&hub=${HUB}"; fi
+          echo "요청: hub=${HUB:-(전체)} limit=${LIMIT}"
+          CODE=$(curl -s -o /tmp/out.txt -w "%{http_code}" -X POST \
+            -H "x-admin-key: ${ADMIN_KEY}" "$URL")
+          echo "HTTP ${CODE}"
+          head -c 500 /tmp/out.txt || true
+          # 202는 Background Function이 정상 접수했다는 뜻이다(결과는 응답에 담기지 않는다).
+          if [ "$CODE" != "202" ] && [ "$CODE" != "200" ]; then
+            echo "호출 실패 — 위 응답 확인"; exit 1
+          fi
