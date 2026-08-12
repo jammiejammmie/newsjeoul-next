@@ -24,6 +24,17 @@ export type DocSlugRename = {
   to: string
   /** 어느 문서인지 사람이 알아보기 위한 기록. 코드는 쓰지 않는다. */
   title: string
+  /**
+   * 이름을 바꾼 것이 아니라 **다른 문서로 합친 것**(2026-08-12 추가).
+   *
+   * 차이가 중요하다: 보통 항목은 문서 하나가 새 URL로 이사한 것이라 DB의 slug를 바꾸면 되지만,
+   * 병합은 목적지 문서가 이미 따로 존재하고 출발지 문서는 **없애야 하는 중복**이다. slug를
+   * 바꾸려 들면 unique(hub_slug, slug)에 걸리고, 그대로 두면 같은 주제 페이지가 둘 남아
+   * 서로 순위를 갉아먹는다. rename 함수는 이 표시를 보고 옮기는 대신 지운다.
+   *
+   * 리다이렉트 동작은 보통 항목과 똑같다 — 옛 URL은 계속 목적지로 넘어간다.
+   */
+  merged?: true
 }
 
 export const DOC_SLUG_RENAMES: DocSlugRename[] = [
@@ -31,6 +42,15 @@ export const DOC_SLUG_RENAMES: DocSlugRename[] = [
   // '폴드8 멀티윈도우 3분할 설정하는 법'(8-3-dw76cz)은 **일부러 두었다**.
   // 노출 337·클릭 40으로 이 허브에서 유일하게 검색 성과가 나는 페이지다. URL을 바꾸면
   // 301을 걸어도 순위가 재평가된다 — 성과가 확인된 URL은 건드리지 않는 편이 낫다.
+  // ── 멀티태스킹 3중 중복 정리(2026-08-12) ────────────────────────
+  // '화면분할 방법'·'멀티 앱 설정법'·'멀티태스킹 완전 정복' 세 문서를 같은 날 만들었는데,
+  // 실제로 생성해 보니 셋이 앱 페어·분할 절차를 그대로 반복했다. 문서 범위를 코드로 못 박고
+  // (HubGuide.intent) 두 번 재생성했지만 결과가 같았다 — 셋은 한 페이지의 다른 이름이라
+  // 모델에게 아무리 경계를 줘도 같은 글로 수렴한다. 기존 '3분할 설정하는 법'까지 더하면
+  // 네 페이지가 한 키워드를 나눠 갖는 꼴이라, '멀티태스킹 완전 정복' 하나로 합친다.
+  { hub: 'galaxy-z-fold8', from: 'screen-split-guide', to: 'multitasking-guide', title: '폴드8 화면분할 방법', merged: true },
+  { hub: 'galaxy-z-fold8', from: 'multi-app-setup', to: 'multitasking-guide', title: '폴드8 멀티 앱 설정법', merged: true },
+
   { hub: 'galaxy-z-fold8', from: 's-1pvbn7', to: 'note-apps-without-spen', title: 'S펜 없이 필기 앱 쓰는 최적 조합' },
   { hub: 'galaxy-z-fold8', from: '7-oga4ih', to: 'battery-all-day', title: '배터리 하루 버티게 만드는 설정 7가지' },
   { hub: 'galaxy-z-fold8', from: 'howto-ee02f', to: 'data-transfer', title: '전작에서 데이터 통째로 옮기는 순서' },

@@ -1,0 +1,45 @@
+name: Apply hub doc slug renames
+
+# 목적: lib/hubs/doc-slug-renames.ts(대장)에 적은 slug 교체·병합을 DB에 실제로 반영한다.
+# 리다이렉트는 빌드에 포함돼 배포와 함께 나가지만, hub_documents의 행을 바꾸거나 지우는 것은
+# service key가 필요해 함수만 할 수 있다.
+#
+# 기본은 dry-run이다 — apply=true를 명시해야 실제로 쓴다. 삭제(병합)가 섞여 있어서
+# "무엇이 지워질지 먼저 보고 실행한다"를 기본 동작으로 둔다.
+#
+# ADMIN_KEY는 값을 보지 않는다. 이미 저장된 GitHub Secret(NEWSJEOUL_ADMIN_KEY)을
+# Actions 실행 환경 안에서 헤더로만 흘려보낸다.
+on:
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: 'true면 실제로 DB를 바꾼다(비우면 dry-run — 무엇이 바뀔지만 출력)'
+        required: false
+        default: 'false'
+      hub:
+        description: '특정 허브만 처리(비우면 대장 전체)'
+        required: false
+        default: ''
+
+jobs:
+  rename:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call rename-hub-doc-slugs
+        env:
+          ADMIN_KEY: ${{ secrets.NEWSJEOUL_ADMIN_KEY }}
+          APPLY: ${{ github.event.inputs.apply || 'false' }}
+          HUB: ${{ github.event.inputs.hub || '' }}
+        run: |
+          URL="https://newsjeoul.co.kr/.netlify/functions/rename-hub-doc-slugs"
+          Q=""
+          if [ "$APPLY" = "true" ]; then Q="?apply=true"; else Q="?apply=false"; fi
+          if [ -n "$HUB" ]; then Q="${Q}&hub=${HUB}"; fi
+          echo "요청: apply=${APPLY} hub=${HUB:-(전체)}"
+          CODE=$(curl -s -o /tmp/out.json -w "%{http_code}" \
+            -H "x-admin-key: ${ADMIN_KEY}" "${URL}${Q}")
+          echo "HTTP ${CODE}"
+          # 동기 함수라 결과가 응답에 그대로 담긴다 — 무엇이 바뀌었는지 로그로 남긴다.
+          cat /tmp/out.json | head -c 4000
+          echo
+          if [ "$CODE" != "200" ]; then echo "실패"; exit 1; fi
