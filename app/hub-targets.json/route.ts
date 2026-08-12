@@ -10,16 +10,22 @@ import { ALL_HUBS } from '@/lib/hubs'
 // 공개 URL이지만 노출되는 건 이미 허브 페이지에 그대로 보이는 가이드 제목이다.
 export const revalidate = 3600
 
+// 2026-08-12: 항목을 제목 문자열에서 {title, slug} 객체로 바꿨다. 문서 URL을 사람이 정한
+// 키워드로 두기 위해서다(생성 함수가 slug가 있으면 그대로 쓴다). 소비 측은 문자열 항목도
+// 계속 받아들이므로, 배포 시차나 캐시로 옛 형식이 잠깐 남아도 생성이 멈추지 않는다.
 export async function GET() {
+  const items = (list: { title: string; slug?: string }[]) =>
+    list.map((i) => ({ title: i.title, slug: i.slug }))
+
   const payload = ALL_HUBS.map((h) => ({
     slug: h.slug,
     title: h.title,
     kind: h.kind,
     items: {
-      howto: h.evergreen.howto.items.map((i) => i.title),
-      troubleshoot: h.evergreen.troubleshoot.items.map((i) => i.title),
-      compare: h.evergreen.compare.items.map((i) => i.title),
-      buying: h.evergreen.buying.items.map((i) => i.title),
+      howto: items(h.evergreen.howto.items),
+      troubleshoot: items(h.evergreen.troubleshoot.items),
+      compare: items(h.evergreen.compare.items),
+      buying: items(h.evergreen.buying.items),
     },
   }))
   return Response.json(payload, {

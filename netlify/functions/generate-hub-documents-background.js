@@ -38,8 +38,17 @@ async function sb(method, path, body, extraHeaders) {
   return text ? JSON.parse(text) : null;
 }
 
-/** 문서 제목 → URL 조각. 한글 제목이 대부분이라 해시 접미사로 유일성을 만든다. */
-function docSlug(title, format) {
+/**
+ * 문서 URL 조각.
+ *
+ * 설정에 slug가 있으면 그대로 쓴다(2026-08-12 추가). 아래 자동 생성은 폴백이다 —
+ * 한글 제목에서 ASCII만 남기고 해시를 붙이므로 '8-3-dw76cz' 같은 읽을 수 없는 값이 나오고,
+ * 제목을 조금만 고쳐도 해시가 바뀌어 URL이 통째로 갈린다. 새 허브를 만들 때는 설정에
+ * slug를 적어 두는 편이 낫다.
+ */
+function docSlug(title, format, configSlug) {
+  // 형식이 어긋난 값은 URL을 깨뜨리므로 받지 않고 폴백으로 넘긴다.
+  if (configSlug && /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/.test(configSlug)) return configSlug;
   const ascii = String(title).toLowerCase()
     .replace(/[^a-z0-9\s-]/g, ' ').trim().replace(/\s+/g, '-').replace(/-+/g, '-');
   // 제목이 전부 한글이면 ascii가 빈다 — format + 안정적 해시로 만든다.
@@ -192,8 +201,15 @@ async function collectTargets() {
       const list = await res.json();
       for (const h of list) {
         for (const format of FORMATS) {
-          for (const title of h.items?.[format] || []) {
-            targets.push({ hubSlug: h.slug, hubTitle: h.title, format, title });
+          // 항목은 {title, slug}가 정상이지만, 옛 형식(제목 문자열)도 받는다 —
+          // 배포 시차나 라우트 캐시로 옛 응답이 잠깐 남아도 생성이 멈추면 안 된다.
+          for (const item of h.items?.[format] || []) {
+            const title = typeof item === 'string' ? item : item?.title;
+            if (!title) continue;
+            targets.push({
+              hubSlug: h.slug, hubTitle: h.title, format, title,
+              configSlug: typeof item === 'string' ? undefined : item?.slug,
+            });
           }
         }
       }
@@ -209,7 +225,9 @@ async function collectTargets() {
   for (const h of dbHubs || []) {
     for (const format of FORMATS) {
       for (const item of h.config?.evergreen?.[format]?.items || []) {
-        if (item?.title) targets.push({ hubSlug: h.slug, hubTitle: h.title, format, title: item.title });
+        if (item?.title) targets.push({
+          hubSlug: h.slug, hubTitle: h.title, format, title: item.title, configSlug: item.slug,
+        });
       }
     }
   }
@@ -242,7 +260,7 @@ exports.handler = async function (event) {
 
     const todo = balanceByHub(
       targets
-        .map((t) => ({ ...t, slug: docSlug(t.title, t.format) }))
+        .map((t) => ({ ...t, slug: docSlug(t.title, t.format, t.configSlug) }))
         .filter((t) => !have.has(`${t.hubSlug}|${t.slug}`)),
       countByHub
     );

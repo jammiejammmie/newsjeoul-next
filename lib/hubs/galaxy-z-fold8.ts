@@ -72,37 +72,39 @@ export const galaxyZFold8: HubConfig = {
     howto: {
       label: '사용법·설정',
       items: [
-        { title: '폴드8 멀티윈도우 3분할 설정하는 법' },
-        { title: 'S펜 없이 필기 앱 쓰는 최적 조합' },
-        { title: '배터리 하루 버티게 만드는 설정 7가지' },
-        { title: '전작에서 데이터 통째로 옮기는 순서' },
+        // 이 slug만 해시형 그대로다. 검색 성과가 나는 유일한 문서라 URL을 바꾸지 않았다
+        // (lib/hubs/doc-slug-renames.ts 주석 참고).
+        { title: '폴드8 멀티윈도우 3분할 설정하는 법', slug: '8-3-dw76cz' },
+        { title: 'S펜 없이 필기 앱 쓰는 최적 조합', slug: 'note-apps-without-spen' },
+        { title: '배터리 하루 버티게 만드는 설정 7가지', slug: 'battery-all-day' },
+        { title: '전작에서 데이터 통째로 옮기는 순서', slug: 'data-transfer' },
       ],
     },
     troubleshoot: {
       label: '오류 해결',
       items: [
-        { title: '화면 중앙 주름에 터치가 안 될 때' },
-        { title: '무선 충전이 갑자기 끊기는 3가지 원인' },
-        { title: '앱이 접힌 화면에서 강제 종료될 때' },
-        { title: 'A/S 접수 전에 확인할 자가진단 순서' },
+        { title: '화면 중앙 주름에 터치가 안 될 때', slug: 'crease-touch-dead' },
+        { title: '무선 충전이 갑자기 끊기는 3가지 원인', slug: 'wireless-charging-drops' },
+        { title: '앱이 접힌 화면에서 강제 종료될 때', slug: 'app-crash-folded' },
+        { title: 'A/S 접수 전에 확인할 자가진단 순서', slug: 'self-check-before-service' },
       ],
     },
     compare: {
       label: '비교',
       items: [
-        { title: '폴드8 vs 폴드7, 더 낼 가치가 있나' },
-        { title: '폴더블 3사 스펙 비교표', badge: '표' },
-        { title: '통신사 3사 실구매가 계산기', badge: '계산' },
-        { title: '중고 시세와 보상판매, 뭐가 이득인가' },
+        { title: '폴드8 vs 폴드7, 더 낼 가치가 있나', slug: 'fold8-vs-fold7' },
+        { title: '폴더블 3사 스펙 비교표', slug: 'foldable-spec-table', badge: '표' },
+        { title: '통신사 3사 실구매가 계산기', slug: 'carrier-price-compare', badge: '계산' },
+        { title: '중고 시세와 보상판매, 뭐가 이득인가', slug: 'resale-vs-tradein' },
       ],
     },
     buying: {
       label: '구매 가이드',
       items: [
-        { title: '저장용량, 어느 구성이 맞나' },
-        { title: '지원금 vs 선택약정, 24개월 총액 비교' },
-        { title: '케이스·필름 실제로 쓸 만한 것만' },
-        { title: '개통 첫날 해두면 편한 8가지' },
+        { title: '저장용량, 어느 구성이 맞나', slug: 'storage-choice' },
+        { title: '지원금 vs 선택약정, 24개월 총액 비교', slug: 'subsidy-vs-contract' },
+        { title: '케이스·필름 실제로 쓸 만한 것만', slug: 'case-and-film-picks' },
+        { title: '개통 첫날 해두면 편한 8가지', slug: 'first-day-setup' },
       ],
     },
   },

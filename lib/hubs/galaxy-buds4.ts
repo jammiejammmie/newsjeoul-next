@@ -37,37 +37,41 @@ export const galaxyBuds4: HubConfig = {
     howto: {
       label: '사용법·설정',
       items: [
-        { title: '지능형 ANC를 환경별로 길들이는 설정' },
-        { title: '핀치 컨트롤 제스처 바꿔 쓰는 법' },
-        { title: '여러 기기 사이에서 자동 전환 설정' },
-        { title: '처음 연결하고 해두면 편한 설정' },
+        { title: '지능형 ANC를 환경별로 길들이는 설정', slug: 'anc-settings' },
+        { title: '핀치 컨트롤 제스처 바꿔 쓰는 법', slug: 'pinch-controls' },
+        { title: '여러 기기 사이에서 자동 전환 설정', slug: 'auto-switch' },
+        { title: '처음 연결하고 해두면 편한 설정', slug: 'first-setup' },
+        // 2026-08-12 보강. 통화 중 주변 소리와 배터리 관리는 실사용에서 가장 자주
+        // 되묻는 두 가지인데 문서가 없었다.
+        { title: '통화 중 주변 소리를 조절하는 법', slug: 'call-ambient-sound' },
+        { title: '배터리를 오래 쓰는 충전 습관과 설정', slug: 'battery-care' },
       ],
     },
     troubleshoot: {
       label: '오류 해결',
       items: [
-        { title: '한쪽만 소리가 안 날 때 확인 순서' },
-        { title: '자동 연결이 자꾸 끊길 때' },
-        { title: '케이스에서 충전이 안 될 때' },
-        { title: '통화 음질이 나쁘다는 말을 들었다면' },
+        { title: '한쪽만 소리가 안 날 때 확인 순서', slug: 'one-side-silent' },
+        { title: '자동 연결이 자꾸 끊길 때', slug: 'connection-drops' },
+        { title: '케이스에서 충전이 안 될 때', slug: 'case-not-charging' },
+        { title: '통화 음질이 나쁘다는 말을 들었다면', slug: 'call-quality' },
       ],
     },
     compare: {
       label: '비교',
       items: [
-        { title: '버즈4와 버즈4 프로, 무엇이 다른가' },
-        { title: '버즈4 vs 버즈3, 넘어갈 만한가' },
-        { title: '무선이어폰 ANC 성능 비교표', badge: '표' },
-        { title: '아이폰과 함께 쓸 때의 제약' },
+        { title: '버즈4와 버즈4 프로, 무엇이 다른가', slug: 'buds4-vs-buds4-pro' },
+        { title: '버즈4 vs 버즈3, 넘어갈 만한가', slug: 'buds4-vs-buds3' },
+        { title: '무선이어폰 ANC 성능 비교표', slug: 'anc-comparison-table', badge: '표' },
+        { title: '아이폰과 함께 쓸 때의 제약', slug: 'with-iphone' },
       ],
     },
     buying: {
       label: '구매 가이드',
       items: [
-        { title: '일반형과 프로, 어느 쪽이 맞나' },
-        { title: '귀 모양에 맞는 이어팁 고르는 법' },
-        { title: '보증과 배터리 교체 조건 확인하기' },
-        { title: '케이스·이어팁 실제로 쓸 만한 것만' },
+        { title: '일반형과 프로, 어느 쪽이 맞나', slug: 'standard-or-pro' },
+        { title: '귀 모양에 맞는 이어팁 고르는 법', slug: 'eartip-fit' },
+        { title: '보증과 배터리 교체 조건 확인하기', slug: 'warranty-and-battery' },
+        { title: '케이스·이어팁 실제로 쓸 만한 것만', slug: 'case-and-eartip-picks' },
       ],
     },
   },

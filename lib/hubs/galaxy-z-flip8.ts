@@ -44,37 +44,41 @@ export const galaxyZFlip8: HubConfig = {
     howto: {
       label: '사용법·설정',
       items: [
-        { title: '커버 화면에서 앱 전체를 실행하는 설정' },
-        { title: '플렉스 모드에서 쓸 만한 앱과 각도 조합' },
-        { title: '배터리 하루 버티게 만드는 설정 7가지' },
-        { title: '전작에서 데이터 통째로 옮기는 순서' },
+        { title: '커버 화면에서 앱 전체를 실행하는 설정', slug: 'cover-screen-apps' },
+        { title: '플렉스 모드에서 쓸 만한 앱과 각도 조합', slug: 'flex-mode-apps' },
+        { title: '배터리 하루 버티게 만드는 설정 7가지', slug: 'battery-all-day' },
+        { title: '전작에서 데이터 통째로 옮기는 순서', slug: 'data-transfer' },
+        // 2026-08-12 보강. 폴드8보다 사용법 문서가 적어 검색 유입 접점이 좁았다.
+        // 커버 화면은 플립 고유의 물음이 몰리는 곳이라 여기부터 채운다.
+        { title: '커버 화면으로 후면 카메라 셀피 찍는 설정', slug: 'cover-camera-selfie' },
+        { title: '접은 채로 알림만 확인하도록 만들기', slug: 'notifications-while-folded' },
       ],
     },
     troubleshoot: {
       label: '오류 해결',
       items: [
-        { title: '접힌 부분 터치가 늦게 먹을 때 확인할 것' },
-        { title: '무선 충전이 갑자기 끊기는 3가지 원인' },
-        { title: '커버 화면 위젯이 사라졌을 때' },
-        { title: 'A/S 접수 전에 확인할 자가진단 순서' },
+        { title: '접힌 부분 터치가 늦게 먹을 때 확인할 것', slug: 'crease-touch-lag' },
+        { title: '무선 충전이 갑자기 끊기는 3가지 원인', slug: 'wireless-charging-drops' },
+        { title: '커버 화면 위젯이 사라졌을 때', slug: 'cover-widget-missing' },
+        { title: 'A/S 접수 전에 확인할 자가진단 순서', slug: 'self-check-before-service' },
       ],
     },
     compare: {
       label: '비교',
       items: [
-        { title: '플립8 vs 플립7, 19.8만원 더 낼 가치가 있나' },
-        { title: '플립8 vs 폴드8, 무엇을 기준으로 고를까' },
-        { title: '폴더블 커버 화면 크기 비교표', badge: '표' },
-        { title: '중고 시세와 보상판매, 뭐가 이득인가' },
+        { title: '플립8 vs 플립7, 19.8만원 더 낼 가치가 있나', slug: 'flip8-vs-flip7' },
+        { title: '플립8 vs 폴드8, 무엇을 기준으로 고를까', slug: 'flip8-vs-fold8' },
+        { title: '폴더블 커버 화면 크기 비교표', slug: 'cover-screen-size-table', badge: '표' },
+        { title: '중고 시세와 보상판매, 뭐가 이득인가', slug: 'resale-vs-tradein' },
       ],
     },
     buying: {
       label: '구매 가이드',
       items: [
-        { title: '자급제와 통신사, 24개월 총액 비교' },
-        { title: '사전예약 혜택이 실제로 남는지 계산하기' },
-        { title: '케이스·필름 실제로 쓸 만한 것만' },
-        { title: '개통 첫날 해두면 편한 8가지' },
+        { title: '자급제와 통신사, 24개월 총액 비교', slug: 'unlocked-vs-carrier' },
+        { title: '사전예약 혜택이 실제로 남는지 계산하기', slug: 'preorder-value' },
+        { title: '케이스·필름 실제로 쓸 만한 것만', slug: 'case-and-film-picks' },
+        { title: '개통 첫날 해두면 편한 8가지', slug: 'first-day-setup' },
       ],
     },
   },
