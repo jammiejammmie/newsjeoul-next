@@ -67,6 +67,14 @@ export const evSubsidy: HubConfig = {
     howto: {
       label: '신청서 작성법',
       items: [
+        // 2026-08-12 롱테일 ★ 1건(docs/newsjeoul-hub-longtail-candidates.md)
+        {
+          title: '지자체 예산 소진 시점 — 언제 신청해야 하나',
+          slug: 'budget-timing',
+          intent: '연중 어느 시기에 신청해야 물량을 잡는지, 지자체별 공고 시점과 소진 속도를 어떻게 '
+            + '확인하는지를 다룬다. 이미 대기 번호를 받은 뒤의 대처는 다른 문서가 다루므로 반복하지 마라. '
+            + '연도·금액은 해마다 바뀌므로 단정하지 말고 확인처를 안내해라.',
+        },
         { title: '보조금 신청 순서 — 계약부터 지급까지' },
         { title: '지자체 공고에서 잔여 물량 확인하는 법' },
         { title: '차량 인도 기한과 지급 조건 맞추기' },
@@ -76,6 +84,15 @@ export const evSubsidy: HubConfig = {
     troubleshoot: {
       label: '탈락·지연 대처',
       items: [
+        // 2026-08-12 롱테일 ★ 2건
+        { title: '아파트 충전기 설치 동의, 어디서 막히나', slug: 'apartment-charger-consent' },
+        {
+          title: '출고가 지연돼 연말을 넘기면 어떻게 되나',
+          slug: 'year-end-delay',
+          intent: '연도가 바뀔 때 보조금 자격이 어떻게 되는지에 집중한다 — 예산 연도 이월 여부, '
+            + '재신청이 필요한지, 계약일과 인도일 중 무엇이 기준인지. 인도 기한 초과로 이미 자격이 '
+            + '취소된 경우는 다른 문서가 다룬다.',
+        },
         { title: '예산 소진으로 대기 번호를 받았을 때' },
         { title: '인도 기한을 넘겨 자격이 취소된 경우' },
         { title: '거주지 이전으로 지자체가 바뀔 때' },

@@ -171,6 +171,62 @@ check('1c) getHubConfig가 등록된 slug를 찾고 미등록은 null', !!getHub
   check('8e) /go 라우트가 302를 쓴다(목적지 교체가 즉시 반영되도록)', /status:\s*302/.test(goRoute));
 }
 
+// ── 9. FAQ 계약(2026-08-12 신설) ─────────────────────────────────────────────
+// FAQ는 DB 컬럼이 아니라 "마지막 블록 + 고정 소제목 + Q./A. 두 줄 짝"으로 저장된다.
+// 생성기와 렌더러 두 파일이 이 형식을 각자 들고 있으므로, 한쪽만 바꾸면 FAQ가 그냥 본문으로
+// 렌더되고 FAQPage 스키마가 조용히 빈다 — 눈에 잘 안 띄는 고장이라 테스트로 못 박는다.
+{
+  const gen = fs.readFileSync(path.resolve(__dirname, '../netlify/functions/generate-hub-documents-background.js'), 'utf8');
+  const docPage = fs.readFileSync(path.resolve(__dirname, '../app/hub/[slug]/[doc]/page.tsx'), 'utf8');
+
+  const genHeading = (gen.match(/const FAQ_HEADING = '([^']+)'/) || [])[1];
+  const pageHeading = (docPage.match(/const FAQ_HEADING = '([^']+)'/) || [])[1];
+  check(`9) 생성기와 렌더러의 FAQ 소제목이 같음(양쪽 '${genHeading || '?'}')`,
+    Boolean(genHeading) && genHeading === pageHeading);
+
+  check('9b) 문서 페이지가 FAQPage 구조화 데이터를 내보냄',
+    /'FAQPage'/.test(docPage) && /acceptedAnswer/.test(docPage));
+
+  // 생성기가 만드는 문자열을 렌더러의 정규식에 그대로 통과시켜 본다(형식 왕복 검증).
+  const sample = [{ q: '질문 하나', a: '답변 하나입니다. 두 번째 문장까지 있습니다.' },
+    { q: '질문 둘', a: '답변 둘입니다. 두 번째 문장까지 있습니다.' }]
+    .map((f) => `Q. ${f.q}\nA. ${f.a}`).join('\n\n');
+  const parsed = sample.split(/\n{2,}/)
+    .map((c) => c.match(/^\s*Q\.\s*([\s\S]+?)\n\s*A\.\s*([\s\S]+)$/))
+    .filter(Boolean);
+  check('9c) 생성기 출력 형식이 렌더러 파서를 그대로 통과함(Q./A. 왕복)',
+    parsed.length === 2 && parsed[0][1] === '질문 하나');
+
+  check('9d) FAQ가 2개 미만이면 본문 블록으로 남겨 화면이 비지 않게 함(폴백)',
+    /faq\.length < 2/.test(docPage) && /faq\.length >= 2/.test(gen));
+}
+
+// ── 10. intent 경계(2026-08-12 신설) ────────────────────────────────────────
+// 제목이 비슷한 문서끼리 같은 내용을 반복하면 서로 순위를 갉아먹는다. intent가 그 경계인데,
+// 라우트가 이 필드를 내보내지 않으면 생성기에 닿지 않아 조용히 무력해진다.
+{
+  const route = fs.readFileSync(path.resolve(__dirname, '../app/hub-targets.json/route.ts'), 'utf8');
+  const gen = fs.readFileSync(path.resolve(__dirname, '../netlify/functions/generate-hub-documents-background.js'), 'utf8');
+  check('10) hub-targets.json이 intent를 내보냄', /intent:\s*i\.intent/.test(route));
+  check('10b) 생성기가 intent를 프롬프트에 넣음', /target\.intent/.test(gen));
+
+  const allItems = ALL_HUBS.flatMap((h) =>
+    ['howto', 'troubleshoot', 'compare', 'buying'].flatMap((f) => h.evergreen[f].items));
+  const withIntent = allItems.filter((i) => i.intent);
+  check(`10c) intent가 지정된 항목이 실제로 존재함(${withIntent.length}건)`, withIntent.length > 0);
+  check('10d) intent가 있는 항목은 slug도 함께 지정돼 있음(URL 고정)',
+    withIntent.every((i) => i.slug));
+
+  // 같은 허브 안에서 slug가 겹치면 뒤 항목이 앞 문서를 덮어쓴다(unique(hub_slug, slug)).
+  const dupSlug = ALL_HUBS.flatMap((h) => {
+    const slugs = ['howto', 'troubleshoot', 'compare', 'buying']
+      .flatMap((f) => h.evergreen[f].items.map((i) => i.slug).filter(Boolean));
+    return slugs.filter((s, i) => slugs.indexOf(s) !== i).map((s) => `${h.slug}/${s}`);
+  });
+  check(`10e) 허브 안에서 문서 slug가 중복되지 않음${dupSlug.length ? ' — ' + dupSlug.join(', ') : ''}`,
+    dupSlug.length === 0);
+}
+
 const failCount = results.filter((r) => !r.pass).length;
 console.log(failCount === 0 ? `\n전체 통과(${results.length}개)` : `\n일부 실패(${failCount}/${results.length})`);
 process.exitCode = failCount === 0 ? 0 : 1;

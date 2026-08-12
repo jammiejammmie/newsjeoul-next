@@ -52,11 +52,15 @@ export const galaxyZFlip8: HubConfig = {
         // 커버 화면은 플립 고유의 물음이 몰리는 곳이라 여기부터 채운다.
         { title: '커버 화면으로 후면 카메라 셀피 찍는 설정', slug: 'cover-camera-selfie' },
         { title: '접은 채로 알림만 확인하도록 만들기', slug: 'notifications-while-folded' },
+        // 2026-08-12 롱테일 ★ 1건(docs/newsjeoul-hub-longtail-candidates.md)
+        { title: '세워두고 타임랩스·장노출 찍는 각도 설정', slug: 'flexcam-tripod' },
       ],
     },
     troubleshoot: {
       label: '오류 해결',
       items: [
+        // 2026-08-12 롱테일 ★ 1건
+        { title: '주머니에서 저절로 펼쳐질 때(힌지 장력)', slug: 'hinge-tension' },
         { title: '접힌 부분 터치가 늦게 먹을 때 확인할 것', slug: 'crease-touch-lag' },
         { title: '무선 충전이 갑자기 끊기는 3가지 원인', slug: 'wireless-charging-drops' },
         { title: '커버 화면 위젯이 사라졌을 때', slug: 'cover-widget-missing' },
@@ -75,6 +79,14 @@ export const galaxyZFlip8: HubConfig = {
     buying: {
       label: '구매 가이드',
       items: [
+        // 2026-08-12 롱테일 ★ 1건
+        {
+          title: '화면 보호 필름, 붙여도 되는가',
+          slug: 'screen-film-warning',
+          intent: '폴더블 내부 화면에 사제 필름을 붙였을 때 생기는 문제와 제조사 안내를 다룬다. '
+            + '공장 부착 보호막을 떼면 안 되는 이유, 떼었을 때의 보증 처리, 커버 화면과 내부 화면의 '
+            + '기준이 다르다는 점이 핵심이다. 케이스 추천은 다른 문서 소관이다.',
+        },
         { title: '자급제와 통신사, 24개월 총액 비교', slug: 'unlocked-vs-carrier' },
         { title: '사전예약 혜택이 실제로 남는지 계산하기', slug: 'preorder-value' },
         { title: '케이스·필름 실제로 쓸 만한 것만', slug: 'case-and-film-picks' },

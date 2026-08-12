@@ -38,6 +38,15 @@ export const lgGram2026: HubConfig = {
     howto: {
       label: '사용법·설정',
       items: [
+        // 2026-08-12 롱테일 ★ 2건(docs/newsjeoul-hub-longtail-candidates.md)
+        { title: '윈도우 클린 설치 후 LG 드라이버 되살리기', slug: 'clean-install-drivers' },
+        {
+          title: '배터리 보호 충전 설정은 어디에 있나',
+          slug: 'battery-care-setting',
+          intent: '충전 상한을 걸어 배터리 수명을 아끼는 설정의 위치와 켜고 끄는 기준만 다룬다. '
+            + '메뉴 이름과 경로는 제조사 소프트웨어 버전에 따라 다르므로 단정하지 말고 찾는 방법을 '
+            + '알려줘라. 사용 시간을 늘리는 전반적 설정은 다른 문서 소관이다.',
+        },
         { title: '배터리 27시간에 가깝게 쓰는 설정' },
         { title: '엑사원 온디바이스 AI로 실제로 되는 것' },
         { title: '외부 모니터·독 연결 조합 정리' },
@@ -47,6 +56,8 @@ export const lgGram2026: HubConfig = {
     troubleshoot: {
       label: '오류 해결',
       items: [
+        // 2026-08-12 롱테일 ★ 1건
+        { title: '절전에서 안 깨어날 때', slug: 'sleep-wake-failure' },
         { title: '충전이 되다 말 때 확인할 순서' },
         { title: '발열로 성능이 떨어질 때 확인할 설정' },
         { title: '무선 연결이 자주 끊긴다면' },

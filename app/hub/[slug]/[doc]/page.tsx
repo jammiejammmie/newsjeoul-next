@@ -20,6 +20,31 @@ const FORMAT_LABEL: Record<string, string> = {
   howto: '사용법', troubleshoot: '문제 해결', compare: '비교', buying: '준비',
 }
 
+// FAQ는 별도 컬럼 없이 마지막 블록으로 저장된다(generate-hub-documents-background.js 참고).
+// 이 제목과 'Q. / A.' 형식이 두 파일 사이의 계약이다 — 한쪽만 바꾸면 FAQ가 그냥 본문으로 렌더되고
+// 구조화 데이터가 조용히 빈다. 파싱에 실패하면 블록을 본문으로 되돌려 렌더하므로 화면은 깨지지 않는다.
+const FAQ_HEADING = '자주 묻는 질문'
+
+type Faq = { q: string; a: string }
+
+function parseFaqBlock(content: string): Faq[] {
+  const out: Faq[] = []
+  for (const chunk of content.split(/\n{2,}/)) {
+    const m = chunk.match(/^\s*Q\.\s*([\s\S]+?)\n\s*A\.\s*([\s\S]+)$/)
+    if (m) out.push({ q: m[1].trim(), a: m[2].trim() })
+  }
+  return out
+}
+
+/** 본문 블록과 FAQ를 가른다. FAQ 블록이 없거나 형식이 깨졌으면 전부 본문으로 둔다. */
+function splitFaq(blocks: { heading: string; content: string }[]) {
+  const idx = blocks.findIndex((b) => b.heading.trim() === FAQ_HEADING)
+  if (idx < 0) return { body: blocks, faq: [] as Faq[] }
+  const faq = parseFaqBlock(blocks[idx].content)
+  if (faq.length < 2) return { body: blocks, faq: [] as Faq[] }
+  return { body: blocks.filter((_, i) => i !== idx), faq }
+}
+
 /**
  * 문서 유형에 맞는 제휴 슬롯을 고른다.
  *
@@ -80,9 +105,24 @@ export default async function HubDocPage(
   // 링크 금지 허브(§8.3 신차·정책)는 슬롯 자체가 없으므로 섹션이 통째로 빠진다.
   const affiliateSlots = hub.affiliate.allowed ? pickSlots(document.format, hub.affiliate.slots) : []
 
+  const { body: bodyBlocks, faq } = splitFaq(document.blocks)
+
   const schema = {
     '@context': 'https://schema.org',
     '@graph': [
+      // FAQ가 있을 때만 FAQPage를 넣는다. 질문이 없는데 빈 mainEntity를 내보내면
+      // Search Console이 "유효하지 않은 항목"으로 잡는다(2026-08-08 Product/Offer 건과 같은 부류).
+      ...(faq.length
+        ? [{
+            '@type': 'FAQPage',
+            '@id': `${BASE}/hub/${slug}/${doc}#faq`,
+            mainEntity: faq.map((f) => ({
+              '@type': 'Question',
+              name: f.q,
+              acceptedAnswer: { '@type': 'Answer', text: f.a },
+            })),
+          }]
+        : []),
       {
         '@type': 'Article',
         '@id': `${BASE}/hub/${slug}/${doc}`,
@@ -130,7 +170,7 @@ export default async function HubDocPage(
         </div>
 
         <article style={{ display: 'flex', flexDirection: 'column', gap: 26 }}>
-          {document.blocks.map((b, i) => (
+          {bodyBlocks.map((b, i) => (
             <section key={i}>
               <h2 style={{ margin: '0 0 9px', font: '800 17px/1.4 Pretendard' }}>{b.heading}</h2>
               {b.content.split(/\n{2,}/).map((para, j) => {
@@ -155,6 +195,24 @@ export default async function HubDocPage(
             </section>
           ))}
         </article>
+
+        {/* FAQ — 본문 뒤, 근거 앞. 질문 그대로 검색해 들어온 사람에게는 이 자리가 본문이다.
+            <details>로 두면 접힌 답이 크롤러에 보이지 않을 수 있어 항상 펼쳐진 마크업으로 둔다. */}
+        {faq.length > 0 && (
+          <section style={{ marginTop: 30 }}>
+            <h2 style={{ margin: '0 0 12px', font: '800 17px/1.4 Pretendard', borderBottom: '2px solid var(--ink)', paddingBottom: 7 }}>
+              {FAQ_HEADING}
+            </h2>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {faq.map((f, i) => (
+                <div key={i}>
+                  <h3 style={{ margin: '0 0 5px', font: '700 14.5px/1.5 Pretendard' }}>{f.q}</h3>
+                  <p style={{ margin: 0, font: '500 14px/1.75 Pretendard', color: 'var(--body)' }}>{f.a}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         {document.sourceNote && (
           <div style={{ marginTop: 28, borderLeft: '3px solid var(--hot)', background: 'var(--paper2)', padding: '12px 15px' }}>

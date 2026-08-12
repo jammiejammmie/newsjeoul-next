@@ -39,6 +39,9 @@ export const galaxyBook5Pro: HubConfig = {
     howto: {
       label: '사용법·설정',
       items: [
+        // 2026-08-12 롱테일 ★ 2건(docs/newsjeoul-hub-longtail-candidates.md)
+        { title: '윈도우 클린 설치 후 삼성 드라이버 되살리기', slug: 'clean-install-drivers' },
+        { title: '소음·발열 잡는 전원 모드 설정', slug: 'power-mode-thermal' },
         { title: '배터리를 아끼는 아몰레드 화면 설정' },
         { title: 'Copilot+ 기능 중 실제로 쓰게 되는 것' },
         { title: '갤럭시 폰과 연결해서 쓰는 조합 정리' },
@@ -48,6 +51,8 @@ export const galaxyBook5Pro: HubConfig = {
     troubleshoot: {
       label: '오류 해결',
       items: [
+        // 2026-08-12 롱테일 ★ 1건
+        { title: '절전 모드에서 안 깨어날 때', slug: 'sleep-wake-failure' },
         { title: '충전이 되다 말 때 확인할 순서' },
         { title: '외부 모니터가 인식되지 않을 때' },
         { title: '팬 소음이 갑자기 커졌다면' },

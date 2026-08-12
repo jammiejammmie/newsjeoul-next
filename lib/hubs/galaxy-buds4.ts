@@ -45,11 +45,21 @@ export const galaxyBuds4: HubConfig = {
         // 되묻는 두 가지인데 문서가 없었다.
         { title: '통화 중 주변 소리를 조절하는 법', slug: 'call-ambient-sound' },
         { title: '배터리를 오래 쓰는 충전 습관과 설정', slug: 'battery-care' },
+        // 2026-08-12 롱테일 ★ 1건(docs/newsjeoul-hub-longtail-candidates.md)
+        { title: 'PC·노트북에 연결하고 마이크까지 쓰는 법', slug: 'pc-connect-mic' },
       ],
     },
     troubleshoot: {
       label: '오류 해결',
       items: [
+        // 2026-08-12 롱테일 ★ 1건
+        {
+          title: '세탁기에 돌렸을 때 살릴 수 있나',
+          slug: 'washed-in-laundry',
+          intent: '물에 잠긴 직후의 대처 순서를 다룬다 — 전원을 켜지 말 것, 말리는 방법과 하면 안 되는 '
+            + '건조법, 방수 등급이 세탁을 견딘다는 뜻이 아닌 이유, 살아난 뒤에도 남는 문제, 수리·교체 '
+            + '문의 경로. 근거 없는 민간요법을 권하지 마라.',
+        },
         { title: '한쪽만 소리가 안 날 때 확인 순서', slug: 'one-side-silent' },
         { title: '자동 연결이 자꾸 끊길 때', slug: 'connection-drops' },
         { title: '케이스에서 충전이 안 될 때', slug: 'case-not-charging' },
@@ -68,6 +78,14 @@ export const galaxyBuds4: HubConfig = {
     buying: {
       label: '구매 가이드',
       items: [
+        // 2026-08-12 롱테일 ★ 1건
+        {
+          title: '한쪽을 잃어버렸을 때 한쪽만 사는 법',
+          slug: 'single-bud-replacement',
+          intent: '한쪽만 분실했을 때의 선택지를 다룬다 — 제조사 단품 구매가 가능한지, 값이 얼마쯤 하는지, '
+            + '기존 케이스·반대쪽과 페어링이 되는지, 중고 단품을 살 때의 위험. 가격과 정책은 바뀌므로 '
+            + '단정하지 말고 서비스센터 확인을 안내해라.',
+        },
         { title: '일반형과 프로, 어느 쪽이 맞나', slug: 'standard-or-pro' },
         { title: '귀 모양에 맞는 이어팁 고르는 법', slug: 'eartip-fit' },
         { title: '보증과 배터리 교체 조건 확인하기', slug: 'warranty-and-battery' },

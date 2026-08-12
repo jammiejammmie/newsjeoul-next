@@ -36,6 +36,8 @@ export const galaxyS25Ultra: HubConfig = {
     howto: {
       label: '사용법·설정',
       items: [
+        // 2026-08-12 롱테일 ★ 1건(docs/newsjeoul-hub-longtail-candidates.md)
+        { title: '통화 녹음 자동 저장과 저장 위치', slug: 'call-recording' },
         { title: 'S펜으로 실제로 자주 쓰게 되는 기능만' },
         { title: '2억 화소 모드를 언제 켜고 언제 끌까' },
         { title: '배터리 하루 버티게 만드는 설정' },
@@ -45,6 +47,15 @@ export const galaxyS25Ultra: HubConfig = {
     troubleshoot: {
       label: '오류 해결',
       items: [
+        // 2026-08-12 롱테일 ★ 2건
+        { title: '알림이 늦게 오거나 아예 안 올 때', slug: 'delayed-notifications' },
+        {
+          title: '사진이 흐리게 나올 때 확인할 설정',
+          slug: 'blurry-photos',
+          intent: '결과물이 흐린 원인을 설정과 사용 습관에서 찾는다 — 렌즈 오염, 손떨림 보정, 야간 모드 '
+            + '셔터 시간, 줌 배율에 따른 화질 저하, 화면 밝기 때문에 흐려 보이는 착시. '
+            + '2억 화소 모드를 언제 쓰는가는 다른 문서 소관이니 반복하지 마라.',
+        },
         { title: 'S펜이 인식되지 않을 때 확인 순서' },
         { title: '발열로 카메라가 제한될 때' },
         { title: '충전 속도가 갑자기 느려졌다면' },

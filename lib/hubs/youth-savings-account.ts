@@ -41,6 +41,14 @@ export const youthSavingsAccount: HubConfig = {
     howto: {
       label: '유지·관리',
       items: [
+        // 2026-08-12 롱테일 ★ 1건(docs/newsjeoul-hub-longtail-candidates.md)
+        {
+          title: '매달 얼마 넣는 게 유리한가(기여금 구간)',
+          slug: 'contribution-tier',
+          intent: '소득 구간에 따라 정부 기여금이 붙는 납입액 한도가 달라진다는 점을 설명하고, '
+            + '내 구간에서 어디까지 넣어야 손해가 없는지 판단하게 해줘라. 구간과 금액은 제도 개정으로 '
+            + '바뀌므로 단정하지 말고 확인처를 안내해라. 납입을 줄이는 방법 자체는 다른 문서 소관이다.',
+        },
         { title: '납입액을 줄여서라도 계좌를 살려두는 법' },
         { title: '만기까지 남은 기간과 예상 수령액 확인하기' },
         { title: '소득이 바뀌었을 때 해야 하는 신고' },
@@ -50,6 +58,14 @@ export const youthSavingsAccount: HubConfig = {
     troubleshoot: {
       label: '문제 해결',
       items: [
+        // 2026-08-12 롱테일 ★ 1건
+        {
+          title: '이직·퇴사로 소득이 끊겼을 때',
+          slug: 'job-change',
+          intent: '소득이 사라지거나 크게 줄었을 때 계좌를 어떻게 유지하는지를 다룬다 — 자격 재심사 '
+            + '시점, 기여금이 멈추는 조건, 납입을 잠시 쉬는 선택지, 다시 취업했을 때의 처리. '
+            + '중도해지 손익과 소득 초과로 끊긴 경우는 각각 다른 문서가 다룬다.',
+        },
         { title: '중도해지하면 무엇을 얼마나 잃나' },
         { title: '납입을 며칠 걸렀을 때 생기는 일' },
         { title: '소득 초과로 기여금이 끊겼을 때' },
@@ -59,6 +75,14 @@ export const youthSavingsAccount: HubConfig = {
     compare: {
       label: '비교',
       items: [
+        // 2026-08-12 롱테일 ★ 1건
+        {
+          title: '만기 5년이 부담될 때 쓸 수 있는 제도',
+          slug: 'maturity-burden',
+          intent: '5년을 못 채울 것 같은 사람이 해지 말고 쓸 수 있는 선택지를 모은다 — 납입 유예·감액, '
+            + '부분 인출이나 담보대출 가능 여부, 특별중도해지 인정 사유. 각 제도의 조건은 은행과 개정에 '
+            + '따라 다르므로 확인처를 함께 알려줘라.',
+        },
         { title: '청년도약계좌와 청년미래적금, 무엇이 다른가' },
         { title: '갈아타기가 이득인 경우와 아닌 경우' },
         { title: '만기 수령액 구성 비교표', badge: '표' },

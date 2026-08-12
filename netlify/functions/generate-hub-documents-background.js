@@ -24,6 +24,10 @@ const FORMATS = ['howto', 'troubleshoot', 'compare', 'buying'];
 // 파싱 실패로 통째로 버려진 것이다. 한국어는 같은 내용에 영어보다 토큰을 더 쓴다.
 const MAX_TOKENS = 8000;
 
+// FAQ 블록의 소제목. 렌더러(app/hub/[slug]/[doc]/page.tsx)가 이 문자열로 FAQ 블록을 알아보고
+// FAQPage 구조화 데이터로 바꿔 내보낸다 — 양쪽이 어긋나면 FAQ가 본문처럼 렌더되고 스키마가 빈다.
+const FAQ_HEADING = '자주 묻는 질문';
+
 async function sb(method, path, body, extraHeaders) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
     method,
@@ -107,7 +111,7 @@ async function generateDocument(target) {
 
 문서 제목: ${target.title}
 문서 성격: ${FORMAT_INTENT[target.format] || FORMAT_INTENT.howto}
-
+${target.intent ? `\n★ 이 문서의 범위(반드시 지켜라): ${target.intent}\n` : ''}
 ★ 절대 규칙:
 1. **모르는 것은 쓰지 마라.** 구체적 금액·날짜·모델명·법조항이 확실하지 않으면 그 문장을
    쓰지 말고, 대신 "어디서 확인해야 하는지"를 알려줘라. 틀린 숫자는 독자를 잘못된 결정으로 이끈다.
@@ -118,14 +122,19 @@ async function generateDocument(target) {
 
 아래 JSON만 반환해라(설명·코드블록 없이):
 {
-  "lead": "이 문서가 무엇을 해결해 주는지 1~2문장",
+  "lead": "검색 결과에 그대로 노출되는 설명문. 80~120자. 제목의 핵심 키워드를 포함하고, 이 문서가 무엇을 해결하는지 한 문장으로.",
   "blocks": [
     {"heading": "소제목", "content": "본문. 문단 사이는 \\n\\n으로 구분. 목록은 '- '로 시작."}
+  ],
+  "faq": [
+    {"q": "독자가 실제로 검색창에 칠 법한 질문", "a": "2~3문장으로 끝나는 답. 본문 내용과 어긋나면 안 된다."}
   ],
   "sourceNote": "이 내용의 근거와 확인처 한 줄. 예: '지자체 공고 기준. 금액은 공고마다 바뀌므로 신청 전 확인 필요.'"
 }
 
-blocks는 3~6개. 각 블록 본문은 2~5문단.`;
+blocks는 3~6개. 각 블록 본문은 2~5문단.
+faq는 3~5개. 본문에서 답을 이미 다룬 질문을 골라 짧게 다시 답하는 자리다 — 새 사실을 지어내지 마라.
+질문은 "~하려면 어떻게 하나요"처럼 사람이 실제로 검색하는 말투로 써라(제목을 그대로 되풀이하지 마라).`;
 
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -147,6 +156,21 @@ blocks는 3~6개. 각 블록 본문은 2~5문단.`;
   if (blocks.length < MIN_BLOCKS) {
     throw new Error(`본문 부족(유효 블록 ${blocks.length}개, 최소 ${MIN_BLOCKS}) — 저장하지 않는다`);
   }
+
+  // FAQ는 별도 컬럼을 만들지 않고 **마지막 블록**으로 저장한다(2026-08-12 추가).
+  // 왜 컬럼이 아닌가: hub_documents에 컬럼을 추가하려면 DDL이 필요한데, 이 저장소에서 DDL은
+  // 사람이 Supabase SQL Editor에서 직접 실행해야 하는 별도 승인 절차다(CHANGELOG BLOCKED 참고).
+  // 블록으로 두면 마이그레이션 없이 오늘 나갈 수 있고, 렌더러가 heading으로 알아본다.
+  // 형식을 'Q. / A.' 두 줄 짝으로 고정하는 이유는 페이지가 이 블록을 FAQ 스키마(FAQPage)로
+  // 바꿔 내보내야 하기 때문이다 — 형식이 흔들리면 파싱이 조용히 실패한다.
+  const faq = (Array.isArray(parsed.faq) ? parsed.faq : [])
+    .map((f) => ({ q: String(f?.q || '').trim(), a: String(f?.a || '').trim() }))
+    .filter((f) => f.q && f.a.length >= 20)
+    .slice(0, 6);
+  if (faq.length >= 2) {
+    blocks.push({ heading: FAQ_HEADING, content: faq.map((f) => `Q. ${f.q}\nA. ${f.a}`).join('\n\n') });
+  }
+
   return {
     lead: typeof parsed.lead === 'string' ? parsed.lead.trim().slice(0, 500) : '',
     blocks,

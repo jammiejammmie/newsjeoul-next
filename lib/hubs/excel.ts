@@ -58,6 +58,10 @@ export const excel: HubConfig = {
     troubleshoot: {
       label: '오류 코드별 해결',
       items: [
+        // 2026-08-12 롱테일 ★ 3건(docs/newsjeoul-hub-longtail-candidates.md)
+        { title: 'CSV 한글이 깨져서 열릴 때 되살리는 법', slug: 'csv-korean-encoding' },
+        { title: '인쇄가 여러 장으로 쪼개질 때 한 장에 맞추기', slug: 'print-fit-one-page' },
+        { title: '날짜가 숫자(45123)로 보일 때 되돌리기', slug: 'date-serial-number' },
         { title: '#REF! 가 뜨는 원인과 되살리는 법' },
         { title: '#VALUE! — 숫자로 안 읽히는 셀 고치기' },
         { title: '순환 참조 경고가 사라지지 않을 때' },

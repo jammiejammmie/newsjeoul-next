@@ -14,8 +14,10 @@ export const revalidate = 3600
 // 키워드로 두기 위해서다(생성 함수가 slug가 있으면 그대로 쓴다). 소비 측은 문자열 항목도
 // 계속 받아들이므로, 배포 시차나 캐시로 옛 형식이 잠깐 남아도 생성이 멈추지 않는다.
 export async function GET() {
-  const items = (list: { title: string; slug?: string }[]) =>
-    list.map((i) => ({ title: i.title, slug: i.slug }))
+  // intent는 생성 프롬프트에 그대로 들어간다(2026-08-12) — 제목이 비슷한 문서끼리 같은 내용을
+  // 반복해 서로 순위를 갉아먹는 것을 막는 경계선이다. 없는 항목은 그대로 비운다.
+  const items = (list: { title: string; slug?: string; intent?: string }[]) =>
+    list.map((i) => ({ title: i.title, slug: i.slug, intent: i.intent }))
 
   const payload = ALL_HUBS.map((h) => ({
     slug: h.slug,

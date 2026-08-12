@@ -44,6 +44,11 @@ export const audiQ9: HubConfig = {
     howto: {
       label: '기능·옵션',
       items: [
+        // 2026-08-12 롱테일 ★ 3건(docs/newsjeoul-hub-longtail-candidates.md).
+        // 신차라 문서 자체가 희소하다 — 스펙 나열 대신 소유 이후의 물음을 잡는다.
+        { title: '출고 대기 기간과 내 순번 확인하는 법', slug: 'delivery-wait' },
+        { title: '트렁크 실측 — 유모차·골프백·캠핑 짐 기준', slug: 'cargo-space' },
+        { title: '지하주차장 높이·폭 제한에 걸리는지 확인', slug: 'parking-clearance' },
         { title: 'Q9 트림별 기본·선택 옵션 정리' },
         { title: '2열 캡틴시트와 3열 거주성 실측' },
         { title: '에어 서스펜션 모드별 승차감 차이' },
