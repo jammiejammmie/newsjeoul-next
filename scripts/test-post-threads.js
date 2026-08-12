@@ -9,10 +9,12 @@ process.env.THREADS_ACCESS_TOKEN = 'fake-token';
 // 실제 2~5분 대기를 그대로 기다리면 테스트가 몇 분씩 걸리므로 테스트 전용으로 짧게 오버라이드.
 process.env.POST_GAP_MIN_MS = '5';
 process.env.POST_GAP_MAX_MS = '10';
-// 배급은 2026-08-12부터 정지 상태가 기본값이다(PM 지시). 아래 회귀 테스트들은 "정지가 풀렸을 때
-// 제대로 도는가"를 검증하는 것이므로 여기서 명시적으로 풀고 시작한다.
-// 정지 스위치 자체는 맨 끝 전용 테스트에서 따로 확인한다.
+// 두 스위치는 운영 기본값과 테스트에서 보고 싶은 상태가 다르다. 아래 회귀 테스트들은
+// "돌 때 제대로 도는가"를 검증하는 것이므로 여기서 켜고 시작하고, 스위치 자체의 동작은
+// 맨 끝 전용 테스트에서 따로 확인한다.
 process.env.THREADS_DISTRIBUTION_PAUSED = 'false';
+// 에버그린은 2026-08-12부터 기본 OFF다(PM 지시 — 품질 점검 동안 뉴스만 돌린다).
+process.env.THREADS_EVERGREEN_ENABLED = 'true';
 
 const path = require('path').resolve(__dirname, '../netlify/functions/post-threads-background.js');
 
@@ -61,6 +63,9 @@ async function run(scenario) {
 
   global.fetch = async (url, opts = {}) => {
     const method = opts.method || 'GET';
+    // 시나리오가 "어떤 조회가 일어났는가" 자체를 검사할 수 있게 훅을 둔다
+    // (예: 에버그린 OFF일 때 허브 조회를 아예 하지 않는지).
+    if (s.onFetch) s.onFetch(url, method);
 
     // ── 2026-08-12 개편으로 추가된 조회들 ────────────────────────────────
     // threads_posts 계열은 topics의 'posted_at=gte.' 분기보다 먼저 걸러야 한다
@@ -981,14 +986,46 @@ async function main() {
     );
   }
 
-  // 52) 정지 기본값 — 코드에 적힌 기본값이 지금 무엇인지 고정한다.
-  //     재개할 때 이 테스트가 같이 바뀌므로, 기본값이 조용히 뒤집히는 일이 없다.
+  // 52) 두 스위치의 기본값이 코드에 명시돼 있는지 — 값이 조용히 뒤집히면 테스트가 같이 바뀐다.
   {
     const src = require('fs').readFileSync(path, 'utf8');
-    const m = src.match(/:\s*(true|false);\s*\/\/\s*←\s*재개 시 false/);
+    const paused = src.match(/:\s*(true|false);\s*\/\/\s*←\s*정지하려면 true/);
+    const evergreen = src.match(/:\s*(true|false);\s*\/\/\s*←\s*에버그린 재개 시 true/);
     check(
-      `52) 정지 기본값이 코드에 명시돼 있음(현재: ${m ? m[1] : '못 찾음'} — true면 정지 중)`,
-      m !== null
+      `52) 정지 스위치 기본값이 명시돼 있음(현재: ${paused ? paused[1] : '못 찾음'} — true면 전면 정지)`,
+      paused !== null
+    );
+    check(
+      `52b) 에버그린 스위치 기본값이 명시돼 있음(현재: ${evergreen ? evergreen[1] : '못 찾음'} — false면 뉴스만)`,
+      evergreen !== null
+    );
+  }
+
+  // 53) 에버그린 OFF — 허브 문서가 잔뜩 대기 중이어도 뉴스만 나가야 한다.
+  //     "뉴스만 돌린다"가 실제로 뉴스만인지, 그리고 쓰지 않을 허브·문서 조회를 하지 않는지까지 본다.
+  {
+    process.env.THREADS_EVERGREEN_ENABLED = 'false';
+    let hubCalls = 0;
+    const { first, body, commentRequests } = await run({
+      pool: [makeTopic('t-news-only', '뉴스 후보', '경제', 500)],
+      hubs: [FOLD_HUB],
+      hubDocs: [makeDoc('galaxy-z-fold8', 'fresh-doc', 'howto', nowIso)],
+      onFetch: (url) => {
+        if (String(url).includes('hub-targets.json') || String(url).includes('hub_documents')) hubCalls++;
+      },
+    });
+    process.env.THREADS_EVERGREEN_ENABLED = 'true';
+    check(
+      '53) ★ 에버그린 OFF면 신규 문서가 대기해도 뉴스만 게시',
+      first?.ok === true && first.type === 'news' && body.evergreenThisRun === 0
+    );
+    check(
+      '53b) 에버그린 OFF면 허브 목록·문서 조회를 아예 하지 않음(쓰지 않을 왕복 제거)',
+      hubCalls === 0
+    );
+    check(
+      '53c) 에버그린 OFF면 댓글도 토픽 링크만 — 허브 링크가 붙지 않는다(원래 동작)',
+      commentRequests[0]?.text.includes('/topic/t-news-only') && !commentRequests[0]?.text.includes('/hub/')
     );
   }
 

@@ -133,7 +133,20 @@ const strategy = require('./threads-strategy');
 // 환경변수는 테스트가 뒤집기 위한 것이다(운영에서 굳이 설정할 필요 없다).
 const DISTRIBUTION_PAUSED = process.env.THREADS_DISTRIBUTION_PAUSED
   ? process.env.THREADS_DISTRIBUTION_PAUSED === 'true'
-  : true; // ← 재개 시 false
+  : false; // ← 정지하려면 true
+
+// ── 에버그린 배급 스위치(2026-08-12 PM 지시로 OFF) ───────────────────────────
+// 지금은 **뉴스만** 나간다. 에버그린(허브 문서) 게시는 품질 점검이 끝날 때까지 멈춘다.
+// 재개하려면 아래 기본값을 true로 바꿔 배포한다.
+//
+// 정지 스위치와 따로 둔 이유: "전부 멈춤"과 "뉴스만"은 다른 상태다. 하나로 겸하면 둘 중
+// 하나를 표현할 수 없고, 지금 어느 쪽으로 돌려놨는지도 코드에서 읽히지 않는다.
+//
+// OFF일 때는 허브 목록·문서 목록·dedup·오늘 에버그린 수 조회를 아예 하지 않는다 —
+// 쓰지 않을 데이터를 위해 매 회차 네 번씩 왕복할 이유가 없다.
+const EVERGREEN_ENABLED = process.env.THREADS_EVERGREEN_ENABLED
+  ? process.env.THREADS_EVERGREEN_ENABLED === 'true'
+  : false; // ← 에버그린 재개 시 true
 
 // 허브 목록(newsKeywords 포함)은 앱이 내보내는 JSON에서 읽는다 — lib/hubs/*.ts는 빌드에
 // 컴파일되므로 함수가 직접 읽을 수 없다(app/hub-targets.json/route.ts 주석 참고).
@@ -788,6 +801,16 @@ async function selectCandidate(excludeIds = new Set(), hubs = []) {
 async function selectItem(excludeIds = new Set(), excludeDocKeys = new Set()) {
   const now = new Date();
   const hour = strategy.kstHour(now);
+
+  // 에버그린 OFF — 뉴스 경로만 태운다. 허브·문서 조회도 하지 않는다.
+  if (!EVERGREEN_ENABLED) {
+    const news = await selectCandidate(excludeIds, []);
+    const mix = { kstHour: hour, preference: ['news'], evergreenEnabled: false };
+    if (news.topic) {
+      return { type: 'news', topic: news.topic, hubMatch: news.hubMatch, detail: { ...mix, ...news.detail } };
+    }
+    return { type: null, reason: news.reason, detail: { ...mix, ...news.detail } };
+  }
 
   const [hubs, docs, postedKeysRaw, evergreenToday, newsStats, hubsPostedToday] = await Promise.all([
     fetchHubTargets(),
