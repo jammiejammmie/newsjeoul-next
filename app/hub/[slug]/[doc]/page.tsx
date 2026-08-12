@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import '../../hub.css'
 import { resolveHubConfig, getHubDocument, getHubDocuments } from '@/lib/hubs'
+import type { HubAffiliateSlot } from '@/lib/hubs'
 
 const BASE = 'https://newsjeoul.co.kr'
 
@@ -17,6 +18,28 @@ export async function generateStaticParams() {
 
 const FORMAT_LABEL: Record<string, string> = {
   howto: '사용법', troubleshoot: '문제 해결', compare: '비교', buying: '준비',
+}
+
+/**
+ * 문서 유형에 맞는 제휴 슬롯을 고른다.
+ *
+ * 유형별로 독자의 처지가 다르다는 것이 유일한 판단 기준이다:
+ *  · howto·troubleshoot → 이미 기기를 가지고 쓰다가 막힌 사람이다. 본체 링크는 팔 대상이
+ *    아니므로 아예 내보내지 않고, 실제로 필요한 케이스·필름·충전기만 보여준다.
+ *  · compare·buying     → 아직 사지 않고 고르는 중이다. 본체를 앞에 세우고 액세서리를 뒤에 붙인다.
+ *
+ * targetUrl이 없는 슬롯은 여기서 먼저 걸러낸다 — 허브 페이지는 "링크 준비 중"을 회색으로
+ * 보여주지만(그 자리가 채워질 자리임을 알리는 의미가 있다), 문서 하단은 본문을 다 읽은 뒤
+ * 붙는 자리라 빈 항목이 늘어서면 잡음일 뿐이다.
+ *
+ * kind가 없는 슬롯(DB 자동 생성 허브의 config)은 액세서리로 본다. device로 치면 howto·
+ * troubleshoot 문서에서 조용히 사라지는데, 링크가 사라지는 쪽이 잘못 놓이는 쪽보다 나쁘다.
+ */
+function pickSlots(format: string, slots: HubAffiliateSlot[]): HubAffiliateSlot[] {
+  const live = slots.filter((s) => s.targetUrl)
+  const accessory = live.filter((s) => s.kind !== 'device')
+  if (format === 'howto' || format === 'troubleshoot') return accessory
+  return [...live.filter((s) => s.kind === 'device'), ...accessory]
 }
 
 export async function generateMetadata(
@@ -53,6 +76,9 @@ export default async function HubDocPage(
   const siblings = (await getHubDocuments(slug))
     .filter((d) => d.slug !== doc)
     .slice(0, 6)
+
+  // 링크 금지 허브(§8.3 신차·정책)는 슬롯 자체가 없으므로 섹션이 통째로 빠진다.
+  const affiliateSlots = hub.affiliate.allowed ? pickSlots(document.format, hub.affiliate.slots) : []
 
   const schema = {
     '@context': 'https://schema.org',
@@ -135,6 +161,31 @@ export default async function HubDocPage(
             <div style={{ font: '700 11px/1 Pretendard', color: 'var(--hot)', marginBottom: 6 }}>근거와 확인처</div>
             <p style={{ margin: 0, font: '500 12.5px/1.7 Pretendard', color: 'var(--body2)' }}>{document.sourceNote}</p>
           </div>
+        )}
+
+        {/* 함께 찾는 제품 — 쿠팡 파트너스 (/go/{slot}).
+            본문을 다 읽은 자리에 둔다. 읽기 전에 끼워 넣으면 문서를 링크 미끼로 만드는 것이고,
+            그건 이 허브 구조가 쌓으려는 신뢰와 정반대다. */}
+        {affiliateSlots.length > 0 && (
+          <section style={{ marginTop: 30 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', borderBottom: '2px solid var(--ink)', paddingBottom: 7, marginBottom: 10 }}>
+              <span style={{ font: '800 15px/1.4 Pretendard' }}>함께 찾는 제품</span>
+              <span style={{ font: '500 10px/1 Pretendard', color: 'var(--mute)' }}>광고</span>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 8 }}>
+              {affiliateSlots.map((a) => (
+                // 제휴 링크는 rel="sponsored nofollow" 필수(§8.1 — 누락 시 페널티 사유).
+                <a key={a.slot} href={`/go/${a.slot}`} rel="sponsored nofollow" target="_blank"
+                  className="nj-hub-card" style={{ padding: '10px 11px', display: 'flex', flexDirection: 'column', gap: 3 }}>
+                  <span style={{ font: '600 12.5px/1.35 Pretendard' }}>{a.label}</span>
+                  <b style={{ font: '800 12px/1 Pretendard', color: 'var(--hot)' }}>최저가 확인 →</b>
+                </a>
+              ))}
+            </div>
+            <span style={{ display: 'block', font: '500 10.5px/1.55 Pretendard', color: 'var(--mute2)', marginTop: 8 }}>
+              이 페이지는 쿠팡 파트너스 활동의 일환으로, 구매 시 일정액의 수수료를 제공받습니다.
+            </span>
+          </section>
         )}
 
         <div style={{ marginTop: 32, paddingTop: 18, borderTop: '1px solid var(--line)' }}>

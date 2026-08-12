@@ -109,9 +109,9 @@ export const galaxyBuds4: HubConfig = {
   affiliate: {
     allowed: true,
     slots: [
-      { slot: 'buds4-body', label: '갤럭시 버즈4', network: 'coupang', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=9309807813&itemId=27585107825&vendorItemId=94548723294&traceid=V0-153-2e7cd668ebe88b03&requestid=20260810170229466062620058&token=31850C%7CGM' },
-      { slot: 'buds4-case', label: '버즈4 케이스', network: 'coupang', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=9484024706&itemId=28240473712&vendorItemId=95136591663&traceid=V0-153-ddee0d5b9534bbe8&clickBeacon=b815dfb0-94ec-11f1-9e2c-e3d4debd1346%7E3&requestid=20260811035304606292659800&token=31850C%7CMIXED' },
-      { slot: 'buds4-tips', label: '버즈4 이어팁', network: 'coupang', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=9409824061&itemId=27958528997&vendorItemId=91427461138&traceid=V0-153-430ea1b89d1e19d7&requestid=20260810170230562255242943&token=31850C%7CGM' },
+      { slot: 'buds4-body', label: '갤럭시 버즈4', network: 'coupang', kind: 'device', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=9309807813&itemId=27585107825&vendorItemId=94548723294&traceid=V0-153-2e7cd668ebe88b03&requestid=20260810170229466062620058&token=31850C%7CGM' },
+      { slot: 'buds4-case', label: '버즈4 케이스', network: 'coupang', kind: 'accessory', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=9484024706&itemId=28240473712&vendorItemId=95136591663&traceid=V0-153-ddee0d5b9534bbe8&clickBeacon=b815dfb0-94ec-11f1-9e2c-e3d4debd1346%7E3&requestid=20260811035304606292659800&token=31850C%7CMIXED' },
+      { slot: 'buds4-tips', label: '버즈4 이어팁', network: 'coupang', kind: 'accessory', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=9409824061&itemId=27958528997&vendorItemId=91427461138&traceid=V0-153-430ea1b89d1e19d7&requestid=20260810170230562255242943&token=31850C%7CGM' },
     ],
   },
 

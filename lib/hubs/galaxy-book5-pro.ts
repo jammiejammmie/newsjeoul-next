@@ -111,9 +111,9 @@ export const galaxyBook5Pro: HubConfig = {
   affiliate: {
     allowed: true,
     slots: [
-      { slot: 'book5-body', label: '갤럭시북5 프로', network: 'coupang', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=9652772281&itemId=28852384165&vendorItemId=95786145441&traceid=V0-153-8dcb02b99aa92e08&clickBeacon=9842fef0-95b6-11f1-93d0-56810d236545%7E3&requestid=20260812035809567065787289&token=31850C%7CMIXED' },
-      { slot: 'book5-hub', label: 'USB-C 멀티허브', network: 'coupang', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=8223019655&itemId=23640678087&vendorItemId=90680537967&traceid=V0-153-fdac903e3a3e117f&clickBeacon=d04927a0-9491-11f1-92b8-204d26c0d287%7E3&requestid=20260810170221060083221985&token=31850C%7CMIXED' },
-      { slot: 'book5-pouch', label: '노트북 파우치', network: 'coupang', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=8700463499&itemId=25264874689&vendorItemId=92260713015&traceid=V0-153-136b42e21c46f041&requestid=20260810170349847132434318&token=31850C%7CGM' },
+      { slot: 'book5-body', label: '갤럭시북5 프로', network: 'coupang', kind: 'device', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=9652772281&itemId=28852384165&vendorItemId=95786145441&traceid=V0-153-8dcb02b99aa92e08&clickBeacon=9842fef0-95b6-11f1-93d0-56810d236545%7E3&requestid=20260812035809567065787289&token=31850C%7CMIXED' },
+      { slot: 'book5-hub', label: 'USB-C 멀티허브', network: 'coupang', kind: 'accessory', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=8223019655&itemId=23640678087&vendorItemId=90680537967&traceid=V0-153-fdac903e3a3e117f&clickBeacon=d04927a0-9491-11f1-92b8-204d26c0d287%7E3&requestid=20260810170221060083221985&token=31850C%7CMIXED' },
+      { slot: 'book5-pouch', label: '노트북 파우치', network: 'coupang', kind: 'accessory', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=8700463499&itemId=25264874689&vendorItemId=92260713015&traceid=V0-153-136b42e21c46f041&requestid=20260810170349847132434318&token=31850C%7CGM' },
     ],
   },
 
