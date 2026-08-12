@@ -28,6 +28,10 @@ on:
         description: '이미 있는 문서도 다시 만들어 덮어쓴다(범위를 고친 뒤 재생성용). hub 지정 필수'
         required: false
         default: 'false'
+      slugs:
+        description: '재생성할 문서 slug를 쉼표로 지정(force와 함께 쓸 때 사실상 필수 — 비우면 배열 순서대로 덮어쓴다)'
+        required: false
+        default: ''
 
 jobs:
   generate:
@@ -39,11 +43,13 @@ jobs:
           HUB: ${{ github.event.inputs.hub || 'galaxy-z-fold8' }}
           LIMIT: ${{ github.event.inputs.limit || '8' }}
           FORCE: ${{ github.event.inputs.force || 'false' }}
+          SLUGS: ${{ github.event.inputs.slugs || '' }}
         run: |
           URL="https://newsjeoul.co.kr/.netlify/functions/generate-hub-documents-background?limit=${LIMIT}"
           if [ -n "$HUB" ]; then URL="${URL}&hub=${HUB}"; fi
           if [ "$FORCE" = "true" ]; then URL="${URL}&force=true"; fi
-          echo "요청: hub=${HUB:-(전체)} limit=${LIMIT} force=${FORCE}"
+          if [ -n "$SLUGS" ]; then URL="${URL}&slugs=${SLUGS}"; fi
+          echo "요청: hub=${HUB:-(전체)} limit=${LIMIT} force=${FORCE} slugs=${SLUGS:-(전체)}"
           CODE=$(curl -s -o /tmp/out.txt -w "%{http_code}" -X POST \
             -H "x-admin-key: ${ADMIN_KEY}" "$URL")
           echo "HTTP ${CODE}"

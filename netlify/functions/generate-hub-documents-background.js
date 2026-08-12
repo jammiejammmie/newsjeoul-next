@@ -285,6 +285,13 @@ exports.handler = async function (event) {
   // 반드시 hub와 함께 써야 한다 — 전체 재생성은 문서 수만큼 Claude 호출이 나가므로,
   // 실수로 254건을 다시 만드는 일이 없게 범위를 강제한다.
   const force = event.queryStringParameters?.force === 'true';
+  // 재생성할 문서를 slug로 정확히 지정한다. force를 hub 단위로만 쓰면 어떤 문서가 대상이 될지는
+  // 레지스트리 배열 순서가 정하는데, 그건 사람이 예측할 수 없다.
+  // 실제 사고(2026-08-12): 폴드8에 force&limit=3을 걸었더니 의도한 3건이 아니라 배열 맨 앞의
+  // '8-3-dw76cz'(이 허브에서 유일하게 검색 성과가 나던 문서)가 함께 덮어써졌다. 되돌릴 이력이
+  // 없으므로 "무엇을 덮어쓸지"는 순서가 아니라 이름으로 지정돼야 한다.
+  const onlySlugs = (event.queryStringParameters?.slugs || '')
+    .split(',').map((s) => s.trim()).filter(Boolean);
   if (force && !onlyHub) {
     return { statusCode: 400, headers, body: JSON.stringify({ error: 'force=true는 hub 지정이 필요하다(전체 재생성 방지)' }) };
   }
@@ -303,6 +310,7 @@ exports.handler = async function (event) {
     const todo = balanceByHub(
       targets
         .map((t) => ({ ...t, slug: docSlug(t.title, t.format, t.configSlug) }))
+        .filter((t) => (onlySlugs.length ? onlySlugs.includes(t.slug) : true))
         .filter((t) => force || !have.has(`${t.hubSlug}|${t.slug}`)),
       countByHub
     );
