@@ -21,6 +21,11 @@ export async function GET() {
     slug: h.slug,
     title: h.title,
     kind: h.kind,
+    // 2026-08-12 추가: Threads 배급이 "이 뉴스 토픽이 어떤 허브와 관련 있는가"를 판정할 때
+    // 쓴다(netlify/functions/threads-strategy.js scoreHubMatch). 허브 페이지가 기사를
+    // 끌어올 때 쓰는 것과 같은 키워드를 그대로 내보내야 판정 기준이 두 벌로 갈리지 않는다.
+    newsKeywords: h.newsKeywords,
+    newsExclude: h.newsExclude ?? [],
     items: {
       howto: items(h.evergreen.howto.items),
       troubleshoot: items(h.evergreen.troubleshoot.items),

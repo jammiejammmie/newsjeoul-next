@@ -52,8 +52,36 @@ async function run(scenario) {
   const runLogRows = [];
   const claudeRequests = [];
 
+  const threadsPostRows = [];
+  const commentRequests = [];
+
   global.fetch = async (url, opts = {}) => {
     const method = opts.method || 'GET';
+
+    // ── 2026-08-12 개편으로 추가된 조회들 ────────────────────────────────
+    // threads_posts 계열은 topics의 'posted_at=gte.' 분기보다 먼저 걸러야 한다
+    // (두 쿼리 모두 posted_at=gte.를 포함해서, 순서가 바뀌면 조용히 엉뚱한 답을 준다).
+    if (url.includes('/hub-targets.json')) {
+      return jsonRes(s.hubs || []);
+    }
+    if (method === 'HEAD' && url.includes('/rest/v1/threads_posts?')) {
+      return headRes(s.evergreenPostedToday ?? 0);
+    }
+    if (method === 'GET' && url.includes('/rest/v1/threads_posts?')) {
+      // dedup 조회(source_url like /hub/)와 "오늘 게시한 허브" 조회 둘 다 같은 형태로 답한다.
+      if (s.dedupFetchFails) return { ok: false, text: async () => 'dedup fetch error' };
+      return jsonRes((s.postedHubUrls || []).map((u) => ({ source_url: u })));
+    }
+    if (method === 'GET' && url.includes('/rest/v1/hub_documents?')) {
+      const docs = s.hubDocs || [];
+      if (url.includes('blocks')) {
+        const hub = decodeURIComponent((url.match(/hub_slug=eq\.([^&]+)/) || [])[1] || '');
+        const slug = decodeURIComponent((url.match(/[?&]slug=eq\.([^&]+)/) || [])[1] || '');
+        const found = docs.find((d) => d.hub_slug === hub && d.slug === slug) || docs[0];
+        return jsonRes(found ? [Object.assign({ lead: '리드 문장', blocks: [{ heading: '설정', content: '설정 방법 본문입니다. '.repeat(10) }] }, found)] : []);
+      }
+      return jsonRes(docs);
+    }
 
     if (method === 'HEAD' && url.includes('/rest/v1/articles?')) {
       return headRes(s.articleCount);
@@ -102,6 +130,8 @@ async function run(scenario) {
       return jsonRes({ content: [{ type: 'text', text: JSON.stringify({ text: s.claudeText || '배경과 쟁점을 설명하는 문장입니다. '.repeat(4) }) }] });
     }
     if (method === 'POST' && url.includes('/rest/v1/threads_posts')) {
+      threadsPostRows.push(JSON.parse(opts.body));
+      if (s.postLogFails) return { ok: false, text: async () => 'threads_posts insert error' };
       return { ok: true, text: async () => '' };
     }
     if (method === 'POST' && url.includes('/rest/v1/distribution_skip_log')) {
@@ -118,6 +148,15 @@ async function run(scenario) {
     }
     if (method === 'POST' && url.includes('graph.threads.net')) {
       if (s.threadsApiFails) return { ok: false, json: async () => ({ error: 'threads container error' }) };
+      const params = opts.body;
+      const get = (k) => (typeof params?.get === 'function' ? params.get(k) : null);
+      const replyTo = get('reply_to_id');
+      if (replyTo) {
+        // 링크 댓글 컨테이너 — 본문 컨테이너와 구분해 따로 모은다.
+        commentRequests.push({ replyTo, text: get('text') });
+        if (s.commentFails) return { ok: false, json: async () => ({ error: 'reply container error' }) };
+        return jsonRes({ id: 'comment-container-1' });
+      }
       return jsonRes({ id: 'container-1' });
     }
     throw new Error('예상치 못한 호출: ' + method + ' ' + url);
@@ -126,7 +165,7 @@ async function run(scenario) {
   const mod = freshHandler();
   const res = await mod.handler({ httpMethod: 'POST', headers: { 'x-admin-key': 'real-admin-key' } });
   const body = JSON.parse(res.body);
-  return { res, body, patched, first: body.results?.[0], skipLogRows, runLogRows, claudeRequests };
+  return { res, body, patched, first: body.results?.[0], skipLogRows, runLogRows, claudeRequests, threadsPostRows, commentRequests };
 }
 
 async function main() {
@@ -511,17 +550,26 @@ async function main() {
     );
   }
 
-  // 27) 마무리 문구 — 짧은 훅+CTA가 아니라 "오늘 이 외에도 N개 이슈를 다루고 있습니다" + 실제
-  //     활성 Topic 수 + 링크로 마무리되는 완결형 구조인지(2026-07-29 포스팅 방향 전면 개편)
+  // 27) 링크 위치 — 2026-08-12 개편으로 링크가 본문에서 첫 댓글로 내려갔다.
+  //     본문은 링크 없이 읽어도 완결이어야 하고, 링크는 반드시 댓글로 나가야 한다.
   {
     const t = makeTopic('t-closing', '글', '경제', 400);
-    const { first } = await run({ pool: [t], activeTopicCount: 41 });
+    const { first, commentRequests } = await run({ pool: [t], activeTopicCount: 41 });
     check(
-      '27) 마무리 문구가 활성 이슈 개수 안내 + 링크로 끝남(CTA 라이브러리 미사용)',
+      '27) ★ 본문에는 링크가 없고, 링크는 첫 댓글(reply_to_id)로 나감',
       first?.ok === true &&
-      first.text.includes('오늘 이 외에도 41개 이슈를 다루고 있습니다') &&
-      first.text.includes(first.url) &&
-      !first.ctaPhraseId
+      !first.text.includes('http') &&
+      commentRequests.length === 1 &&
+      commentRequests[0].replyTo === first.postId &&
+      commentRequests[0].text.includes(first.url)
+    );
+    check(
+      '27b) 활성 이슈 개수 안내가 댓글 라벨에 유지됨(수치는 실제 조회값)',
+      commentRequests[0]?.text.includes('오늘 다루는 이슈 41개')
+    );
+    check(
+      '27c) 게시 결과에 댓글 성공 여부가 기록됨',
+      first?.commentOk === true && typeof first.commentPostId === 'string'
     );
   }
 
@@ -538,44 +586,45 @@ async function main() {
     );
   }
 
-  // ── 2026-08-03 사고 회귀 테스트 ──────────────────────────────────────────
-  // 사고: 본문+마무리+링크를 이어붙인 뒤 통째로 slice(0,499)해서, 본문이 길면 링크가 잘려나갔다.
-  // 아래 3개는 "본문이 아무리 길어도 링크는 반드시 남는다"를 서로 다른 각도에서 고정한다.
+  // ── 길이·링크 회귀 테스트(2026-08-03 사고 → 2026-08-12 개편으로 계약이 바뀜) ─────
+  // 옛 계약: 본문 끝에 링크를 붙이므로 "본문이 길어도 링크는 남아야 한다"가 핵심이었다.
+  // 새 계약: 링크는 댓글로 갔다. 그래서 고정해야 하는 것은 두 가지로 갈린다 —
+  //   (1) 본문은 링크가 없고 500자를 넘지 않는다,
+  //   (2) 링크는 본문 길이와 무관하게 항상 댓글에 온전히 나간다(본문이 잘려도 영향 없음).
 
-  // 29) 본문이 예산을 크게 넘겨도 링크가 살아있고 전체가 500자 이내인지(핵심 회귀 테스트)
+  // 29) 본문이 예산을 크게 넘겨도 500자 이내로 마감되고, 링크는 댓글에서 온전한지
   {
     const t = makeTopic('t-longbody', '글', '경제', 400);
-    const { first } = await run({ pool: [t], claudeText: '아주 긴 배경 설명 문장입니다. '.repeat(60) }); // 약 1000자
-    const ok = first?.ok === true && first.text.includes(first.url) && first.text.length <= 500;
+    const { first, commentRequests } = await run({ pool: [t], claudeText: '아주 긴 배경 설명 문장입니다. '.repeat(60) }); // 약 1000자
     check(
-      `29) 본문 1000자여도 링크 보존 + 500자 이내(실측 ${first?.text?.length}자)`,
-      ok
+      `29) 본문 1000자여도 500자 이내로 마감(실측 ${first?.text?.length}자) + 본문에 링크 없음`,
+      first?.ok === true && first.text.length <= 500 && !first.text.includes('http')
     );
     check(
-      '29b) 링크가 문구의 맨 끝에 온전히 붙어있음',
-      first?.ok === true && first.text.endsWith(first.url)
+      '29b) 본문이 잘려도 링크는 댓글 끝에 온전히 붙어있음',
+      commentRequests[0]?.text.endsWith(first.url)
     );
   }
 
-  // 30) slug가 비정상적으로 길어도(예산 압박) 링크가 최우선으로 보존되는지
+  // 30) slug가 비정상적으로 길어도(옛 구조에선 본문 예산을 잡아먹던 조건) 링크가 온전한지.
+  //     이제 slug 길이는 본문 예산과 무관하다 — 그 독립성 자체를 고정한다.
   {
     const t = makeTopic('t-longslug', '글', '경제', 400, { slug: 'a'.repeat(200) });
-    const { first } = await run({ pool: [t], claudeText: '긴 본문입니다. '.repeat(50) });
+    const { first, commentRequests } = await run({ pool: [t], claudeText: '긴 본문입니다. '.repeat(50) });
     check(
-      `30) slug 200자 + 긴 본문에도 링크 보존 + 500자 이내(실측 ${first?.text?.length}자)`,
-      first?.ok === true && first.text.includes(first.url) && first.text.length <= 500
+      `30) slug 200자여도 본문 예산이 줄지 않고(실측 ${first?.text?.length}자) 댓글 링크 온전`,
+      first?.ok === true && first.text.length > 400 && commentRequests[0]?.text.includes(first.url)
     );
   }
 
-  // 31) 짧은 본문은 잘리지 않고 마무리 문구까지 그대로 유지되는지(과잉 절단 방지)
+  // 31) 짧은 본문은 잘리지 않고 그대로 나가는지(과잉 절단 방지)
   {
     const t = makeTopic('t-shortbody', '글', '경제', 400);
     const short = '핵심만 담은 짧은 본문입니다. 두 번째 문장입니다.';
-    const { first } = await run({ pool: [t], claudeText: short, activeTopicCount: 41 });
+    const { first, commentRequests } = await run({ pool: [t], claudeText: short, activeTopicCount: 41 });
     check(
-      '31) 짧은 본문은 원문 그대로 + 마무리 문구 + 링크 유지(불필요한 절단 없음)',
-      first?.ok === true && first.text.startsWith(short) &&
-      first.text.includes('오늘 이 외에도 41개 이슈를 다루고 있습니다') && first.text.endsWith(first.url)
+      '31) 짧은 본문은 원문 그대로(불필요한 절단·유도문구 추가 없음)',
+      first?.ok === true && first.text === short && commentRequests[0]?.text.includes(first.url)
     );
   }
 
@@ -735,6 +784,147 @@ async function main() {
       '40) budget_tokens를 보내지 않는다 (sonnet-5에서 제거된 파라미터 — 400을 낸다)',
       req && req.thinking.budget_tokens === undefined && req.budget_tokens === undefined
     );
+  }
+
+  // ══ 2026-08-12 전면 개편 회귀 테스트(PM 지시 5개 항목) ═══════════════════
+  // 결정성 확보 방법: 시각(KST)에 의존하는 분기를 테스트에서 직접 흔들지 않고, 시각과 무관하게
+  // 결과가 고정되는 두 입력만 쓴다 —
+  //   · 신규 문서(48h 내)가 대기 중이면 항상 에버그린 우선(freshDocTrigger)
+  //   · 오늘 에버그린 비중이 상한(40%) 이상이면 항상 뉴스 우선
+  // 그래서 이 테스트들은 실행 시각이 새벽이든 저녁이든 같은 결과를 낸다.
+  const nowIso = new Date().toISOString();
+  const oldIso = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString();
+  const makeDoc = (hub, slug, format, created) => ({ hub_slug: hub, slug, format, title: `${slug} 가이드`, created_at: created || oldIso, status: 'published' });
+  const FOLD_HUB = { slug: 'galaxy-z-fold8', title: '갤럭시 Z 폴드8', newsKeywords: ['갤럭시 Z 폴드8', '폴드8'], newsExclude: ['폴드7'] };
+
+  // 41) 에버그린 게시 경로 — 신규 문서가 대기 중이면 뉴스가 아니라 허브 문서가 나간다.
+  {
+    const t = makeTopic('t-ever-news', '일반 뉴스', '경제', 500);
+    const doc = makeDoc('galaxy-z-fold8', 'battery-setting', 'howto', nowIso);
+    const { body, first, threadsPostRows, commentRequests } = await run({
+      pool: [t], hubs: [FOLD_HUB], hubDocs: [doc],
+    });
+    check(
+      '41) ★ 신규 허브 문서 트리거 → 에버그린 게시(뉴스보다 우선)',
+      first?.ok === true && first.type === 'evergreen' && first.hubSlug === 'galaxy-z-fold8' && body.evergreenThisRun === 1
+    );
+    check(
+      '41b) 에버그린은 topics가 아니라 threads_posts에 hook_type=evergreen으로 기록(dedup 정본)',
+      threadsPostRows.some((r) => r.hook_type === 'evergreen' && r.topic_id === null && r.source_url.includes('/hub/galaxy-z-fold8/battery-setting'))
+    );
+    check(
+      '41c) 에버그린 댓글에 문서 링크 + 허브 링크가 함께 나감',
+      commentRequests[0]?.text.includes('/hub/galaxy-z-fold8/battery-setting') &&
+      commentRequests[0]?.text.includes('/hub/galaxy-z-fold8?')
+    );
+  }
+
+  // 42) 에버그린 dedup — 이미 게시된 문서는 다시 뽑히지 않는다(threads_posts.source_url이 정본)
+  {
+    const t = makeTopic('t-dedup-news', '일반 뉴스', '경제', 500);
+    const posted = makeDoc('galaxy-z-fold8', 'battery-setting', 'howto', nowIso);
+    const { first } = await run({
+      pool: [t], hubs: [FOLD_HUB], hubDocs: [posted],
+      postedHubUrls: ['https://newsjeoul.co.kr/hub/galaxy-z-fold8/battery-setting?utm_source=threads&utm_medium=social'],
+    });
+    check(
+      '42) ★ 이미 게시된 허브 문서는 재선택되지 않고 뉴스로 넘어감',
+      first?.ok === true && first.type !== 'evergreen'
+    );
+  }
+
+  // 43) 포맷 우선순위 — 같은 조건이면 사용법(howto)이 구매(buying)보다 먼저 나간다(PM 지시 §2)
+  {
+    const t = makeTopic('t-fmt-news', '일반 뉴스', '경제', 500);
+    const { first } = await run({
+      pool: [t], hubs: [FOLD_HUB],
+      hubDocs: [makeDoc('galaxy-z-fold8', 'buy-guide', 'buying', nowIso), makeDoc('galaxy-z-fold8', 'battery-setting', 'howto', nowIso)],
+    });
+    check('43) 같은 신규 문서끼리는 howto가 buying보다 먼저', first?.type === 'evergreen' && first.format === 'howto');
+  }
+
+  // 44) 허브 연결 트리거(PM 지시 §5) — 제목이 허브 키워드를 건드리면 그 허브 링크가 댓글에 함께 붙는다.
+  //     에버그린 비중이 상한을 넘긴 상태로 두어 유형이 뉴스로 고정되게 한다.
+  {
+    const hubTopic = makeTopic('t-hub-match', '갤럭시 Z 폴드8 배터리 논란 확산', 'IT', 450);
+    const plain = makeTopic('t-plain-2', '일반 경제 소식 정리', '경제', 460);
+    const { first, commentRequests, threadsPostRows } = await run({
+      pool: [hubTopic, plain], hubs: [FOLD_HUB], evergreenPostedToday: 20,
+    });
+    check(
+      '44) ★ 허브 키워드가 걸린 뉴스가 트리거로 우선 선택됨',
+      first?.ok === true && first.topicId === 't-hub-match' && first.hub?.slug === 'galaxy-z-fold8'
+    );
+    check(
+      '44b) 그 게시물 댓글에 토픽 링크 + 허브 링크가 함께 나감',
+      commentRequests[0]?.text.includes('/topic/t-hub-match') && commentRequests[0]?.text.includes('/hub/galaxy-z-fold8?')
+    );
+    check('44c) 유형이 news_hub로 기록됨', threadsPostRows.some((r) => r.hook_type === 'news_hub'));
+  }
+
+  // 45) 어색한 연결 방지(PM 지시 §5) — 관련성이 문턱(70) 미만이면 허브를 붙이지 않는다.
+  //     '갤럭시'(3자, 신뢰도 60)만 걸리는 제목은 폴드8 허브와 연결하지 않는다.
+  {
+    const weak = makeTopic('t-weak-match', '갤럭시 워치 신제품 공개', 'IT', 500);
+    const { first, commentRequests } = await run({ pool: [weak], hubs: [{ ...FOLD_HUB, newsKeywords: ['갤럭시', '폴드8'] }], evergreenPostedToday: 20 });
+    check(
+      '45) ★ 관련성 낮으면 허브를 붙이지 않고 일반 뉴스로 발행',
+      first?.ok === true && first.hub === null && !commentRequests[0]?.text.includes('/hub/')
+    );
+  }
+
+  // 46) 비중 상한 — 에버그린이 40%를 넘었으면 신규 문서가 있어도 뉴스로 돌린다("뉴스는 기본 유지").
+  {
+    const t = makeTopic('t-cap-news', '일반 뉴스', '경제', 500);
+    const { first } = await run({
+      pool: [t], hubs: [FOLD_HUB], hubDocs: [makeDoc('galaxy-z-fold8', 'x-doc', 'howto', nowIso)],
+      evergreenPostedToday: 20, // 25(뉴스) + 20 = 45건 중 44% → 상한 초과
+    });
+    check('46) ★ 에버그린 비중 상한(40%) 초과 시 신규 문서가 있어도 뉴스 우선', first?.ok === true && first.type !== 'evergreen');
+  }
+
+  // 47) 링크 댓글 실패 — 본문은 이미 완결형이므로 게시 자체는 성공으로 남기고, 사유만 기록한다.
+  {
+    const t = makeTopic('t-comment-fail', '글', '경제', 400);
+    const { first, skipLogRows } = await run({ pool: [t], commentFails: true, evergreenPostedToday: 20 });
+    check(
+      '47) ★ 링크 댓글 실패해도 게시는 성공으로 유지되고 comment_failed가 기록됨',
+      first?.ok === true && first.commentOk === false && skipLogRows.some((r) => r.reason === 'comment_failed')
+    );
+  }
+
+  // 48) dedup 조회 실패 — 중복 게시보다 미게시가 낫다. 에버그린을 아예 시도하지 않는다.
+  {
+    const t = makeTopic('t-dedupfail', '일반 뉴스', '경제', 500);
+    const { first } = await run({
+      pool: [t], hubs: [FOLD_HUB], hubDocs: [makeDoc('galaxy-z-fold8', 'y-doc', 'howto', nowIso)],
+      dedupFetchFails: true,
+    });
+    check('48) ★ dedup 조회 실패 시 에버그린을 건너뛰고 뉴스로 진행(중복 게시 방지)', first?.ok === true && first.type !== 'evergreen');
+  }
+
+  // 49) 같은 실행 안 중복 — threads_posts 스냅샷은 실행 시작 시점이라, 연속 게시에서 같은 문서를
+  //     두 번 고르지 않는지 확인한다(usedDocKeys).
+  {
+    const docs = [makeDoc('galaxy-z-fold8', 'd1', 'howto', nowIso), makeDoc('audi-q9', 'd2', 'howto', nowIso)];
+    const { body } = await run({
+      pool: [makeTopic('t-multi-ever', '뉴스', '경제', 500)], hubs: [FOLD_HUB], hubDocs: docs,
+      articleCount: 600, postedTotal: 0, // 다건 시도 유도
+    });
+    const everKeys = body.results.filter((r) => r.ok && r.type === 'evergreen').map((r) => r.docKey);
+    check('49) ★ 같은 실행에서 같은 허브 문서를 두 번 게시하지 않음', new Set(everKeys).size === everKeys.length);
+  }
+
+  // 50) 전략 순수 함수 — 시간대 규칙(PM 지시 §4)을 상수와 함께 고정한다.
+  {
+    const st = require('../netlify/functions/threads-strategy');
+    check('50) 오전 9시(KST)는 뉴스 우선', st.pickTypePreference(9, 5, 3, false)[0] === 'news');
+    check('50b) 저녁 8시(KST)는 에버그린 우선', st.pickTypePreference(20, 5, 3, false)[0] === 'evergreen');
+    check('50c) 밴드 하한(30%) 미달이면 시간대와 무관하게 에버그린 보충', st.pickTypePreference(9, 9, 1, false)[0] === 'evergreen');
+    check('50d) KST 변환(UTC+9) 정확', st.kstHour(new Date('2026-08-12T10:00:00Z')) === 19);
+    check('50e) 문턱 미만 관련성은 0이 아니라 "연결 안 함"으로 걸러짐',
+      st.pickHubForTopic('갤럭시 워치 공개', [{ slug: 'x', title: 'x', newsKeywords: ['갤럭시'] }]) === null);
+    check('50f) 제외어가 걸리면 관련성 0', st.scoreHubMatch('폴드8 vs 폴드7', { slug: 'x', title: 'x', newsKeywords: ['폴드8'], newsExclude: ['폴드7'] }) === 0);
   }
 
   const failCount = results.filter((r) => !r.pass).length;

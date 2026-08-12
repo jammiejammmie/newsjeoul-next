@@ -108,6 +108,24 @@ async function getAccessToken() {
 const BASE_URL = 'https://newsjeoul.co.kr';
 const REQUEST_HEADERS = { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY };
 
+// ── 2026-08-12 전면 개편(PM 지시) ────────────────────────────────────────────
+// 이전까지 이 채널로 나가는 것은 뉴스 Topic 100%였다. 허브 에버그린 문서 213건이 어느
+// 채널로도 나가지 않고 있었고, 링크는 본문 끝에 붙어 본문 예산을 260자까지 밀어내고 있었다.
+// 바뀐 것 5가지(전부 아래 코드에 반영):
+//   1. 유형이 둘이다 — news(Topic) / evergreen(허브 문서). 선택은 threads-strategy.js가 한다.
+//   2. 비율 강제가 아니라 트리거 — 신규 문서·허브 연결이 우선하고, 30~40%는 감시 밴드다.
+//   3. 링크가 본문에서 첫 댓글로 내려갔다 — 본문은 링크 없이 완결이고 예산이 500자로 늘었다.
+//   4. 시간대가 유형을 가른다 — 뉴스 07~14시(KST), 에버그린 18~23시(KST).
+//   5. 뉴스 제목이 허브 키워드를 건드리면 그 허브 링크를 댓글에 함께 단다(관련성 70점 이상).
+const strategy = require('./threads-strategy');
+
+// 허브 목록(newsKeywords 포함)은 앱이 내보내는 JSON에서 읽는다 — lib/hubs/*.ts는 빌드에
+// 컴파일되므로 함수가 직접 읽을 수 없다(app/hub-targets.json/route.ts 주석 참고).
+const HUB_TARGETS_URL = `${BASE_URL}/hub-targets.json`;
+// 에버그린 후보 조회 상한. 문서 213건 전체를 매 회차 끌어와도 payload가 크지 않지만,
+// blocks(본문)까지 받으면 수 MB가 되므로 목록 조회에서는 본문을 빼고 선택 후 1건만 다시 읽는다.
+const EVERGREEN_POOL_LIMIT = 500;
+
 // ── 상수(마법 숫자 금지 — 전부 여기서 관리, 근거를 주석에 명시) ─────────────
 const MIN_EDITORIAL_SCORE = 60; // 콘텐츠 자체 품질 하한선(100점 만점) — Distribution Score와 별개의 하드 게이트.
 const MIN_BODY_LENGTH = 300; // 본문이 이보다 짧으면 "지나치게 빈약"으로 간주해 무조건 제외.
@@ -508,6 +526,100 @@ async function fetchTodayPostedStats() {
   return { total: rows.length, byCategory };
 }
 
+// ── 에버그린(허브 문서) 데이터 계층 ─────────────────────────────────────────
+// 허브 목록 — 실패해도 배급을 막지 않는다(허브 연결과 에버그린만 이번 회차에서 쉰다).
+async function fetchHubTargets() {
+  try {
+    const res = await fetch(HUB_TARGETS_URL, { headers: { 'accept': 'application/json' } });
+    if (!res.ok) return [];
+    const rows = await res.json();
+    return Array.isArray(rows) ? rows : [];
+  } catch (e) {
+    console.error(`HUB_TARGETS_FETCH_FAILED[${CHANNEL}](에버그린·허브연결만 이번 회차 중단):`, e.message);
+    return [];
+  }
+}
+
+// 문서 목록(본문 제외) — 선택에 필요한 메타만 가져온다.
+async function fetchHubDocuments() {
+  const res = await fetch(
+    `${SUPABASE_URL}/rest/v1/hub_documents?select=hub_slug,slug,format,title,created_at,status` +
+    `&status=eq.published&order=created_at.desc&limit=${EVERGREEN_POOL_LIMIT}`,
+    { headers: REQUEST_HEADERS }
+  );
+  if (!res.ok) {
+    console.error(`HUB_DOCUMENTS_FETCH_FAILED[${CHANNEL}]:`, await res.text());
+    return [];
+  }
+  return res.json();
+}
+
+// 선택된 문서의 본문. 목록 조회에서 blocks를 뺀 대신 여기서 1건만 읽는다.
+async function fetchHubDocumentBody(hubSlug, docSlug) {
+  const res = await fetch(
+    `${SUPABASE_URL}/rest/v1/hub_documents?select=hub_slug,slug,format,title,lead,blocks,source_note` +
+    `&hub_slug=eq.${encodeURIComponent(hubSlug)}&slug=eq.${encodeURIComponent(docSlug)}&limit=1`,
+    { headers: REQUEST_HEADERS }
+  );
+  if (!res.ok) throw new Error('hub_documents 본문 조회 실패: ' + await res.text());
+  const [row] = await res.json();
+  if (!row) throw new Error(`hub_documents에 ${hubSlug}/${docSlug}가 없다`);
+  return row;
+}
+
+// 에버그린 dedup — Topic처럼 ai_context를 걸 자리가 없어서 threads_posts의 실제 게시 기록을
+// 정본으로 쓴다(마이그레이션 없이 되는 방법이고, "실제로 게시된 것"이 정의상 정확하다).
+// source_url에 /hub/가 들어간 성공 기록의 '{hub_slug}/{doc_slug}'를 집합으로 만든다.
+async function fetchPostedEvergreenKeys() {
+  const res = await fetch(
+    `${SUPABASE_URL}/rest/v1/threads_posts?select=source_url&status=eq.success` +
+    `&source_url=like.*${encodeURIComponent('/hub/')}*&limit=2000`,
+    { headers: REQUEST_HEADERS }
+  );
+  if (!res.ok) {
+    console.error(`EVERGREEN_DEDUP_FETCH_FAILED[${CHANNEL}](중복 게시 위험 — 이번 회차 에버그린 중단):`, await res.text());
+    return null; // null은 "확인 불가" — 호출자는 에버그린을 시도하지 않는다(중복보다 미게시가 낫다).
+  }
+  const keys = new Set();
+  for (const row of await res.json()) {
+    const m = String(row.source_url || '').match(/\/hub\/([^/?#]+)\/([^/?#]+)/);
+    if (m) keys.add(`${m[1]}/${m[2]}`);
+  }
+  return keys;
+}
+
+// 오늘(UTC) 유형별 게시 실적 — 유형 선택(비중 밴드)의 입력.
+// 뉴스는 topics.ai_context.threads가 정본이고, 에버그린은 threads_posts.hook_type이 정본이다.
+// hook_type은 2026-07-29 개편으로 비어 있던 컬럼을 게시 유형 표기로 되살려 쓰는 것이다
+// (news / news_hub / evergreen) — 새 컬럼을 만들지 않고 유형별 집계를 얻기 위해서다.
+async function fetchTodayEvergreenCount() {
+  const todayStart = new Date().toISOString().slice(0, 10) + 'T00:00:00';
+  const res = await fetch(
+    `${SUPABASE_URL}/rest/v1/threads_posts?select=id&hook_type=eq.evergreen&status=eq.success` +
+    `&posted_at=gte.${encodeURIComponent(todayStart)}`,
+    { headers: { ...REQUEST_HEADERS, Prefer: 'count=exact' }, method: 'HEAD' }
+  );
+  const range = res.headers.get('content-range');
+  return range ? parseInt(range.split('/')[1], 10) || 0 : 0;
+}
+
+// 오늘 이미 에버그린이 나간 허브 목록 — 한 허브가 저녁 시간대를 독점하지 않게 한다.
+async function fetchHubsPostedToday() {
+  const todayStart = new Date().toISOString().slice(0, 10) + 'T00:00:00';
+  const res = await fetch(
+    `${SUPABASE_URL}/rest/v1/threads_posts?select=source_url&status=eq.success` +
+    `&posted_at=gte.${encodeURIComponent(todayStart)}&limit=200`,
+    { headers: REQUEST_HEADERS }
+  );
+  if (!res.ok) return new Set();
+  const hubs = new Set();
+  for (const row of await res.json()) {
+    const m = String(row.source_url || '').match(/\/hub\/([^/?#]+)/);
+    if (m) hubs.add(m[1]);
+  }
+  return hubs;
+}
+
 // 후보 선정 전체 파이프라인 — Thread Score(품질 하한선) → Distribution Score(배급 우선순위) →
 // 오늘 생산량 기반 적응형 문턱값. 반환: { topic, reason, detail } — topic이 null이면 reason에
 // 사유가 담긴다(no_candidate/below_quality_threshold/below_distribution_threshold).
@@ -562,7 +674,14 @@ async function logHardFailure(topic, reason, errorMessage, extra) {
 
 // excludeIds: 이번 실행에서 이미 시도했다가 실패한 Topic들. 같은 후보를 다시 골라 같은 실패를
 // 반복하는 것을 막는다(2026-08-04 — 아래 attemptOnePost/handler 주석 참고).
-async function selectCandidate(excludeIds = new Set()) {
+// 허브 연결 트리거 가산점(PM 지시 2026-08-12 §1·§5). 가중치 표(DISTRIBUTION_WEIGHTS)에 새
+// 컴포넌트를 넣지 않고 합산 뒤 더하는 이유: 기존 7개 가중치의 합=1.0 계약을 건드리지 않고
+// "트리거"라는 성격(점수의 일부가 아니라 우선 발동 신호)을 코드 모양으로도 남기기 위해서다.
+// 12점은 카테고리 배분·최근 패턴 같은 다른 신호를 뒤집을 만큼 크지는 않되, 동점권에서는
+// 허브가 걸린 토픽이 항상 먼저 나가도록 정한 값이다.
+const HUB_TRIGGER_BONUS = 12;
+
+async function selectCandidate(excludeIds = new Set(), hubs = []) {
   const [poolRaw, recentCategories, producedStats, postedStats, articleCount] = await Promise.all([
     fetchCandidatePool(),
     fetchRecentPostedCategories(RECENT_HISTORY_WINDOW),
@@ -598,7 +717,19 @@ async function selectCandidate(excludeIds = new Set()) {
 
   const ctx = { producedStats, postedStats, recentCategories };
   const ranked = eligible
-    .map((s) => ({ topic: s.topic, ...computeDistributionScore(s.topic, s.base, ctx) }))
+    .map((s) => {
+      const scored = computeDistributionScore(s.topic, s.base, ctx);
+      // 허브 연결 판정 — 제목이 허브 키워드를 건드리는 토픽은 트리거로 먼저 나간다.
+      // 관련성이 문턱(70) 미만이면 match는 null이고, 그 토픽은 그냥 일반 뉴스로 발행된다
+      // ("어색한 연결 방지" — PM 지시 §5).
+      const match = strategy.pickHubForTopic(s.topic.name, hubs);
+      return {
+        topic: s.topic,
+        ...scored,
+        hubMatch: match,
+        distributionScore: scored.distributionScore + (match ? HUB_TRIGGER_BONUS : 0),
+      };
+    })
     .sort((a, b) => b.distributionScore - a.distributionScore);
 
   const winner = ranked.find((r) => r.distributionScore >= adaptiveMinScore);
@@ -620,8 +751,84 @@ async function selectCandidate(excludeIds = new Set()) {
   }
 
   return {
-    topic: winner.topic, reason: 'success',
-    detail: { distributionScore: winner.distributionScore, components: winner.components, adaptiveMinScore, candidatesConsidered: ranked.length, recentCategories, ...baseDetail },
+    topic: winner.topic, reason: 'success', hubMatch: winner.hubMatch || null,
+    detail: {
+      distributionScore: winner.distributionScore, components: winner.components, adaptiveMinScore,
+      candidatesConsidered: ranked.length, recentCategories,
+      hubTrigger: winner.hubMatch
+        ? { slug: winner.hubMatch.hub.slug, relevance: winner.hubMatch.relevance, bonus: HUB_TRIGGER_BONUS }
+        : null,
+      ...baseDetail,
+    },
+  };
+}
+
+// ── 유형 선택(뉴스 / 에버그린) ──────────────────────────────────────────────
+// PM 지시 2026-08-12 §1·§2·§4의 실제 진입점. 시간대와 오늘 비중, 신규 문서 트리거를 종합해
+// 선호 순서를 정하고, 1순위 유형에 후보가 없으면 2순위로 내려간다(회차를 통째로 버리지 않는다).
+//
+// 반환: { type:'news', topic, hubMatch, detail } | { type:'evergreen', doc, hub, detail }
+//       | { type:null, reason, detail }
+async function selectItem(excludeIds = new Set(), excludeDocKeys = new Set()) {
+  const now = new Date();
+  const hour = strategy.kstHour(now);
+
+  const [hubs, docs, postedKeysRaw, evergreenToday, newsStats, hubsPostedToday] = await Promise.all([
+    fetchHubTargets(),
+    fetchHubDocuments(),
+    fetchPostedEvergreenKeys(),
+    fetchTodayEvergreenCount(),
+    fetchTodayPostedStats(),
+    fetchHubsPostedToday(),
+  ]);
+
+  // dedup 조회가 실패하면(null) 에버그린을 시도하지 않는다 — 같은 문서를 두 번 올리는 것보다
+  // 이번 회차를 뉴스로 채우는 편이 낫다.
+  const dedupKnown = postedKeysRaw !== null;
+  const postedKeys = new Set([...(postedKeysRaw || []), ...excludeDocKeys]);
+
+  const hasFresh = dedupKnown && strategy.hasFreshPendingDoc(docs, postedKeys, now);
+  const preference = strategy.pickTypePreference(hour, newsStats.total, evergreenToday, hasFresh);
+  const mixDetail = {
+    kstHour: hour, preference, todayNews: newsStats.total, todayEvergreen: evergreenToday,
+    evergreenShare: newsStats.total + evergreenToday > 0
+      ? Number((evergreenToday / (newsStats.total + evergreenToday)).toFixed(2)) : 0,
+    freshDocTrigger: hasFresh, hubCount: hubs.length, docPool: docs.length,
+  };
+  console.log(`DISTRIBUTION_TYPE_PLAN[${CHANNEL}]:`, JSON.stringify(mixDetail));
+
+  const attempts = [];
+  for (const type of preference) {
+    if (type === 'evergreen') {
+      if (!dedupKnown) { attempts.push({ type, reason: 'dedup_unavailable' }); continue; }
+      const picked = strategy.pickEvergreenDoc(docs, postedKeys, { now, hubsPostedToday });
+      if (!picked) { attempts.push({ type, reason: 'no_candidate' }); continue; }
+      const hub = hubs.find((h) => h.slug === picked.doc.hub_slug) || null;
+      return {
+        type: 'evergreen', doc: picked.doc, hub,
+        detail: { ...mixDetail, evergreenScore: picked.score, format: picked.doc.format, hubSlug: picked.doc.hub_slug },
+      };
+    }
+    const news = await selectCandidate(excludeIds, hubs);
+    if (news.topic) {
+      return { type: 'news', topic: news.topic, hubMatch: news.hubMatch, detail: { ...mixDetail, ...news.detail } };
+    }
+    attempts.push({ type: 'news', reason: news.reason, detail: news.detail });
+  }
+
+  // 사유는 뉴스 쪽을 우선 노출한다 — 운영 대시보드·기존 알림이 'no_candidate'/
+  // 'below_quality_threshold' 같은 뉴스 경로 사유를 그대로 읽고 있고, 에버그린이 없어서
+  // 못 나간 것과 뉴스가 말라서 못 나간 것 중 후자가 항상 더 중요한 신호이기 때문이다.
+  const newsAttempt = attempts.find((a) => a.type === 'news');
+  const chosen = newsAttempt || attempts[0];
+  return {
+    type: null,
+    reason: chosen?.reason || 'no_candidate',
+    detail: {
+      ...mixDetail,
+      attempted: attempts.map((a) => `${a.type}:${a.reason}`),
+      ...(chosen?.detail || {}),
+    },
   };
 }
 
@@ -717,8 +924,11 @@ class ComposeError extends Error {
 }
 
 const THREADS_MAX_CHARS = 500; // Threads API 텍스트 하드 리밋.
-const BODY_TARGET_CHARS = 280; // 프롬프트에 요구하는 목표 길이 — 실제 예산(약 340자)보다 낮게 잡아 잘림을 예외로 만든다.
-const MIN_BODY_BUDGET = 120; // 본문 예산이 이보다 작아지면 마무리 문구를 버리고 링크만 남긴다(링크 최우선).
+// 2026-08-12: 링크가 본문에서 첫 댓글로 내려가면서 본문 예산이 260자 → 500자로 늘었다.
+// 목표를 420으로 잡는 이유는 종전과 같다 — 예산과 목표를 같게 두면 매번 잘림이 정상이 된다.
+// 잘림은 예외여야 로그(THREADS_BODY_TRUNCATED)가 신호로 기능한다.
+const BODY_TARGET_CHARS = 420;
+const BODY_BUDGET = THREADS_MAX_CHARS; // 본문에 링크가 없으므로 전액이 본문 예산이다.
 
 // 문장 경계에서 자른다 — 예산을 넘으면 예산 안의 마지막 문장 종결부까지만 남긴다. 종결부를
 // 못 찾거나 너무 앞이면(=한 문장이 예산보다 긴 경우) 예산에서 자르고 말줄임표를 붙인다.
@@ -747,12 +957,20 @@ function buildTopicUrl(topic) {
   return `${BASE_URL}/topic/${topic.slug}?utm_source=threads&utm_medium=social`;
 }
 
+// 허브·허브 문서 URL — 유입 귀속은 Topic과 같은 최소 조합(source/medium)만 유지한다.
+function buildHubUrl(hubSlug) {
+  return `${BASE_URL}/hub/${hubSlug}?utm_source=threads&utm_medium=social`;
+}
+function buildHubDocUrl(hubSlug, docSlug) {
+  return `${BASE_URL}/hub/${hubSlug}/${docSlug}?utm_source=threads&utm_medium=social`;
+}
+
 // ── 심층형 포스팅 생성 ─────────────────
 // PM 지시(2026-07-29): 짧은 훅+링크유도 방식을 폐기하고, 링크를 누르지 않아도 그 자체로 읽을
 // 가치가 있는 완결된 글로 전면 개편. 마지막 유도는 CTA 문구가 아니라 "오늘 이 외에도 활성
 // 이슈가 몇 개 더 있는지"를 실제 수치로 안내하는 고정 형식이다(CTA_PHRASES/pickCtaPhrase/
 // hook_type 분류는 이 개편으로 더 이상 필요 없어 제거했다).
-async function generateDeepPost(topic, url, activeTopicCount) {
+async function generateDeepPost(topic) {
   const draft = topic.ai_context?.draft;
   const keywords = draft?.display_keywords || [];
   const perspectives = draft?.perspective_markers || [];
@@ -761,13 +979,13 @@ async function generateDeepPost(topic, url, activeTopicCount) {
 목표: 링크를 누르지 않아도 그 자체로 읽을 가치가 있는 글. 저장하거나 공유하고 싶게 만드는 것 —
 짧은 훅으로 클릭만 유도하는 낚시글이 아니다.
 
-★ 길이 제한(가장 중요): 본문은 공백 포함 ${BODY_TARGET_CHARS}자 이내로 써라. 절대 ${BODY_TARGET_CHARS + 40}자를 넘기지 마라.
-Threads는 전체 500자 제한이 있고 뒤에 마무리 문장과 링크가 붙는다 — 본문이 길면 잘려나간다.
-길게 쓰고 싶은 욕심을 버리고, 가장 중요한 사실만 압축해서 밀도 높게 써라.
+★ 길이(가장 중요): 본문은 공백 포함 ${BODY_TARGET_CHARS}자 이내로 써라. 절대 ${THREADS_MAX_CHARS}자를 넘기지 마라.
+링크는 본문에 넣지 않는다(첫 댓글에 따로 붙는다) — 그만큼 예산이 늘었으니 사실을 더 담아라.
+"자세한 내용은 링크에서" 같은 정보 은닉형 문장은 쓰지 마라. 이 글 안에서 답이 끝나야 한다.
 
-글 구조(반드시 이 순서, 문단 사이는 줄바꿈 두 번으로 구분 — 마지막 유도 문장/링크는 별도로 붙이니 여기서 쓰지 마라):
-1. 무슨 일이 있었고 왜 중요한지 2~3문장으로 압축해 서술한다.
-2. 이 사안을 보는 다른 시각이나 흔히 놓치는 관점을 1문장으로 덧붙인다.
+글 구조(반드시 이 순서, 문단 사이는 줄바꿈 두 번으로 구분 — 링크/유도 문장은 쓰지 마라):
+1. 무슨 일이 있었고 왜 중요한지 3~4문장으로 서술한다. 숫자·고유명사를 반드시 포함한다.
+2. 이 사안을 보는 다른 시각이나 흔히 놓치는 관점을 1~2문장으로 덧붙인다.
 
 허용: 구체적인 숫자·인물·기업·정책명, 사실에 기반한 대비·맥락.
 금지: 사실과 다른 과장, 본문에 없는 결론 추가, 공포 조장, "충격"·"소름"·"난리 났다" 같은 저품질
@@ -781,7 +999,7 @@ Threads는 전체 500자 제한이 있고 뒤에 마무리 문장과 링크가 �
 
 설명 없이 아래 JSON만 반환해라(코드블록 없이):
 {
-  "text": "Threads에 올릴 본문(위 1~2번 구조, ${BODY_TARGET_CHARS}자 이내, 문단 구분 포함, 마무리 문장/링크 제외)"
+  "text": "Threads에 올릴 본문(위 1~2번 구조, ${BODY_TARGET_CHARS}자 이내, 문단 구분 포함, 링크 제외)"
 }`;
 
   // ★ 2026-08-06: 게시 실패의 최대 원인 수정.
@@ -824,39 +1042,117 @@ Threads는 전체 500자 제한이 있고 뒤에 마무리 문장과 링크가 �
     throw new Error(`포스팅 본문 파싱 실패(응답구조 ${JSON.stringify(shape)}): ` + rawText.slice(0, 200));
   }
   const parsed = JSON.parse(match[0]);
+  return { text: finalizeBody(parsed.text, 'news') };
+}
 
-  // 링크를 먼저 확보한다 — 마무리 문구+링크의 길이를 재고, 남은 만큼만 본문에 배정한다.
-  // (이전 구현은 이어붙인 뒤 통째로 잘라서 링크가 사라졌다. 잘려야 하는 쪽은 항상 본문이다.)
-  let closing = `\n\n오늘 이 외에도 ${activeTopicCount}개 이슈를 다루고 있습니다 →\n${url}`;
-  if (THREADS_MAX_CHARS - closing.length < MIN_BODY_BUDGET) {
-    // slug가 비정상적으로 길어 본문 자리가 거의 없는 예외 상황 — 안내 문구를 버리고 링크만 남긴다.
-    closing = `\n\n${url}`;
-  }
-  const bodyBudget = THREADS_MAX_CHARS - closing.length;
-  const rawBody = (parsed.text || '').trim();
-  const body = truncateAtSentenceBoundary(rawBody, bodyBudget);
+// 본문 마감 — 링크가 본문에서 빠진 뒤로 조립이 단순해졌다(예산 계산이 필요 없다).
+// 링크 누락 검사도 함께 사라졌다: 이제 링크는 본문의 계약이 아니라 댓글의 계약이고,
+// 그 계약은 postLinkComment가 지킨다.
+function finalizeBody(rawText, kind) {
+  const rawBody = String(rawText || '').trim();
+  if (!rawBody) throw new ComposeError(`${kind} 본문이 비어 있다`);
+  const body = truncateAtSentenceBoundary(rawBody, BODY_BUDGET);
   if (body.length < rawBody.length) {
-    // 프롬프트가 여전히 예산을 넘기고 있다는 신호 — 로그로 남겨 BODY_TARGET_CHARS 재조정 판단에 쓴다.
-    console.warn(`THREADS_BODY_TRUNCATED[${CHANNEL}]: ${rawBody.length}자 → ${body.length}자(예산 ${bodyBudget})`);
+    // 프롬프트가 예산을 넘기고 있다는 신호 — BODY_TARGET_CHARS 재조정 판단에 쓴다.
+    console.warn(`THREADS_BODY_TRUNCATED[${CHANNEL}](${kind}): ${rawBody.length}자 → ${body.length}자(예산 ${BODY_BUDGET})`);
   }
+  if (body.length > THREADS_MAX_CHARS) throw new ComposeError(`${body.length}자로 상한 초과(${kind})`);
+  return body;
+}
 
-  const text = `${body}${closing}`;
-  // 링크 보존은 이 어댑터의 계약이다 — 계산 실수로 깨지면 조용히 게시하지 말고 여기서 막는다.
-  // 다만 이 실패는 Claude 탓이 아니라 우리 조립 로직 탓이므로 사유를 구분해서 던진다
-  // (2026-08-03: off-by-one으로 501자가 되어 throw했는데 로그에 claude_failed로 찍혀
-  //  원인을 Claude API에서 찾느라 진단이 늦어졌다 — 같은 혼동을 반복하지 않기 위함).
-  if (!text.includes(url)) throw new ComposeError(`링크가 누락됐다(len=${text.length})`);
-  if (text.length > THREADS_MAX_CHARS) throw new ComposeError(`${text.length}자로 상한 초과(본문 ${body.length} + 마무리 ${closing.length})`);
-  return { text };
+// ── 에버그린(허브 문서) 포스팅 생성 ─────────────────────────────────────────
+// PM 지시 2026-08-12 §2. 뉴스와 다른 프롬프트를 쓰는 이유는 독자의 상태가 다르기 때문이다.
+// 뉴스 독자는 "무슨 일이 있었나"를 모르는 상태고, 가이드 독자는 이미 문제를 겪고 있다
+// ("배터리가 하루를 못 간다"). 그래서 이 글은 사건 서술이 아니라 증상 → 원인 → 조치 순서다.
+const EVERGREEN_FORMAT_ANGLE = {
+  howto: '설정·사용법. 어디를 눌러 무엇을 바꾸면 되는지 순서대로 말한다.',
+  troubleshoot: '문제 해결. 증상을 먼저 짚고, 가장 흔한 원인과 조치를 말한다.',
+  compare: '비교. 무엇이 어떻게 다른지 기준을 세워 가른다.',
+  buying: '구매 판단. 지금 사도 되는지, 무엇을 확인해야 하는지 말한다.',
+};
+
+async function generateEvergreenPost(doc, hubTitle) {
+  const blocks = Array.isArray(doc.blocks) ? doc.blocks : [];
+  const source = blocks
+    .map((b) => `[${b.heading || ''}] ${(b.content || '').slice(0, 400)}`)
+    .join('\n')
+    .slice(0, 4000);
+
+  const prompt = `너는 뉴스저울의 에디터다. 아래 가이드 문서를 바탕으로 Threads에 올릴 완결된 글을 작성해라.
+
+이 글을 읽는 사람은 이미 그 문제를 겪고 있는 사람이다. 뉴스가 아니라 해결책을 찾는 중이다.
+그래서 "무엇이 출시됐다"가 아니라 "이렇게 하면 된다"가 글의 중심이어야 한다.
+
+★ 길이(가장 중요): 공백 포함 ${BODY_TARGET_CHARS}자 이내. 절대 ${THREADS_MAX_CHARS}자를 넘기지 마라.
+링크는 본문에 넣지 않는다(첫 댓글에 붙는다). "링크에서 확인하세요" 같은 문장은 쓰지 마라 —
+이 글만 읽고도 실제로 조치를 취할 수 있어야 한다.
+
+글 구조(문단 사이는 줄바꿈 두 번):
+1. 첫 문장은 증상이나 상황을 독자의 말로 짚는다(예: "폴드8 배터리가 하루를 못 간다면").
+2. 문서에 있는 실제 방법·수치·경로를 2~4문장으로 구체적으로 말한다. 단계가 있으면 순서대로.
+3. 흔히 놓치는 조건이나 주의점을 1문장 덧붙인다.
+
+금지: 문서에 없는 사실을 지어내는 것, 과장, "충격"·"필수"·"이것만 알면" 류 상투어,
+정보를 숨기고 클릭만 유도하는 표현.
+
+허브: ${hubTitle || doc.hub_slug}
+문서 유형: ${EVERGREEN_FORMAT_ANGLE[doc.format] || EVERGREEN_FORMAT_ANGLE.howto}
+문서 제목: ${doc.title}
+리드: ${doc.lead || ''}
+문서 본문:
+${source || '(본문 없음 — 제목과 리드만으로 쓰되, 확실하지 않은 수치는 쓰지 마라)'}
+
+설명 없이 아래 JSON만 반환해라(코드블록 없이):
+{
+  "text": "Threads에 올릴 본문(위 1~3번 구조, ${BODY_TARGET_CHARS}자 이내, 링크 제외)"
+}`;
+
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
+    body: JSON.stringify({
+      model: 'claude-sonnet-5',
+      max_tokens: 2000,
+      thinking: { type: 'disabled' }, // 뉴스 경로와 동일한 이유(2026-08-06 사고 주석 참고)
+      messages: [{ role: 'user', content: prompt }],
+    }),
+  });
+  if (!res.ok) throw new Error('Claude API 에러: ' + await res.text());
+  const data = await res.json();
+  const rawText = (data.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('');
+  const match = rawText.match(/\{[\s\S]*\}/);
+  if (!match) {
+    const shape = {
+      stop_reason: data.stop_reason ?? null,
+      blockTypes: (data.content || []).map((b) => b.type),
+      rawLen: rawText.length,
+    };
+    throw new Error(`에버그린 본문 파싱 실패(응답구조 ${JSON.stringify(shape)}): ` + rawText.slice(0, 200));
+  }
+  return { text: finalizeBody(JSON.parse(match[0]).text, 'evergreen') };
 }
 
 // ── Threads API(텍스트 전용 — 이미지 없어도 정상, 이미지 필드는 애초에 참조하지 않는다) ──────
-async function createContainer(text) {
-  const params = new URLSearchParams({ media_type: 'TEXT', text, access_token: await getAccessToken() });
+async function createContainer(text, replyToId) {
+  const fields = { media_type: 'TEXT', text, access_token: await getAccessToken() };
+  // reply_to_id를 주면 같은 엔드포인트가 "답글 컨테이너"를 만든다(Threads API Create Replies).
+  // 링크를 첫 댓글로 내리는 이번 개편이 이 파라미터 하나에 의존한다.
+  if (replyToId) fields.reply_to_id = replyToId;
+  const params = new URLSearchParams(fields);
   const res = await fetch(`https://graph.threads.net/v1.0/${THREADS_USER_ID}/threads`, { method: 'POST', body: params });
   const data = await res.json();
   if (!res.ok || !data.id) throw new Error('createContainer 실패: ' + JSON.stringify(data));
   return data.id;
+}
+
+// 링크 댓글(PM 지시 2026-08-12 §3) — 본문이 이미 게시된 뒤에 붙는다.
+// 실패해도 본문 게시는 되돌리지 않는다: 본문은 링크 없이 읽어도 완결이라는 것이 이번 개편의
+// 전제이므로, 댓글 실패는 "게시 실패"가 아니라 "유입 경로 누락"이다. 그래서 예외를 삼키고
+// 결과만 돌려준 뒤 skip_log에 남긴다.
+async function postLinkComment(parentPostId, text) {
+  const containerId = await createContainer(text, parentPostId);
+  await new Promise((r) => setTimeout(r, 3000));
+  return publishPost(containerId);
 }
 
 async function publishPost(containerId) {
@@ -870,14 +1166,18 @@ async function publishPost(containerId) {
 // 후보 선정 → Claude 문구 생성 → 게시 → dedup 기록 → 상세 로그, 1건 전체 흐름.
 // 이 함수 자체는 실패해도 throw하지 않는다 — 결과를 {ok, reason, ...} 객체로 반환해 호출자(핸들러
 // 루프)가 다음 시도를 계속할지 멈출지 판단하게 한다(품질 미달/후보 없음이면 억지로 채우지 않고 중단).
-async function attemptOnePost(excludeIds = new Set()) {
-  // 1. 후보 선정(Editorial Score 품질 게이트 + Distribution Score 배급 우선순위) — Claude 호출 전
-  const { topic, reason, detail } = await selectCandidate(excludeIds);
-  if (!topic) {
-    console.log(`DISTRIBUTION_SKIP[${CHANNEL}](${reason}):`, JSON.stringify(detail));
-    return { ok: false, skipped: true, reason, detail };
+async function attemptOnePost(excludeIds = new Set(), excludeDocKeys = new Set()) {
+  const selected = await selectItem(excludeIds, excludeDocKeys);
+  if (!selected.type) {
+    console.log(`DISTRIBUTION_SKIP[${CHANNEL}](${selected.reason}):`, JSON.stringify(selected.detail));
+    return { ok: false, skipped: true, reason: selected.reason, detail: selected.detail };
   }
-  console.log(`DISTRIBUTION_CANDIDATE_SELECTED[${CHANNEL}]:`, topic.name, JSON.stringify(detail));
+  return selected.type === 'evergreen' ? attemptEvergreenPost(selected) : attemptNewsPost(selected);
+}
+
+// ── 뉴스(Topic) 1건 ─────────────────────────────────────────────────────────
+async function attemptNewsPost({ topic, hubMatch, detail }) {
+  console.log(`DISTRIBUTION_CANDIDATE_SELECTED[${CHANNEL}](news):`, topic.name, JSON.stringify(detail));
 
   const plan = topic.ai_context?.plan;
   const editors = (plan?.editors_assigned || []).map((e) => e.name);
@@ -886,8 +1186,7 @@ async function attemptOnePost(excludeIds = new Set()) {
   // 2. Claude 문구 생성(여기부터 비용 발생)
   let text;
   try {
-    const activeTopicCount = await fetchActiveTopicCount();
-    ({ text } = await generateDeepPost(topic, url, activeTopicCount));
+    ({ text } = await generateDeepPost(topic));
   } catch (genErr) {
     // 조립 실패(우리 버그)와 Claude API 실패(외부 요인)를 구분한다 — 사유가 섞이면
     // "posts_succeeded=0"의 원인을 엉뚱한 곳에서 찾게 된다.
@@ -919,7 +1218,18 @@ async function attemptOnePost(excludeIds = new Set()) {
     return { ok: false, reason: 'threads_api_failed', error: postErr.message, topicId: topic.id };
   }
 
-  // 4. 핵심 dedup 기록(실패해도 게시 자체는 이미 성공 — Post ID를 결과에 보존)
+  // 4. 링크 댓글(PM 지시 2026-08-12 §3·§5) — 본문에는 링크가 없다.
+  //    허브 연결 판정(관련성 70점 이상)이 붙은 토픽은 그 허브 링크를 두 번째 줄에 함께 단다.
+  const activeTopicCount = await fetchActiveTopicCount();
+  const comment = strategy.buildCommentText({
+    primaryLabel: `전문 보기(오늘 다루는 이슈 ${activeTopicCount}개)`,
+    primaryUrl: url,
+    secondaryLabel: hubMatch ? `${hubMatch.hub.title} 한눈에 보기` : undefined,
+    secondaryUrl: hubMatch ? buildHubUrl(hubMatch.hub.slug) : undefined,
+  });
+  const commentResult = await attachLinkComment(topic, postId, comment);
+
+  // 5. 핵심 dedup 기록(실패해도 게시 자체는 이미 성공 — Post ID를 결과에 보존)
   try {
     await markTopicPosted(topic, postId, detail);
   } catch (dedupErr) {
@@ -928,14 +1238,104 @@ async function attemptOnePost(excludeIds = new Set()) {
     return { ok: false, reason: 'dedup_save_failed', error: dedupErr.message, postId, topicId: topic.id };
   }
 
-  // 5. 상세 로그(best-effort)
+  // 6. 상세 로그(best-effort). hook_type이 유형 집계의 정본이다(fetchTodayEvergreenCount 참고).
   const logResult = await savePostLog({
     topic_id: topic.id, post_id: postId, editors, status: 'success', source_url: url,
+    hook_type: hubMatch ? 'news_hub' : 'news',
     distribution_score: detail.distributionScore, editorial_score: detail.components?.editorialScore,
   });
 
-  console.log(`DISTRIBUTION_SUCCESS[${CHANNEL}]:`, postId, '| topic:', topic.slug, '| url:', url);
-  return { ok: true, reason: 'success', postId, topicId: topic.id, slug: topic.slug, editors, title: topic.name, url, text, detailLogSaved: logResult.ok, scoreDetail: detail };
+  console.log(`DISTRIBUTION_SUCCESS[${CHANNEL}](news):`, postId, '| topic:', topic.slug, '| url:', url,
+    hubMatch ? `| hub: ${hubMatch.hub.slug}(${hubMatch.relevance})` : '');
+  return {
+    ok: true, reason: 'success', type: hubMatch ? 'news_hub' : 'news', postId, topicId: topic.id,
+    slug: topic.slug, editors, title: topic.name, url, text,
+    commentPostId: commentResult.postId, commentOk: commentResult.ok,
+    hub: hubMatch ? { slug: hubMatch.hub.slug, relevance: hubMatch.relevance } : null,
+    detailLogSaved: logResult.ok, scoreDetail: detail,
+  };
+}
+
+// 링크 댓글 부착 — 실패는 게시 실패가 아니다(본문은 완결형이라는 것이 이번 개편의 전제).
+// 다만 유입 경로가 통째로 사라지는 일이므로 조용히 넘기지 않고 skip_log에 남긴다.
+async function attachLinkComment(topicOrNull, parentPostId, commentText) {
+  try {
+    const commentId = await postLinkComment(parentPostId, commentText);
+    console.log(`DISTRIBUTION_COMMENT_OK[${CHANNEL}]: parent=${parentPostId} comment=${commentId}`);
+    return { ok: true, postId: commentId };
+  } catch (e) {
+    console.error(`DISTRIBUTION_COMMENT_FAILED[${CHANNEL}](본문은 게시됨, 링크만 누락):`, parentPostId, e.message);
+    await logHardFailure(topicOrNull, 'comment_failed', e.message, { parentPostId });
+    return { ok: false, postId: null };
+  }
+}
+
+// ── 에버그린(허브 문서) 1건 ─────────────────────────────────────────────────
+// 뉴스와 다른 점 세 가지: (1) 후보가 topics가 아니라 hub_documents다, (2) dedup 정본이
+// ai_context가 아니라 threads_posts.source_url이다, (3) 그래서 상세 로그 저장 실패가
+// best-effort가 아니라 하드 실패다 — 기록이 없으면 같은 문서를 다시 올리게 된다.
+async function attemptEvergreenPost({ doc, hub, detail }) {
+  const docKey = `${doc.hub_slug}/${doc.slug}`;
+  console.log(`DISTRIBUTION_CANDIDATE_SELECTED[${CHANNEL}](evergreen):`, docKey, JSON.stringify(detail));
+
+  const docUrl = buildHubDocUrl(doc.hub_slug, doc.slug);
+  let text;
+  try {
+    const full = await fetchHubDocumentBody(doc.hub_slug, doc.slug);
+    ({ text } = await generateEvergreenPost(full, hub?.title));
+  } catch (genErr) {
+    const reason = genErr instanceof ComposeError ? 'compose_failed' : 'claude_failed';
+    console.error(`DISTRIBUTION_SKIP[${CHANNEL}](evergreen ${reason}):`, genErr.message);
+    await logSkippedCandidates([{
+      channel: CHANNEL, topic_id: null, topic_name: doc.title, category: doc.format,
+      reason, detail: { error: String(genErr.message || '').slice(0, 500), docKey },
+    }]);
+    return { ok: false, reason, error: genErr.message, docKey };
+  }
+  console.log('포스팅 내용(evergreen):\n', text);
+
+  let postId;
+  try {
+    const containerId = await createContainer(text);
+    await new Promise((r) => setTimeout(r, 3000));
+    postId = await publishPost(containerId);
+  } catch (postErr) {
+    console.error(`DISTRIBUTION_SKIP[${CHANNEL}](evergreen threads_api_failed, Claude 비용은 이미 발생):`, postErr.message);
+    await logSkippedCandidates([{
+      channel: CHANNEL, topic_id: null, topic_name: doc.title, category: doc.format,
+      reason: 'threads_api_failed', detail: { error: String(postErr.message || '').slice(0, 500), docKey },
+    }]);
+    return { ok: false, reason: 'threads_api_failed', error: postErr.message, docKey };
+  }
+
+  const comment = strategy.buildCommentText({
+    primaryLabel: '전체 가이드 보기',
+    primaryUrl: docUrl,
+    secondaryLabel: hub?.title ? `${hub.title} 전체 정리` : '허브 전체 정리',
+    secondaryUrl: buildHubUrl(doc.hub_slug),
+  });
+  const commentResult = await attachLinkComment(null, postId, comment);
+
+  // dedup 정본 기록 — 여기가 실패하면 중복 게시로 이어지므로 하드 실패로 취급한다.
+  const logResult = await savePostLog({
+    topic_id: null, post_id: postId, editors: [], status: 'success', source_url: docUrl,
+    hook_type: 'evergreen', distribution_score: detail.evergreenScore ?? null,
+  });
+  if (!logResult.ok) {
+    console.error(`DISTRIBUTION_SKIP[${CHANNEL}](evergreen dedup_save_failed, 게시는 이미 성공):`, postId);
+    await logSkippedCandidates([{
+      channel: CHANNEL, topic_id: null, topic_name: doc.title, category: doc.format,
+      reason: 'dedup_save_failed', detail: { postId, docKey },
+    }]);
+    return { ok: false, reason: 'dedup_save_failed', postId, docKey };
+  }
+
+  console.log(`DISTRIBUTION_SUCCESS[${CHANNEL}](evergreen):`, postId, '| doc:', docKey, '| url:', docUrl);
+  return {
+    ok: true, reason: 'success', type: 'evergreen', postId, docKey, url: docUrl, text,
+    title: doc.title, format: doc.format, hubSlug: doc.hub_slug,
+    commentPostId: commentResult.postId, commentOk: commentResult.ok, scoreDetail: detail,
+  };
 }
 
 // ── Handler ──────────────────────────────────────────────────────
@@ -964,13 +1364,33 @@ exports.handler = async function (event) {
   }
 
   if (isDry) {
-    // dry 모드는 미리보기 1건만 — 실제 게시/루프 없음.
-    const { topic, reason, detail } = await selectCandidate();
-    if (!topic) return { statusCode: 200, headers, body: JSON.stringify({ dry: true, skipped: true, reason, detail }) };
+    // dry 모드는 미리보기 1건만 — 실제 게시/루프 없음. 유형 선택까지 그대로 태워서
+    // "지금 이 시각에 무엇이 나갈 것인가"를 실제 경로와 같은 판단으로 보여준다.
+    const selected = await selectItem();
+    if (!selected.type) {
+      return { statusCode: 200, headers, body: JSON.stringify({ dry: true, skipped: true, reason: selected.reason, detail: selected.detail }) };
+    }
+    if (selected.type === 'evergreen') {
+      const full = await fetchHubDocumentBody(selected.doc.hub_slug, selected.doc.slug);
+      const { text } = await generateEvergreenPost(full, selected.hub?.title);
+      const url = buildHubDocUrl(selected.doc.hub_slug, selected.doc.slug);
+      const comment = strategy.buildCommentText({
+        primaryLabel: '전체 가이드 보기', primaryUrl: url,
+        secondaryLabel: selected.hub?.title ? `${selected.hub.title} 전체 정리` : '허브 전체 정리',
+        secondaryUrl: buildHubUrl(selected.doc.hub_slug),
+      });
+      return { statusCode: 200, headers, body: JSON.stringify({ dry: true, reason: 'success', type: 'evergreen', title: selected.doc.title, url, text, comment, scoreDetail: selected.detail }) };
+    }
+    const { topic, hubMatch, detail } = selected;
     const url = buildTopicUrl(topic);
+    const { text } = await generateDeepPost(topic);
     const activeTopicCount = await fetchActiveTopicCount();
-    const { text } = await generateDeepPost(topic, url, activeTopicCount);
-    return { statusCode: 200, headers, body: JSON.stringify({ dry: true, reason: 'success', topicId: topic.id, title: topic.name, url, text, scoreDetail: detail }) };
+    const comment = strategy.buildCommentText({
+      primaryLabel: `전문 보기(오늘 다루는 이슈 ${activeTopicCount}개)`, primaryUrl: url,
+      secondaryLabel: hubMatch ? `${hubMatch.hub.title} 한눈에 보기` : undefined,
+      secondaryUrl: hubMatch ? buildHubUrl(hubMatch.hub.slug) : undefined,
+    });
+    return { statusCode: 200, headers, body: JSON.stringify({ dry: true, reason: 'success', type: hubMatch ? 'news_hub' : 'news', topicId: topic.id, title: topic.name, url, text, comment, scoreDetail: detail }) };
   }
 
   try {
@@ -989,10 +1409,14 @@ exports.handler = async function (event) {
 
     const results = [];
     const failedTopicIds = new Set(); // 이번 실행에서 실패한 후보 — 같은 후보를 다시 고르지 않게 제외
+    // 이번 실행에서 이미 게시했거나 실패한 허브 문서. threads_posts 조회는 실행 시작 시점의
+    // 스냅샷이라, 같은 실행 안에서 연달아 고르면 같은 문서를 두 번 올린다.
+    const usedDocKeys = new Set();
     let candidateRetries = 0;
 
     for (let i = 0; i < postsThisRun; i++) {
-      const result = await attemptOnePost(failedTopicIds);
+      const result = await attemptOnePost(failedTopicIds, usedDocKeys);
+      if (result.docKey) usedDocKeys.add(result.docKey);
       results.push(result);
 
       if (!result.ok) {
@@ -1043,8 +1467,15 @@ exports.handler = async function (event) {
     }
 
     const successCount = results.filter((r) => r.ok).length;
+    const evergreenCount = results.filter((r) => r.ok && r.type === 'evergreen').length;
+    const hubLinkedCount = results.filter((r) => r.ok && r.type === 'news_hub').length;
+    const commentFailures = results.filter((r) => r.ok && r.commentOk === false).length;
     const todaySuccessCount = postedStatsNow.total + successCount;
-    console.log(`DISTRIBUTION_RUN_DONE[${CHANNEL}]: 이번 실행 성공 ${successCount}/${results.length}건, 오늘 누적 ${todaySuccessCount}건(목표 ${dailyTarget})`);
+    console.log(
+      `DISTRIBUTION_RUN_DONE[${CHANNEL}]: 이번 실행 성공 ${successCount}/${results.length}건` +
+      `(에버그린 ${evergreenCount} · 허브연결 ${hubLinkedCount} · 링크댓글 실패 ${commentFailures})` +
+      `, 오늘 뉴스 누적 ${todaySuccessCount}건(목표 ${dailyTarget})`
+    );
 
     // 시간대별 목표/실적 기록(best-effort) — 하루가 끝난 뒤 Distribution Engine이 제대로
     // 동작했는지 시간대별로 재구성할 수 있게 한다(PM 지시 2026-07-22 §5).
@@ -1065,7 +1496,7 @@ exports.handler = async function (event) {
 
     return {
       statusCode: 200, headers,
-      body: JSON.stringify({ ok: true, dailyTarget, postsAttemptedThisRun: results.length, postsSucceededThisRun: successCount, todaySuccessCount, results }),
+      body: JSON.stringify({ ok: true, dailyTarget, postsAttemptedThisRun: results.length, postsSucceededThisRun: successCount, evergreenThisRun: evergreenCount, hubLinkedThisRun: hubLinkedCount, todaySuccessCount, results }),
     };
   } catch (e) {
     console.error(`DISTRIBUTION_RUN_ERROR[${CHANNEL}]:`, e.message);
