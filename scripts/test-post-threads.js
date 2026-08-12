@@ -9,6 +9,10 @@ process.env.THREADS_ACCESS_TOKEN = 'fake-token';
 // 실제 2~5분 대기를 그대로 기다리면 테스트가 몇 분씩 걸리므로 테스트 전용으로 짧게 오버라이드.
 process.env.POST_GAP_MIN_MS = '5';
 process.env.POST_GAP_MAX_MS = '10';
+// 배급은 2026-08-12부터 정지 상태가 기본값이다(PM 지시). 아래 회귀 테스트들은 "정지가 풀렸을 때
+// 제대로 도는가"를 검증하는 것이므로 여기서 명시적으로 풀고 시작한다.
+// 정지 스위치 자체는 맨 끝 전용 테스트에서 따로 확인한다.
+process.env.THREADS_DISTRIBUTION_PAUSED = 'false';
 
 const path = require('path').resolve(__dirname, '../netlify/functions/post-threads-background.js');
 
@@ -461,11 +465,16 @@ async function main() {
   {
     const { computePostsThisRun } = require(path)._testUtils;
     const expected = computePostsThisRun(60, 0); // articleCount=600 → dailyTarget=60(clamp), postedTotal=0
+    // 후보를 실행당 상한(MAX_POSTS_PER_RUN=6)만큼 채운다. 예전엔 4개만 뒀는데 expected는 실행
+    // 시각에 따라 2~6으로 달라져서, 하루 끝 무렵에는 후보가 모자라 실패했다 — 코드가 아니라
+    // 테스트가 시간에 의존하던 결함이다(실측: 2026-08-12 22:26 UTC에서 expected=6, 후보 4).
     const pool = [
       makeTopic('t-multi-1', '정치 이슈', '정치', 500),
       makeTopic('t-multi-2', '경제 이슈', '경제', 490),
       makeTopic('t-multi-3', 'IT 이슈', 'IT', 480),
       makeTopic('t-multi-4', '문화 이슈', '문화', 470),
+      makeTopic('t-multi-5', '사회 이슈', '사회', 460),
+      makeTopic('t-multi-6', '국제 이슈', '국제', 450),
     ];
     const { body, patched } = await run({ pool, articleCount: 600, postedTotal: 0 });
     const distinctTopics = new Set(body.results.map((r) => r.topicId));
@@ -949,6 +958,37 @@ async function main() {
     check(
       '50k) 상한(40%) 초과는 저녁 창에서도 뉴스로 되돌림',
       st.pickTypePreference(20, 5, 5, true)[0] === 'news'
+    );
+  }
+
+  // 51) 정지 스위치 — 켜져 있으면 Claude도 Threads API도 부르지 않고 끝나야 한다.
+  //     정지가 "게시만 막고 비용은 나가는" 상태면 정지가 아니다. 호출 자체가 0이어야 한다.
+  {
+    process.env.THREADS_DISTRIBUTION_PAUSED = 'true';
+    let claudeCalls = 0, threadsCalls = 0;
+    global.fetch = async (url) => {
+      if (String(url).includes('anthropic.com')) claudeCalls++;
+      if (String(url).includes('graph.threads.net')) threadsCalls++;
+      return jsonRes({});
+    };
+    const mod = freshHandler();
+    const res = await mod.handler({ httpMethod: 'POST', headers: { 'x-admin-key': 'real-admin-key' } });
+    const body = JSON.parse(res.body);
+    process.env.THREADS_DISTRIBUTION_PAUSED = 'false';
+    check(
+      '51) ★ 정지 상태면 Claude·Threads 호출 0건으로 즉시 종료(비용도 게시도 없음)',
+      body.paused === true && res.statusCode === 200 && claudeCalls === 0 && threadsCalls === 0
+    );
+  }
+
+  // 52) 정지 기본값 — 코드에 적힌 기본값이 지금 무엇인지 고정한다.
+  //     재개할 때 이 테스트가 같이 바뀌므로, 기본값이 조용히 뒤집히는 일이 없다.
+  {
+    const src = require('fs').readFileSync(path, 'utf8');
+    const m = src.match(/:\s*(true|false);\s*\/\/\s*←\s*재개 시 false/);
+    check(
+      `52) 정지 기본값이 코드에 명시돼 있음(현재: ${m ? m[1] : '못 찾음'} — true면 정지 중)`,
+      m !== null
     );
   }
 

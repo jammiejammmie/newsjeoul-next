@@ -119,6 +119,22 @@ const REQUEST_HEADERS = { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + S
 //   5. 뉴스 제목이 허브 키워드를 건드리면 그 허브 링크를 댓글에 함께 단다(관련성 70점 이상).
 const strategy = require('./threads-strategy');
 
+// ── 배급 일시 정지 스위치(2026-08-12 PM 지시) ────────────────────────────────
+// 지금은 **정지 상태**다. 재개하려면 아래 기본값을 false로 바꿔 배포하면 된다(한 줄).
+//
+// 왜 코드에 두는가: pg_cron에는 이미 설계된 스위치가 있지만(ops.netlify_job.enabled=false)
+// 그건 ops.invoke를 거치는 호출만 막는다. 이 함수는 GitHub Actions와 관리자 수동 호출로도
+// 들어올 수 있어서, 경로마다 따로 잠그면 하나를 빠뜨린다. 함수 안에서 막으면 어디로 들어오든
+// 멈춘다 — "정지"는 빠짐없이 걸리는 쪽이 맞다.
+//
+// 왜 핸들러 맨 앞인가: 이 아래로 내려가면 후보 조회·Claude 호출로 비용이 발생한다.
+// 정지 판단은 돈이 나가기 전에 끝나야 한다.
+//
+// 환경변수는 테스트가 뒤집기 위한 것이다(운영에서 굳이 설정할 필요 없다).
+const DISTRIBUTION_PAUSED = process.env.THREADS_DISTRIBUTION_PAUSED
+  ? process.env.THREADS_DISTRIBUTION_PAUSED === 'true'
+  : true; // ← 재개 시 false
+
 // 허브 목록(newsKeywords 포함)은 앱이 내보내는 JSON에서 읽는다 — lib/hubs/*.ts는 빌드에
 // 컴파일되므로 함수가 직접 읽을 수 없다(app/hub-targets.json/route.ts 주석 참고).
 const HUB_TARGETS_URL = `${BASE_URL}/hub-targets.json`;
@@ -1347,6 +1363,13 @@ async function attemptEvergreenPost({ doc, hub, detail }) {
 exports.handler = async function (event) {
   const headers = { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' };
   if (event.httpMethod === 'OPTIONS') return { statusCode: 200, headers, body: '' };
+
+  // 정지 스위치 — 후보 조회·Claude 호출·게시 어느 것도 하지 않고 즉시 끝낸다.
+  // 실패가 아니라 의도된 정지이므로 200으로 답한다(헬스체크가 장애로 오인하지 않게).
+  if (DISTRIBUTION_PAUSED) {
+    console.log(`DISTRIBUTION_PAUSED[${CHANNEL}]: 정지 상태 — 이번 호출은 아무것도 하지 않는다(재개는 post-threads-background.js의 DISTRIBUTION_PAUSED 기본값을 false로)`);
+    return { statusCode: 200, headers, body: JSON.stringify({ ok: true, paused: true, reason: 'distribution_paused' }) };
+  }
 
   if (event.httpMethod && event.headers?.['x-nf-event'] !== 'schedule') {
     const key = event.headers?.['x-admin-key'] || event.queryStringParameters?.key;
