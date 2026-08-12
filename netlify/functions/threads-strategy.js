@@ -62,22 +62,28 @@ function pickTypePreference(hour, newsPosted, evergreenPosted, hasFreshDoc) {
   const EVER = ['evergreen', 'news'];
   const NEWS = ['news', 'evergreen'];
 
-  // 상한 초과는 시간대보다 우선한다 — 에버그린이 하루를 다 먹으면 "뉴스는 기본으로 계속
-  // 유지"(PM 지시 §1)가 깨진다.
+  // 규칙 순서가 곧 우선순위다. 아래 순서를 바꾸면 지시 §2(비중)와 §4(시간대)가 서로를
+  // 덮어쓴다 — 실제로 첫 배포에서 신규 문서 트리거를 맨 위에 뒀다가, 문서가 매일 생성되는
+  // 탓에 트리거가 상시 참이 되어 뉴스 시간대(07~14시)까지 에버그린이 밀고 들어갔다.
+
+  // 1. 상한 초과는 무엇보다 우선한다 — 에버그린이 하루를 다 먹으면 "뉴스는 기본으로 계속
+  //    유지"(PM 지시 §1)가 깨진다.
   if (total >= SHARE_JUDGE_MIN_SAMPLE && share >= EVERGREEN_SHARE_MAX) return NEWS;
 
-  // 신규 허브 문서 트리거(PM 지시 §1) — 갓 만들어진 문서는 시간대를 기다리지 않는다.
-  // 단 상한(위 조건)은 넘지 않는다.
-  if (hasFreshDoc) return EVER;
-
-  // 하한 미달 보충 — 밴드 아래로 떨어지면 시간대와 무관하게 에버그린을 먼저 시도한다.
+  // 2. 하한 미달 보충 — 밴드 아래로 떨어지면 시간대와 무관하게 에버그린을 먼저 시도한다.
+  //    저녁 창(5시간)만으로는 30%를 채우지 못하는 날이 있어서, 이 규칙이 밴드의 실질 보증이다.
   if (total >= SHARE_JUDGE_MIN_SAMPLE && share < EVERGREEN_SHARE_MIN) return EVER;
 
+  // 3. 지정된 시간대는 그대로 지킨다(PM 지시 §4).
   if (inWindow(hour, EVERGREEN_WINDOW)) return EVER;
   if (inWindow(hour, NEWS_WINDOW)) return NEWS;
 
-  // 창 밖(새벽·오후 중반) — 목표치(35%)에 못 미치면 에버그린으로 메운다.
-  return share < EVERGREEN_SHARE_TARGET ? EVER : NEWS;
+  // 4. 창 밖(오후 중반·심야) — 여기서만 신규 문서 트리거가 작동한다(PM 지시 §1).
+  //    갓 만들어진 문서를 저녁 창까지 재우지 않되, 목표치(35%)를 넘어서까지 밀지는 않는다.
+  if (hasFreshDoc && share < EVERGREEN_SHARE_TARGET) return EVER;
+
+  // 5. 그 외 창 밖 시간은 뉴스가 기본값이다.
+  return NEWS;
 }
 
 // ── 허브 연결 판정(PM 지시 §5) ──────────────────────────────────────────────

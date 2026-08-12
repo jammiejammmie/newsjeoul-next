@@ -925,6 +925,31 @@ async function main() {
     check('50e) 문턱 미만 관련성은 0이 아니라 "연결 안 함"으로 걸러짐',
       st.pickHubForTopic('갤럭시 워치 공개', [{ slug: 'x', title: 'x', newsKeywords: ['갤럭시'] }]) === null);
     check('50f) 제외어가 걸리면 관련성 0', st.scoreHubMatch('폴드8 vs 폴드7', { slug: 'x', title: 'x', newsKeywords: ['폴드8'], newsExclude: ['폴드7'] }) === 0);
+
+    // ── 규칙 순서 회귀(2026-08-12 첫 배포 직후 실측으로 발견) ───────────────
+    // 처음엔 신규 문서 트리거를 규칙 맨 위에 뒀는데, 허브 문서가 매일 생성되는 탓에
+    // 트리거가 사실상 상시 참이 되어 뉴스 시간대(07~14시)까지 에버그린이 밀고 들어갔다.
+    // 지시 §4("뉴스는 오전 7시~오후 2시 집중")를 §1 트리거가 덮어쓰면 안 된다.
+    check(
+      '50g) ★ 뉴스 시간대(09시)에는 신규 문서가 있어도 뉴스가 우선',
+      st.pickTypePreference(9, 7, 3, true)[0] === 'news'
+    );
+    check(
+      '50h) 창 밖(16시)에서는 신규 문서 트리거가 작동',
+      st.pickTypePreference(16, 7, 3, true)[0] === 'evergreen'
+    );
+    check(
+      '50i) 창 밖이라도 신규 문서가 없고 밴드 안이면 뉴스가 기본값',
+      st.pickTypePreference(16, 7, 3, false)[0] === 'news'
+    );
+    check(
+      '50j) 신규 문서가 있어도 목표치(35%)를 넘어서까지 밀지 않음',
+      st.pickTypePreference(16, 6, 4, true)[0] === 'news'
+    );
+    check(
+      '50k) 상한(40%) 초과는 저녁 창에서도 뉴스로 되돌림',
+      st.pickTypePreference(20, 5, 5, true)[0] === 'news'
+    );
   }
 
   const failCount = results.filter((r) => !r.pass).length;
