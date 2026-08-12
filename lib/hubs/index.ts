@@ -14,6 +14,8 @@ import { iphone17Pro } from './iphone-17-pro'
 import { galaxyBuds4 } from './galaxy-buds4'
 import { robotVacuum2026 } from './robot-vacuum-2026'
 import { youthSavingsAccount } from './youth-savings-account'
+// 2026-08-12 추가 — Search Console에서 '멜론 스트리밍 라이트' 유입이 확인돼 신설
+import { melonStreaming } from './melon-streaming'
 
 export type * from './types'
 
@@ -31,6 +33,8 @@ const HUBS: HubConfig[] = [
   // 2026-08-10 추가 — 모바일 4 / 노트북 2 / 생활가전 1 / 제도 1
   galaxyZFlip8, galaxyS25Ultra, iphone17Pro, galaxyBuds4,
   galaxyBook5Pro, lgGram2026, robotVacuum2026, youthSavingsAccount,
+  // 2026-08-12 — 음악 스트리밍(첫 구독 서비스 허브)
+  melonStreaming,
 ]
 
 export const ALL_HUBS = HUBS
