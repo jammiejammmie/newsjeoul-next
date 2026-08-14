@@ -190,8 +190,8 @@ export const galaxyZFold8: HubConfig = {
     slots: [
       { slot: 'fold8-body', label: '갤럭시 Z 폴드8 자급제', network: 'coupang', kind: 'device', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=9640170508&itemId=28803754031&vendorItemId=95739034503&traceid=V0-153-cc91bad335e9984e&requestid=20260810170212442322761167&token=31850C%7CGM' },
       { slot: 'fold8-case', label: '폴드8 힌지보호 케이스', network: 'coupang', kind: 'accessory', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=9678506385&itemId=28940743795&vendorItemId=95871673328&traceid=V0-153-fe439495aeea9f7a&requestid=20260813035747315146657492&token=31850C%7CGM' },
-      { slot: 'fold8-charger', label: '45W 고속 충전기', network: 'coupang', kind: 'accessory', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=8135291576&itemId=23108354476&vendorItemId=95463844100&traceid=V0-153-b4b0914c9b819b2a&clickBeacon=06e7d720-9749-11f1-9fb2-5c0b166685eb%7E3&requestid=20260814035852804215899551&token=31850C%7CMIXED' },
-      { slot: 'fold8-film', label: '폴드8 보호필름', network: 'coupang', kind: 'accessory', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=9651315124&itemId=28847170420&vendorItemId=95781243177&traceid=V0-153-572e32342187357b&clickBeacon=b68b46f0-967f-11f1-8ebc-02e7154a6e70%7E3&requestid=20260813035749194202443505&token=31850C%7CMIXED' },
+      { slot: 'fold8-charger', label: '45W 고속 충전기', network: 'coupang', kind: 'accessory', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=1338899768&itemId=2365459893&vendorItemId=95463829809&traceid=V0-153-0f56aefd819e041a&clickBeacon=cb27adf0-9810-11f1-8e90-95095b511a16%7E3&requestid=20260815034851906295894034&token=31850C%7CMIXED' },
+      { slot: 'fold8-film', label: '폴드8 보호필름', network: 'coupang', kind: 'accessory', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=9693312143&itemId=28992250452&vendorItemId=95920961943&traceid=V0-153-9a07d27909f2b067&requestid=20260815034852702217668454&token=31850C%7CMIXED' },
     ],
   },
 
