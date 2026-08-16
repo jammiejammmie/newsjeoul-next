@@ -45,7 +45,11 @@ jobs:
         if: github.event_name == 'schedule'
         run: sleep $((RANDOM % 540))
 
-      - name: Call post-threads-background Netlify function
+      # 2026-08-17: 인스타그램은 이 함수 말미에서 함께 호출된다(post-threads-background.js).
+      # 별도 스텝을 두지 않는 이유: 실제 운영 트리거는 GitHub Actions가 아니라 Supabase
+      # pg_cron(nj-post-threads)이라, 여기에만 스텝을 추가하면 수동 실행 때만 인스타가 도는
+      # 반쪽짜리가 된다. 함수 안에서 부르면 트리거가 무엇이든 두 채널이 항상 같이 돈다.
+      - name: Call post-threads-background Netlify function (Threads + Instagram)
         run: |
           HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
             -H "x-admin-key: ${{ secrets.NEWSJEOUL_ADMIN_KEY }}" \

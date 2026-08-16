@@ -45,12 +45,17 @@ function freshHandler() {
   return require(path);
 }
 
-// scenario 기본값 — "오늘 기사 250건(목표 25건 정확히), 오늘 게시 25건(=목표와 정확히 같음)"으로
-// 고정해 remaining=0 → postsThisRun=1이 실제 현재 시각과 무관하게 항상 결정되도록 한다(테스트
-// 결정성 확보). adaptiveMinScore도 progress=1<=1이라 항상 FLOOR(55)로 고정된다.
+// scenario 기본값 — "오늘 게시 수 = 오늘 목표"로 맞춰 remaining=0 → postsThisRun=1이 실제 현재
+// 시각과 무관하게 항상 결정되도록 한다(테스트 결정성 확보). adaptiveMinScore도 progress=1<=1이라
+// 항상 FLOOR(55)로 고정된다.
+//
+// 2026-08-17: 하루 목표가 20~60 → 10~15로 바뀌면서 postedTotal을 25 → 15로 맞췄다.
+// 25로 두면 목표(15)를 167% 초과한 상태가 되어 adaptiveMinScore가 72까지 올라가고,
+// 그 결과 "정상 게시"를 검증하려던 테스트들이 전부 below_distribution_threshold로 떨어진다.
+// 기사 250건 × 0.10 = 25 → 상한 15로 clamp되므로 목표는 15다.
 async function run(scenario) {
   const s = Object.assign({
-    pool: [], recentPosted: [], articleCount: 250, producedByCategory: {}, postedTotal: 25, postedByCategory: {},
+    pool: [], recentPosted: [], articleCount: 250, producedByCategory: {}, postedTotal: 15, postedByCategory: {},
   }, scenario);
   const patched = [];
   const postedIds = new Set();
@@ -260,15 +265,18 @@ async function main() {
     check('9) Exploration 가능성 높은 후보 우선 → expanded 선택', first?.ok === true && first.topicId === 't-expanded');
   }
 
-  // 10) 오늘 목표 계산 공식 직접 검증(articles 기준, clamp 20~60) — PM 재조정 지시(2026-07-22)
+  // 10) 오늘 목표 계산 공식 직접 검증(articles 기준, clamp 10~15)
+  //     2026-08-17 PM 지시로 상하한이 20~60 → 10~15로 바뀌었다. 비율(0.10)은 그대로다.
+  //     실제 생산량(기사 약 540건/일)에서는 54 → 상한 15로 clamp되므로 사실상 매일 15건이 목표다.
   {
     const { computeDailyTarget } = require(path)._testUtils;
     const checks = [
-      ['10-a) articles=0 → 최소 20', computeDailyTarget(0) === 20],
-      ['10-b) articles=100 → 최소 20(100×0.1=10 clamp)', computeDailyTarget(100) === 20],
-      ['10-c) articles=210 → 약 21', computeDailyTarget(210) === 21],
-      ['10-d) articles=500 → 약 50', computeDailyTarget(500) === 50],
-      ['10-e) articles=1000 → 최대 60(clamp)', computeDailyTarget(1000) === 60],
+      ['10-a) articles=0 → 최소 10', computeDailyTarget(0) === 10],
+      ['10-b) articles=100 → 최소 10(100×0.1=10)', computeDailyTarget(100) === 10],
+      ['10-c) articles=130 → 13', computeDailyTarget(130) === 13],
+      ['10-d) articles=210 → 최대 15(21 clamp)', computeDailyTarget(210) === 15],
+      ['10-e) articles=1000 → 최대 15(clamp)', computeDailyTarget(1000) === 15],
+      ['10-f) 실제 생산량(540건) → 15', computeDailyTarget(540) === 15],
     ];
     checks.forEach(([label, pass]) => check(label, pass));
   }
@@ -289,9 +297,11 @@ async function main() {
       ['11-f) runsPerHour 인자 생략 시 선언값으로 폴백', computePostsThisRun(40, 10, evening10hLeft) === computePostsThisRun(40, 10, evening10hLeft, CONFIGURED_RUNS_PER_HOUR)],
       // 실측 주기가 느릴 때(0.64회/시) 같은 목표라도 실행당 건수를 더 크게 잡아야 한다 —
       // 이게 08-03에 하루 누적 4건(목표 47)으로 끝난 원인이었다(선언값 2회/시로 3배 과대평가).
+      // 2026-08-17: MAX_POSTS_PER_RUN이 6 → 2로 낮아지면서, 목표 47 같은 큰 값에서는 두 주기 모두
+      // 상한(2)에 걸려 차이가 드러나지 않는다. 상한이 물리지 않는 목표(20)로 바꿔 같은 성질을 본다.
       ['11-h) 실측 0.64회/시면 같은 목표에서 더 많이 시도(선언값 2회/시보다 큼)',
-        computePostsThisRun(47, 4, noon12hLeft, 0.64) > computePostsThisRun(47, 4, noon12hLeft, 2)],
-      ['11-i) 실측 0.64회/시, 목표47·게시4, 12시간 남음 → 상한까지 시도(남은43÷약8회≈6)',
+        computePostsThisRun(20, 4, noon12hLeft, 0.64) > computePostsThisRun(20, 4, noon12hLeft, 2)],
+      ['11-i) 실측 0.64회/시, 목표47·게시4, 12시간 남음 → 상한까지 시도',
         computePostsThisRun(47, 4, noon12hLeft, 0.64) === MAX_POSTS_PER_RUN],
     ];
     checks.forEach(([label, pass]) => check(label, pass));
@@ -729,7 +739,10 @@ async function main() {
     const t1 = makeTopic('t-fail-first', '실패할 후보', '경제', 500);
     const t2 = makeTopic('t-ok-second', '성공할 후보', '사회', 490);
     const { body, patched } = await run({
-      pool: [t1, t2], articleCount: 250, postedTotal: 25,
+      // 2026-08-17: postedTotal 25 → 15(새 목표와 동일). 25로 두면 목표를 167% 초과한 상태라
+      // 적응형 문턱이 72로 올라가 재시도 후보까지 전부 탈락한다 — 검증하려는 것은 재시도 동작이지
+      // 문턱 동작이 아니므로 목표와 같은 값으로 맞춘다.
+      pool: [t1, t2], articleCount: 250, postedTotal: 15,
       claudeHook: () => { claudeCalls++; return claudeCalls === 1 ? 'EMPTY' : null; },
     });
     const posted = body.results.filter((r) => r.ok);
@@ -869,9 +882,14 @@ async function main() {
       '44) ★ 허브 키워드가 걸린 뉴스가 트리거로 우선 선택됨',
       first?.ok === true && first.topicId === 't-hub-match' && first.hub?.slug === 'galaxy-z-fold8'
     );
+    // 2026-08-17 개편: 링크가 한 댓글에 두 줄로 들어가던 구조가 4단 연재로 바뀌었다
+    // (댓글3 = 허브 링크, 댓글4 = 뉴스저울 링크). 두 링크가 서로 다른 댓글로 나가는지 본다.
+    const allCommentText = commentRequests.map((c) => c.text).join('\n---\n');
+    const hubComment = commentRequests.find((c) => c.text.includes('/hub/galaxy-z-fold8?'));
+    const siteComment = commentRequests.find((c) => c.text.includes('/topic/t-hub-match'));
     check(
-      '44b) 그 게시물 댓글에 토픽 링크 + 허브 링크가 함께 나감',
-      commentRequests[0]?.text.includes('/topic/t-hub-match') && commentRequests[0]?.text.includes('/hub/galaxy-z-fold8?')
+      '44b) 허브 링크와 토픽 링크가 각각 별도 댓글로 나감(4단 연재)',
+      Boolean(hubComment) && Boolean(siteComment) && hubComment !== siteComment && allCommentText.length > 0
     );
     check('44c) 유형이 news_hub로 기록됨', threadsPostRows.some((r) => r.hook_type === 'news_hub'));
   }

@@ -167,9 +167,14 @@ const RECENT_HISTORY_WINDOW = 3; // 최근 게시 패턴(recentPattern) 판단�
 // 공장이 커지는 초기 단계엔 기사 생산이 published Topic 전환보다 훨씬 앞서 달리기 때문). 최소/최대
 // 하한·상한을 명시적으로 둔 이유는 "기사 100건 이하"처럼 생산이 아직 적은 시기에도 배급 채널 자체가
 // 죽어있는 것처럼 보이지 않게 하기 위해서다(PM 지시: "기본 목표는 하루 20건 이상").
+// ── 2026-08-17 PM 지시: 하루 10~15건으로 축소 ───────────────────────────────
+// 종전 20~60건은 "많이 올려 색인을 늘린다"는 목표에 맞춘 값이었다. 이번 개편의 목표는 반대다 —
+// buzz 상위 이슈만 골라 카드뉴스 이미지 + 4단 댓글 연재로 깊게 올린다. 건당 무게가 커졌으므로
+// 건수를 줄인다(같은 품으로 60건을 만들 수 없고, 만들 이유도 없다).
+// 비율(0.10)은 그대로 두고 상하한만 조인다 — 기사 540건/일 기준 54 → 상한 15로 clamp된다.
 const ARTICLE_TARGET_RATIO = 0.10; // articles × 10%
-const MIN_DAILY_TARGET = 20;
-const MAX_DAILY_TARGET = 60;
+const MIN_DAILY_TARGET = 10;
+const MAX_DAILY_TARGET = 15;
 // 목표치 이내일 때(공급 여유 있음) 요구 점수는 낮게, 목표치를 초과했을 때(이미 충분히 배급됨)는
 // 정말 뛰어난 후보만 통과하도록 점진적으로 엄격해진다 — 고정 상한이 아니라 적응형 문턱값이다.
 const DISTRIBUTION_SCORE_FLOOR = 55;
@@ -191,7 +196,17 @@ const DISTRIBUTION_SCORE_CEILING = 80;
 // GitHub Actions가 cron을 그대로 지켜주지 않아 실행 횟수가 설정의 1/3 수준이므로, 부족한
 // 횟수를 실행당 건수로 메워야 한다. 6건이 안전한 이유는 아래 RUN_BUDGET_MS 가드 때문이다
 // (정적 상한만 믿지 않고 실제 경과 시간을 보며 멈춘다).
-const MAX_POSTS_PER_RUN = 6;
+// 2026-08-17: 6 → 2. 하루 목표가 10~15건으로 줄었고, 이제 한 건당 본문 + 이미지 + 댓글 4개를
+// 올리므로(=API 호출 6회 + Claude 1회) 건당 소요 시간이 3배 가까이 늘었다. 6건을 그대로 두면
+// Background Function 15분 예산을 넘긴다.
+const MAX_POSTS_PER_RUN = 2;
+
+// ── buzz 상위 선별 (2026-08-17 PM 지시 "buzz_score 상위 토픽만 선별") ────────
+// 후보 중 buzz가 계산된 것이 충분히 쌓였을 때만 이 문턱을 적용한다. 전환 초기에는 buzz를 가진
+// Topic이 소수라(배포 직후 실측 15건) 문턱을 무조건 걸면 배급이 통째로 멈춘다.
+// 표본이 찰 때까지는 기존 Distribution Score 경로로 돌아가고, 차면 그때부터 상위만 남긴다.
+const MIN_BUZZ_SCORE_FOR_POST = 25;
+const BUZZ_FLOOR_MIN_SAMPLE = 10;
 
 // 워크플로우 cron이 선언하는 시간당 실행 횟수 — 실측값을 구할 수 없을 때의 폴백으로만 쓴다.
 // .github/workflows/post-threads.yml의 cron과 일치해야 한다(테스트 11g가 고정한다).
@@ -400,6 +415,23 @@ function computeBuzzComponent(topic) {
   if (!buzz || typeof buzz.score !== 'number') return null; // 미계산 — 중립 처리
   if (buzz.score <= 0) return 0;
   return Math.min(100, Math.round((buzz.score / 120) * 100));
+}
+
+// buzz 문턱 적용 — 표본이 충분할 때만 거른다(위 BUZZ_FLOOR_MIN_SAMPLE 주석 참고).
+// 문턱을 넘는 후보가 하나도 남지 않으면 거르지 않은 원본을 그대로 돌려준다(배급 정지 방지).
+function applyBuzzFloor(pool) {
+  const withBuzz = pool.filter((t) => typeof t?.ai_context?.buzz?.score === 'number');
+  if (withBuzz.length < BUZZ_FLOOR_MIN_SAMPLE) {
+    console.log(`BUZZ_FLOOR_SKIPPED[${CHANNEL}]: buzz 보유 후보 ${withBuzz.length}건 < 표본 ${BUZZ_FLOOR_MIN_SAMPLE}건 — 문턱 미적용`);
+    return pool;
+  }
+  const passed = withBuzz.filter((t) => t.ai_context.buzz.score >= MIN_BUZZ_SCORE_FOR_POST);
+  if (!passed.length) {
+    console.log(`BUZZ_FLOOR_EMPTY[${CHANNEL}]: ${MIN_BUZZ_SCORE_FOR_POST}점 이상 후보 0건 — 문턱 미적용`);
+    return pool;
+  }
+  console.log(`BUZZ_FLOOR_APPLIED[${CHANNEL}]: ${pool.length}건 → ${passed.length}건(${MIN_BUZZ_SCORE_FOR_POST}점 이상)`);
+  return passed;
 }
 
 function computeDistributionScore(topic, baseQuality, ctx) {
@@ -761,7 +793,11 @@ async function selectCandidate(excludeIds = new Set(), hubs = []) {
     return { topic: null, reason: 'no_candidate', detail: { poolSize: 0, ...baseDetail } };
   }
 
-  const scoredAll = pool.map((t) => ({ topic: t, base: computeEditorialScore(t) }));
+  // buzz 상위 선별(2026-08-17) — 품질 게이트보다 먼저 적용한다. 화제성이 없는 이슈는
+  // 아무리 잘 쓰였어도 이번 개편의 대상이 아니기 때문이다.
+  const buzzFiltered = applyBuzzFloor(pool);
+
+  const scoredAll = buzzFiltered.map((t) => ({ topic: t, base: computeEditorialScore(t) }));
   const eligible = scoredAll.filter((s) => passesMinimumQuality(s.topic, s.base));
   const ineligible = scoredAll.filter((s) => !passesMinimumQuality(s.topic, s.base));
   const ineligibleRows = ineligible.map((s) => ({
@@ -999,8 +1035,12 @@ const THREADS_MAX_CHARS = 500; // Threads API 텍스트 하드 리밋.
 // 2026-08-12: 링크가 본문에서 첫 댓글로 내려가면서 본문 예산이 260자 → 500자로 늘었다.
 // 목표를 420으로 잡는 이유는 종전과 같다 — 예산과 목표를 같게 두면 매번 잘림이 정상이 된다.
 // 잘림은 예외여야 로그(THREADS_BODY_TRUNCATED)가 신호로 기능한다.
-const BODY_TARGET_CHARS = 420;
+// 2026-08-17: PM 지시 "본문: 핵심 요약(500자)". 다만 500은 API 하드 리밋 그 자체라 목표를
+// 500으로 두면 매 건이 잘림 경고를 낸다. 460으로 잡아 리밋 바로 아래를 노린다(위 원칙 유지).
+const BODY_TARGET_CHARS = 460;
 const BODY_BUDGET = THREADS_MAX_CHARS; // 본문에 링크가 없으므로 전액이 본문 예산이다.
+// 댓글도 같은 하드 리밋(500자)을 받는다. 프롬프트는 400자를 요구하고, 여기서 한 번 더 막는다.
+const COMMENT_BUDGET = THREADS_MAX_CHARS;
 
 // 문장 경계에서 자른다 — 예산을 넘으면 예산 안의 마지막 문장 종결부까지만 남긴다. 종결부를
 // 못 찾거나 너무 앞이면(=한 문장이 예산보다 긴 경우) 예산에서 자르고 말줄임표를 붙인다.
@@ -1086,10 +1126,22 @@ async function generateDeepPost(topic) {
 리드: ${draft?.lead || ''}
 엇갈리는 시각: ${perspectives.map((p) => `[${p.perspective}] ${p.claim}`).join(' / ') || '(없음)'}
 
+★ 본문 + 댓글 연재(2026-08-17 개편): 이제 한 이슈를 본문 1개 + 댓글 2개로 나눠 연재한다.
+같은 말을 세 번 반복하면 안 된다 — 각 칸은 서로 다른 것을 말해야 한다.
+- 본문: 핵심 요약. 이것만 읽어도 무슨 일인지 알 수 있어야 한다. 위 [형식 A/B]의 1번 문단에
+  해당하는 내용을 중심으로, ${BODY_TARGET_CHARS}자 이내.
+- 댓글1(배경/맥락): 왜 지금 이 일이 벌어졌는지. 앞선 경위, 제도·구조적 배경, 직전에 있었던 일.
+  본문에 이미 쓴 문장을 다시 쓰지 마라. 400자 이내.
+- 댓글2(찬반/이면 심층): [형식 A]를 골랐으면 "찬성측은 이렇게 본다 / 반대측은 이렇게 본다"를
+  여기에 쓴다(양쪽 분량을 맞추고 어느 쪽이 옳은지 판정하지 마라).
+  [형식 B]를 골랐으면 표면 뒤의 진짜 쟁점과 이해관계(누가 얻고 누가 잃는가)를 쓴다. 400자 이내.
+
 설명 없이 아래 JSON만 반환해라(코드블록 없이):
 {
   "format": "A" 또는 "B" (위에서 고른 형식),
-  "text": "Threads에 올릴 본문(고른 형식의 구조대로, ${BODY_TARGET_CHARS}자 이내, 문단 구분 포함, 링크 제외)"
+  "text": "본문 — 핵심 요약(${BODY_TARGET_CHARS}자 이내, 링크 제외)",
+  "comment_context": "댓글1 — 배경/맥락 상세(400자 이내, 링크 제외)",
+  "comment_depth": "댓글2 — 찬반 또는 이면 심층(400자 이내, 링크 제외)"
 }`;
 
   // ★ 2026-08-06: 게시 실패의 최대 원인 수정.
@@ -1132,7 +1184,14 @@ async function generateDeepPost(topic) {
     throw new Error(`포스팅 본문 파싱 실패(응답구조 ${JSON.stringify(shape)}): ` + rawText.slice(0, 200));
   }
   const parsed = JSON.parse(match[0]);
-  return { text: finalizeBody(parsed.text, 'news') };
+  // 댓글 본문은 없어도 게시를 막지 않는다 — 본문만으로도 완결이라는 것이 개편의 전제이고,
+  // 댓글이 빠지는 것은 "연재가 짧아진 것"이지 실패가 아니다(빈 값은 postCommentChain이 건너뛴다).
+  return {
+    text: finalizeBody(parsed.text, 'news'),
+    format: parsed.format || null,
+    commentContext: truncateAtSentenceBoundary(String(parsed.comment_context || '').trim(), COMMENT_BUDGET),
+    commentDepth: truncateAtSentenceBoundary(String(parsed.comment_depth || '').trim(), COMMENT_BUDGET),
+  };
 }
 
 // 본문 마감 — 링크가 본문에서 빠진 뒤로 조립이 단순해졌다(예산 계산이 필요 없다).
@@ -1222,17 +1281,68 @@ ${source || '(본문 없음 — 제목과 리드만으로 쓰되, 확실하지 �
   return { text: finalizeBody(JSON.parse(match[0]).text, 'evergreen') };
 }
 
-// ── Threads API(텍스트 전용 — 이미지 없어도 정상, 이미지 필드는 애초에 참조하지 않는다) ──────
-async function createContainer(text, replyToId) {
-  const fields = { media_type: 'TEXT', text, access_token: await getAccessToken() };
+// ── Threads API ─────────────────────────────────────────────────────────────
+// 2026-08-17: 이미지 첨부 지원 추가(PM 지시 "본문에 카드뉴스 이미지 1장 첨부").
+// imageUrl을 주면 media_type=IMAGE + image_url로 올린다. Threads API도 인스타와 마찬가지로
+// 바이너리 업로드를 받지 않고 **공개 URL**만 받으므로, app/card/route.tsx가 만드는
+// https://newsjeoul.co.kr/card?... 를 그대로 넘긴다.
+async function createContainer(text, replyToId, imageUrl) {
+  const fields = imageUrl
+    ? { media_type: 'IMAGE', image_url: imageUrl, text, access_token: await getAccessToken() }
+    : { media_type: 'TEXT', text, access_token: await getAccessToken() };
   // reply_to_id를 주면 같은 엔드포인트가 "답글 컨테이너"를 만든다(Threads API Create Replies).
-  // 링크를 첫 댓글로 내리는 이번 개편이 이 파라미터 하나에 의존한다.
+  // 링크를 첫 댓글로 내리는 개편과, 이번 4단 댓글 연재가 이 파라미터 하나에 의존한다.
   if (replyToId) fields.reply_to_id = replyToId;
   const params = new URLSearchParams(fields);
   const res = await fetch(`https://graph.threads.net/v1.0/${THREADS_USER_ID}/threads`, { method: 'POST', body: params });
   const data = await res.json();
   if (!res.ok || !data.id) throw new Error('createContainer 실패: ' + JSON.stringify(data));
   return data.id;
+}
+
+// 카드뉴스 표지 이미지 URL — 인스타와 같은 /card 라우트를 공유한다(디자인이 두 채널에서 어긋나지 않는다).
+const CATEGORY_BADGE_THREADS = {
+  Society: '정치·사회', Economy: '경제', Business: '기업', Technology: '테크·AI',
+  Sports: '스포츠', Entertainment: '연예', Health: '건강', Science: '과학',
+  Automobile: '자동차', Lifestyle: '라이프', Crypto: '크립토',
+};
+
+function buildCardImageUrl(topic) {
+  const qs = new URLSearchParams({
+    slide: 'cover',
+    title: topic.name || '뉴스저울',
+    category: topic.category || '',
+    badge: CATEGORY_BADGE_THREADS[topic.category] || '오늘의 이슈',
+    i: '1', n: '1',
+  }).toString();
+  return `https://newsjeoul.co.kr/card?${qs}`;
+}
+
+// ── 4단 댓글 연재 (2026-08-17 PM 지시) ──────────────────────────────────────
+//   댓글1 배경/맥락 상세 · 댓글2 찬반/이면 심층 · 댓글3 허브 링크(있을 때만) · 댓글4 사이트 링크
+// 각 댓글은 바로 앞 댓글에 답글로 달아 "연재"가 되게 한다(전부 본문에 달면 순서가 보장되지 않고
+// 읽는 흐름이 끊긴다). 중간 하나가 실패해도 다음 댓글은 마지막으로 성공한 노드에 이어 붙인다 —
+// 연재가 통째로 날아가는 것보다 한 칸 비는 편이 낫다.
+async function postCommentChain(topicOrNull, rootPostId, comments) {
+  let parentId = rootPostId;
+  const results = [];
+  for (const c of comments) {
+    if (!c || !c.text || !c.text.trim()) continue;
+    try {
+      const containerId = await createContainer(c.text, parentId);
+      await new Promise((r) => setTimeout(r, 3000));
+      const postId = await publishPost(containerId);
+      results.push({ label: c.label, ok: true, postId });
+      parentId = postId; // 다음 댓글은 이 댓글에 이어 붙인다
+      console.log(`DISTRIBUTION_COMMENT_OK[${CHANNEL}](${c.label}): ${postId}`);
+      await new Promise((r) => setTimeout(r, 1500));
+    } catch (e) {
+      console.error(`DISTRIBUTION_COMMENT_FAILED[${CHANNEL}](${c.label}):`, e.message);
+      await logHardFailure(topicOrNull, 'comment_failed', e.message, { parentPostId: parentId, label: c.label });
+      results.push({ label: c.label, ok: false, postId: null });
+    }
+  }
+  return results;
 }
 
 // 링크 댓글(PM 지시 2026-08-12 §3) — 본문이 이미 게시된 뒤에 붙는다.
@@ -1273,10 +1383,11 @@ async function attemptNewsPost({ topic, hubMatch, detail }) {
   const editors = (plan?.editors_assigned || []).map((e) => e.name);
   const url = buildTopicUrl(topic);
 
-  // 2. Claude 문구 생성(여기부터 비용 발생)
-  let text;
+  // 2. Claude 문구 생성(여기부터 비용 발생) — 본문 + 댓글1(배경) + 댓글2(심층)를 호출 1회로 받는다.
+  //    나눠 호출하면 비용이 3배가 되고, 무엇보다 세 칸이 서로 겹치는 말을 하게 된다.
+  let text, commentContext, commentDepth;
   try {
-    ({ text } = await generateDeepPost(topic));
+    ({ text, commentContext, commentDepth } = await generateDeepPost(topic));
   } catch (genErr) {
     // 조립 실패(우리 버그)와 Claude API 실패(외부 요인)를 구분한다 — 사유가 섞이면
     // "posts_succeeded=0"의 원인을 엉뚱한 곳에서 찾게 된다.
@@ -1296,10 +1407,19 @@ async function attemptNewsPost({ topic, hubMatch, detail }) {
     return { ok: false, skipped: true, reason: 'duplicate_topic', topicId: topic.id };
   }
 
-  // 3. Threads 게시(이미지 필드 전혀 참조하지 않음 — TEXT 전용, 없어도 정상)
+  // 3. Threads 게시 — 2026-08-17부터 카드뉴스 표지 이미지 1장을 함께 올린다(PM 지시).
+  //    이미지 URL이 죽어 있으면 Threads가 컨테이너 생성을 거부하므로, 이미지 때문에 게시가
+  //    통째로 실패하는 일은 막는다: IMAGE로 실패하면 TEXT로 한 번 더 시도한다.
   let postId;
+  const cardImageUrl = buildCardImageUrl(topic);
   try {
-    const containerId = await createContainer(text);
+    let containerId;
+    try {
+      containerId = await createContainer(text, undefined, cardImageUrl);
+    } catch (imgErr) {
+      console.warn(`THREADS_IMAGE_FALLBACK[${CHANNEL}](텍스트 전용으로 재시도):`, imgErr.message);
+      containerId = await createContainer(text);
+    }
     await new Promise((r) => setTimeout(r, 3000));
     postId = await publishPost(containerId);
   } catch (postErr) {
@@ -1308,16 +1428,33 @@ async function attemptNewsPost({ topic, hubMatch, detail }) {
     return { ok: false, reason: 'threads_api_failed', error: postErr.message, topicId: topic.id };
   }
 
-  // 4. 링크 댓글(PM 지시 2026-08-12 §3·§5) — 본문에는 링크가 없다.
-  //    허브 연결 판정(관련성 70점 이상)이 붙은 토픽은 그 허브 링크를 두 번째 줄에 함께 단다.
+  // 4. 댓글 4단 연재(PM 지시 2026-08-17) — 본문에는 링크가 없다.
+  //    1) 배경/맥락  2) 찬반·이면 심층  3) 허브 링크(있을 때만)  4) 뉴스저울 링크
+  //    링크를 마지막에 두는 이유: 연재를 다 읽은 사람이 가장 클릭 의사가 높고, 링크가 중간에
+  //    끼면 거기서 이탈해 뒤 내용이 읽히지 않는다.
   const activeTopicCount = await fetchActiveTopicCount();
-  const comment = strategy.buildCommentText({
-    primaryLabel: `전문 보기(오늘 다루는 이슈 ${activeTopicCount}개)`,
-    primaryUrl: url,
-    secondaryLabel: hubMatch ? `${hubMatch.hub.title} 한눈에 보기` : undefined,
-    secondaryUrl: hubMatch ? buildHubUrl(hubMatch.hub.slug) : undefined,
-  });
-  const commentResult = await attachLinkComment(topic, postId, comment);
+  const commentPlan = [
+    { label: 'context', text: commentContext },
+    { label: 'depth', text: commentDepth },
+    hubMatch ? {
+      label: 'hub',
+      text: strategy.buildCommentText({
+        primaryLabel: `${hubMatch.hub.title} 한눈에 보기`,
+        primaryUrl: buildHubUrl(hubMatch.hub.slug),
+      }),
+    } : null,
+    {
+      label: 'site',
+      text: strategy.buildCommentText({
+        primaryLabel: `전문 보기(오늘 다루는 이슈 ${activeTopicCount}개)`,
+        primaryUrl: url,
+      }),
+    },
+  ].filter(Boolean);
+
+  const chainResults = await postCommentChain(topic, postId, commentPlan);
+  const siteComment = chainResults.find((r) => r.label === 'site');
+  const commentResult = { ok: Boolean(siteComment && siteComment.ok), postId: siteComment ? siteComment.postId : null };
 
   // 5. 핵심 dedup 기록(실패해도 게시 자체는 이미 성공 — Post ID를 결과에 보존)
   try {
@@ -1341,6 +1478,7 @@ async function attemptNewsPost({ topic, hubMatch, detail }) {
     ok: true, reason: 'success', type: hubMatch ? 'news_hub' : 'news', postId, topicId: topic.id,
     slug: topic.slug, editors, title: topic.name, url, text,
     commentPostId: commentResult.postId, commentOk: commentResult.ok,
+    commentChain: chainResults, cardImageUrl,
     hub: hubMatch ? { slug: hubMatch.hub.slug, relevance: hubMatch.relevance } : null,
     detailLogSaved: logResult.ok, scoreDetail: detail,
   };
@@ -1591,9 +1729,26 @@ exports.handler = async function (event) {
       console.error(`DISTRIBUTION_RUN_LOG_FAILED[${CHANNEL}](참고용 로그만 누락):`, e.message);
     }
 
+    // ── 인스타그램 동시 실행 (2026-08-17 PM 지시 "스레드와 동시 실행") ────────
+    // 별도 cron을 새로 만들지 않고 이 실행에 물린다. 이유: 실제 트리거가 Supabase pg_cron
+    // (nj-post-threads)이라 새 스케줄을 추가하려면 SQL 실행(승인 대상)이 필요한데, 여기서
+    // 호출하면 지금 있는 트리거 하나로 두 채널이 같이 돈다.
+    // 실패해도 스레드 결과에는 영향이 없다 — 인스타는 부가 채널이고, 자격증명이 아직 없으면
+    // 함수가 스스로 skipped를 돌려준다.
+    let instagram = null;
+    try {
+      const ig = require('./instagram-publish');
+      const igRes = await ig.handler({ headers: {} });
+      instagram = JSON.parse(igRes.body);
+      console.log(`INSTAGRAM_RUN[${CHANNEL}]:`, JSON.stringify(instagram).slice(0, 300));
+    } catch (e) {
+      console.error('INSTAGRAM_RUN_FAILED(스레드 결과에는 영향 없음):', e.message);
+      instagram = { ok: false, error: e.message };
+    }
+
     return {
       statusCode: 200, headers,
-      body: JSON.stringify({ ok: true, dailyTarget, postsAttemptedThisRun: results.length, postsSucceededThisRun: successCount, evergreenThisRun: evergreenCount, hubLinkedThisRun: hubLinkedCount, todaySuccessCount, results }),
+      body: JSON.stringify({ ok: true, dailyTarget, postsAttemptedThisRun: results.length, postsSucceededThisRun: successCount, evergreenThisRun: evergreenCount, hubLinkedThisRun: hubLinkedCount, todaySuccessCount, instagram, results }),
     };
   } catch (e) {
     console.error(`DISTRIBUTION_RUN_ERROR[${CHANNEL}]:`, e.message);

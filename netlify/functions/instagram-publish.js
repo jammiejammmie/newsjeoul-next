@@ -38,6 +38,17 @@ const CHANNEL = 'instagram';
 const MAX_SLIDES = 10; // 캐러셀 상한(Meta 규격)
 const CAPTION_MAX = 2200;
 
+// ── 게시량·선별 (2026-08-17 PM 지시, 스레드와 같은 기준) ────────────────────
+// 스레드 실행에 물려 같이 돌기 때문에(post-threads-background 말미에서 호출), 실행 주기가
+// 30분이면 하루 48회 호출될 수 있다. 호출마다 1건씩 올리면 인스타 한도(100건/24h)에는 안 걸려도
+// 계정이 스팸처럼 보인다. 그래서 스레드와 같은 하루 상한을 여기서 직접 건다.
+const IG_DAILY_MAX = 15;
+const MIN_BUZZ_SCORE_FOR_POST = 25;
+const BUZZ_FLOOR_MIN_SAMPLE = 10;
+// 카드뉴스는 3~5장(표지 + 본문 2~3 + 마무리)을 목표로 한다 — PM 지시 규격.
+const TARGET_SLIDE_MIN = 3;
+const TARGET_SLIDE_MAX = 5;
+
 async function supabaseGet(table, params) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}${params || ''}`, {
     headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY },
@@ -93,6 +104,13 @@ function buildSlides(topic) {
   }
 
   slides.push({ slide: 'end', text: '매일 이슈의 이면을 봅니다' });
+
+  // 3~5장 규격 유지. 5장을 넘으면 마무리는 남기고 본문 카드를 앞에서부터 잘라낸다.
+  if (slides.length > TARGET_SLIDE_MAX) {
+    const end = slides[slides.length - 1];
+    slides.length = TARGET_SLIDE_MAX - 1;
+    slides.push(end);
+  }
 
   return slides.slice(0, MAX_SLIDES).map((s, i, arr) => ({
     ...s,
@@ -192,10 +210,31 @@ async function pickTopic() {
     `?status=eq.active&editorial_status=eq.published&ai_context->${CHANNEL}->>posted_at=is.null` +
     `&select=id,slug,name,summary,category,ai_context&order=updated_at.desc&limit=60`
   );
+  // draft가 없으면 카드에 채울 내용이 없다(제목만 있는 카드뉴스는 올리지 않는다).
   const withDraft = pool.filter((t) => t.ai_context?.draft?.lead);
   if (!withDraft.length) return null;
+
+  // buzz 상위 선별 — 스레드와 같은 문턱·같은 표본 조건을 쓴다(채널마다 기준이 다르면
+  // "왜 스레드엔 올라갔는데 인스타엔 안 올라갔나"를 설명할 수 없다).
+  const withBuzz = withDraft.filter((t) => typeof t.ai_context?.buzz?.score === 'number');
+  let candidates = withDraft;
+  if (withBuzz.length >= BUZZ_FLOOR_MIN_SAMPLE) {
+    const passed = withBuzz.filter((t) => t.ai_context.buzz.score >= MIN_BUZZ_SCORE_FOR_POST);
+    if (passed.length) candidates = passed;
+  }
+
   const { sortByBuzz } = require('./buzz-engine');
-  return sortByBuzz(withDraft)[0];
+  return sortByBuzz(candidates)[0];
+}
+
+// 오늘(UTC) 이미 인스타에 올린 건수 — 하루 상한 집행용.
+async function fetchTodayPostedCount() {
+  const todayStart = new Date().toISOString().slice(0, 10) + 'T00:00:00';
+  const rows = await supabaseGet(
+    'topics',
+    `?ai_context->${CHANNEL}->>posted_at=gte.${encodeURIComponent(todayStart)}&select=id&limit=200`
+  );
+  return rows.length;
 }
 
 exports.handler = async function (event) {
@@ -226,6 +265,14 @@ exports.handler = async function (event) {
   }
 
   try {
+    if (!isDry) {
+      const postedToday = await fetchTodayPostedCount();
+      if (postedToday >= IG_DAILY_MAX) {
+        console.log(`INSTAGRAM_DAILY_CAP: 오늘 ${postedToday}건으로 상한(${IG_DAILY_MAX}) 도달 — 게시하지 않음`);
+        return { statusCode: 200, headers, body: JSON.stringify({ ok: true, skipped: true, reason: 'daily_cap', postedToday }) };
+      }
+    }
+
     const topic = await pickTopic();
     if (!topic) {
       return { statusCode: 200, headers, body: JSON.stringify({ ok: true, skipped: true, reason: 'no_candidate' }) };
