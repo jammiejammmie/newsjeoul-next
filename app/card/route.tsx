@@ -240,9 +240,18 @@ export async function GET(req: NextRequest) {
       width: W,
       height: H,
       fonts,
-      // Instagram Graph API는 요청 시점에 URL이 공개적으로 접근 가능해야 한다.
-      // 캐시를 길게 잡아 같은 카드를 재요청할 때 폰트 로딩까지 반복하지 않게 한다.
-      headers: { 'Cache-Control': 'public, max-age=3600, s-maxage=86400, immutable' },
+      // ★ 캐시 금지 — 2026-08-17 실측 사고.
+      // 처음엔 'public, max-age=3600, s-maxage=86400, immutable'을 줬는데, Netlify Edge가
+      // 쿼리스트링을 무시하고 경로(/card)만으로 캐시 키를 잡아버렸다. 그 결과 slide/title/text가
+      // 전부 다른 5장을 요청해도 **똑같은 이미지 1장**이 돌아왔다(4장 sha256 완전 일치,
+      // 응답 헤더 cache: "Netlify Edge"; hit; ttl=86346). 그대로 게시했으면 카드뉴스 5장이
+      // 전부 같은 그림으로 올라갔을 것이다.
+      // 이 라우트는 요청마다 파라미터가 다른 것이 정상이므로 CDN 캐싱을 아예 끈다.
+      // 성능 손해는 없다 — 인스타/스레드는 게시할 때 이미지를 한 번만 가져간다.
+      headers: {
+        'Cache-Control': 'no-store, max-age=0',
+        'Netlify-CDN-Cache-Control': 'no-store',
+      },
     })
   } catch (e) {
     console.error('카드뉴스 생성 오류:', e)
