@@ -238,14 +238,18 @@ const MAX_GAP_MS = Number(process.env.POST_GAP_MAX_MS) || 3 * 60 * 1000; // 3분
 // Distribution Score 구성 가중치(합=1.0) — PM 지시 §1의 9개 요소를 7개 계산 컴포넌트로 매핑.
 // (카테고리 생산량 + 카테고리별 오늘 게시 수 → categoryAllocation 하나로 통합: 두 값의 격차가
 //  실제로 의미 있는 신호이기 때문)
+// 2026-08-17(PM 지시 "화제성/자극성 높은 이슈 우선"): buzz를 0.20으로 신설하고 나머지를
+// 0.8배로 비례 축소해 합 1.0을 유지했다. buzz는 단일 컴포넌트 중 categoryAllocation과 함께
+// 가장 큰 가중치다 — 즉 "무엇을 올릴지"는 이제 화제성이 사실상 1순위로 정한다.
 const DISTRIBUTION_WEIGHTS = {
-  editorialScore: 0.20,     // Editorial Score(콘텐츠 자체 품질 — 채널 무관, 구 Thread Score)
-  categoryAllocation: 0.20, // 카테고리 생산량 vs 카테고리별 오늘 게시 수 격차("오늘 부족한 분야" 우선)
-  recentPattern: 0.10,      // 최근 게시 패턴(직전/최근 3건과의 반복 여부)
-  searchIntent: 0.15,       // 검색 의도 적합성
-  expectedCTR: 0.15,        // 예상 CTR(구조적 proxy — 실제 클릭 데이터 없음, 아래 함수 주석 참고)
-  topicWeight: 0.10,        // Topic Weight(importance_score)
-  exploration: 0.10,        // Exploration 가능성 — 클릭 이후 더 탐험할 거리가 있는가(아래 주석 참고)
+  buzz: 0.20,               // 화제성(buzz-engine) — Top Stories/섹션/트렌드 검색량 기반
+  editorialScore: 0.16,     // Editorial Score(콘텐츠 자체 품질 — 채널 무관, 구 Thread Score)
+  categoryAllocation: 0.16, // 카테고리 생산량 vs 카테고리별 오늘 게시 수 격차("오늘 부족한 분야" 우선)
+  recentPattern: 0.08,      // 최근 게시 패턴(직전/최근 3건과의 반복 여부)
+  searchIntent: 0.12,       // 검색 의도 적합성
+  expectedCTR: 0.12,        // 예상 CTR(구조적 proxy — 실제 클릭 데이터 없음, 아래 함수 주석 참고)
+  topicWeight: 0.08,        // Topic Weight(importance_score)
+  exploration: 0.08,        // Exploration 가능성 — 클릭 이후 더 탐험할 거리가 있는가(아래 주석 참고)
 };
 // 합계는 1.0이어야 한다. 아래 두 컴포넌트는 PM 지시(2026-07-21 §3, §6)로 미리 문서화만 해두는
 // 확장 지점이다 — 지금은 구현하지 않는다. 실제로 추가할 때는 반드시 위 가중치를 재조정해서
@@ -382,8 +386,26 @@ function computeExplorationScore(topic) {
   return Math.min(100, drafts.length * 15 + signalCount * 10 + potentialBonusAngles * 10);
 }
 
+// buzz 원점수를 0~100으로 정규화한다. 원점수 상한은 Top(60)+섹션(30)+트렌드(50)+최신성(15)=155지만
+// 실제로 셋 다 동시에 최상위인 경우는 드물다 — 실측 상위권이 70~100대라 120을 만점 기준으로 잡는다.
+//
+// ★ buzz가 **아직 계산되지 않은** Topic은 0이 아니라 null을 반환한다. 이 구분이 결정적이다:
+// buzz 도입 이전에 만들어진 Topic(현재 1,286건 대부분)에는 ai_context.buzz가 없는데, 이를 0점으로
+// 처리하면 배포 직후 모든 후보의 Distribution Score가 일제히 20% 내려앉아 적응형 문턱을 못 넘고
+// 배급이 통째로 멈춘다(실제로 기존 테스트 108건 중 43건이 이 이유로 깨졌다).
+// null이면 아래에서 buzz 가중치를 제외하고 남은 가중치를 재정규화한다 — "정보 없음"을
+// "화제성 없음"으로 오해하지 않기 위해서다. 계산은 했는데 매칭이 없어 낮은 것은 진짜 0점이 맞다.
+function computeBuzzComponent(topic) {
+  const buzz = topic?.ai_context?.buzz;
+  if (!buzz || typeof buzz.score !== 'number') return null; // 미계산 — 중립 처리
+  if (buzz.score <= 0) return 0;
+  return Math.min(100, Math.round((buzz.score / 120) * 100));
+}
+
 function computeDistributionScore(topic, baseQuality, ctx) {
+  const buzzComponent = computeBuzzComponent(topic);
   const components = {
+    buzz: buzzComponent === null ? 0 : buzzComponent,
     editorialScore: baseQuality.score,
     categoryAllocation: computeCategoryAllocationScore(topic.category, ctx.producedStats, ctx.postedStats),
     recentPattern: computeRecentPatternScore(topic.category, ctx.recentCategories),
@@ -392,10 +414,21 @@ function computeDistributionScore(topic, baseQuality, ctx) {
     topicWeight: computeTopicWeightScore(topic),
     exploration: computeExplorationScore(topic),
   };
+
+  // buzz 미계산이면 그 가중치를 빼고 나머지를 재정규화한다(합이 다시 1.0이 되도록).
+  // 이렇게 하면 buzz가 붙은 Topic만 상대적으로 유리해지고, 아직 안 붙은 Topic은 개편 전과
+  // 정확히 같은 점수를 받는다 — 마이그레이션 없이 점진 전환이 가능한 이유다.
+  const activeWeights = { ...DISTRIBUTION_WEIGHTS };
+  if (buzzComponent === null) {
+    delete activeWeights.buzz;
+    const total = Object.values(activeWeights).reduce((a, b) => a + b, 0);
+    for (const k of Object.keys(activeWeights)) activeWeights[k] /= total;
+  }
+
   const distributionScore = Math.round(
-    Object.entries(DISTRIBUTION_WEIGHTS).reduce((sum, [key, w]) => sum + components[key] * w, 0)
+    Object.entries(activeWeights).reduce((sum, [key, w]) => sum + components[key] * w, 0)
   );
-  return { distributionScore, components };
+  return { distributionScore, components, buzzApplied: buzzComponent !== null };
 }
 
 // 오늘 원본 기사(articles) 수에 비례한 목표치 — clamp(round(articles×0.10), 20, 60).
@@ -1022,13 +1055,30 @@ async function generateDeepPost(topic) {
 링크는 본문에 넣지 않는다(첫 댓글에 따로 붙는다) — 그만큼 예산이 늘었으니 사실을 더 담아라.
 "자세한 내용은 링크에서" 같은 정보 은닉형 문장은 쓰지 마라. 이 글 안에서 답이 끝나야 한다.
 
-글 구조(반드시 이 순서, 문단 사이는 줄바꿈 두 번으로 구분 — 링크/유도 문장은 쓰지 마라):
-1. 무슨 일이 있었고 왜 중요한지 3~4문장으로 서술한다. 숫자·고유명사를 반드시 포함한다.
-2. 이 사안을 보는 다른 시각이나 흔히 놓치는 관점을 1~2문장으로 덧붙인다.
+★ 관점(2026-08-17 개편, 가장 중요한 차별점): 사건을 요약해서 전달하는 글은 이미 넘친다.
+뉴스저울의 글은 **"이 이슈 이면에 뭐가 있나"**에 답해야 한다. 즉 무슨 일이 일어났는지가 아니라,
+왜 지금 이게 터졌는지 / 누가 무엇을 얻고 잃는지 / 표면적 명분 뒤의 실제 이해관계가 무엇인지를 쓴다.
 
-허용: 구체적인 숫자·인물·기업·정책명, 사실에 기반한 대비·맥락.
+글 구조 — 아래 두 형식 중 **이 사안에 맞는 쪽 하나**를 골라 써라(문단 사이는 줄바꿈 두 번):
+
+[형식 A] 대립형 — 찬반·진영·이해관계가 뚜렷하게 갈리는 사안일 때 (예: 탄핵, 규제 신설, 파업, 판결)
+1. 무슨 일인지 2~3문장. 숫자·고유명사 필수.
+2. "찬성측은 이렇게 본다:" 로 시작해 그쪽 논리를 1~2문장으로, 그 진영이 실제로 내세우는 근거 그대로.
+3. "반대측은 이렇게 본다:" 로 시작해 마찬가지로 1~2문장.
+4. 양쪽이 실제로 무엇을 걸고 다투는지(자리·예산·표·시장점유율 등 구체적 이해관계) 1~2문장.
+   ※ 어느 쪽이 옳은지 판정하지 마라. 양쪽 분량을 비슷하게 맞춰라. 한쪽을 희화화하지 마라.
+
+[형식 B] 이면형 — 대립 구도가 아닌 사안일 때 (예: 실적 발표, 신제품, 사고, 인사)
+1. 무슨 일인지 2~3문장. 숫자·고유명사 필수.
+2. "그런데 진짜 쟁점은" 또는 그에 준하는 전환으로, 표면 발표 뒤의 배경·타이밍·의도를 2~3문장.
+3. 이 일로 누가 이득을 보고 누가 부담을 지는지 1~2문장.
+
+허용: 구체적인 숫자·인물·기업·정책명, 사실에 기반한 대비·맥락, 각 진영이 실제로 한 주장의 인용.
 금지: 사실과 다른 과장, 본문에 없는 결론 추가, 공포 조장, "충격"·"소름"·"난리 났다" 같은 저품질
 상투어, "이것만 알면"·"끝까지 봐야 하는 이유" 같은 정보 은닉형 클릭 유도.
+금지(추가): 근거 없는 음모론적 단정("사실은 ~를 노린 것"처럼 자료에 없는 의도 추정). 이면을 쓰되
+반드시 아래 제공된 자료(요약·리드·엇갈리는 시각) 안에서 근거를 찾아 써라 — 추측을 사실처럼 쓰지 마라.
+어느 진영도 조롱하거나 인신공격하지 마라.
 
 제목: ${topic.name}
 요약: ${topic.summary || ''}
@@ -1038,7 +1088,8 @@ async function generateDeepPost(topic) {
 
 설명 없이 아래 JSON만 반환해라(코드블록 없이):
 {
-  "text": "Threads에 올릴 본문(위 1~2번 구조, ${BODY_TARGET_CHARS}자 이내, 문단 구분 포함, 링크 제외)"
+  "format": "A" 또는 "B" (위에서 고른 형식),
+  "text": "Threads에 올릴 본문(고른 형식의 구조대로, ${BODY_TARGET_CHARS}자 이내, 문단 구분 포함, 링크 제외)"
 }`;
 
   // ★ 2026-08-06: 게시 실패의 최대 원인 수정.

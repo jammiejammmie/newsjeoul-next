@@ -1,7 +1,13 @@
 // process-stories.js
-// 수집된 기사 → Claude 클러스터링 → stories/story_articles 생성 → 침묵지수/논쟁지수 계산
+// 수집된 기사 → buzz 우선 정렬 → Claude 클러스터링 → stories/story_articles 생성 → 논쟁지수 계산
+// (2026-08-17: 침묵지수 산출 제거, buzz_score 기반으로 전환)
 
-const { shouldSkipStory } = require('./news-filters');
+const { skipReason } = require('./news-filters');
+const { fetchBuzzIndex, scoreTitle } = require('./buzz-engine');
+
+// 클러스터링에 넣을 기사 상한. 이 위로는 잘려나가는데, 종전에는 그 기준이 "최신순"이라
+// 화제성과 무관하게 잘렸다. 이제 buzz 점수 우선으로 정렬한 뒤 자른다(2026-08-17).
+const CLUSTER_INPUT_LIMIT = 200;
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY;
@@ -64,7 +70,10 @@ ${articles.map((a, i) => `${i}. [${a.outlet_name}] ${a.title}`).join('\n')}
 주의:
 - 같은 사건이 확실한 것만 묶어라
 - 최소 2개 이상 언론사가 다룬 것만 스토리로 만들어라
-- 광고/스포츠/연예는 제외해라
+- 주제로 배제하지 마라. 정치·스포츠·연예·경제·테크 전부 동등하게 묶어라
+  (2026-08-17 개편 — 종전에는 "광고/스포츠/연예 제외" 지시가 있었으나, 이 때문에
+   화제 이슈가 통째로 유실됐다. 주제별 분량은 발행 단계의 카테고리 쿼터가 조절한다.)
+- 다만 명백한 광고/홍보성 기사는 묶지 마라
 - "이 대통령", "李대통령", "윤 대통령"처럼 성(姓)+직함만 축약해서 쓴 표기가 있어도, 그걸
   절대 실명으로 확장하지 마라(예: "이 대통령"을 임의로 "이OO 대통령"으로 풀어 쓰지 말 것 —
   기사 제목에 실명이 없는데 대표 제목에 실명을 새로 지어내면 팩트 오류다).
@@ -128,10 +137,16 @@ function verifyAndSanitizeTitle(storyTitle, sourceTitles) {
   return sanitized;
 }
 
-function calcSilenceScore(articleCount, totalOutlets) {
-  const coverageRate = articleCount / totalOutlets;
-  return Math.round((1 - coverageRate) * 100);
-}
+// ── 침묵지수 제거 (2026-08-17, PM 지시) ─────────────────────────────────────
+// calcSilenceScore()는 "활성 언론사 29곳 중 몇 곳이 이 사안을 안 다뤘나"를 재던 지표로,
+// 뉴스저울 초기 정체성이었다. buzz_score 기반으로 완전히 전환하면서 산출·저장·소비를 모두 제거한다.
+// 관련 UI(SilenceTop10, TrackedSilenceSection, /top10)는 이미 2026-07-22 구브랜드 정리 때
+// redirect·미사용 처리되어 있었으므로 이번 제거로 새로 사라지는 화면은 없다.
+//
+// 주의: stories.silence_score 컬럼 자체는 DDL 권한이 없어 남아 있다. 아래 INSERT는 이 컬럼을
+// 더 이상 채우지 않는다 — 컬럼이 NOT NULL이면 INSERT가 실패하므로, 그 경우에만 0으로 재시도하는
+// 호환 폴백을 둔다(파이프라인 전체가 멈추는 것보다는 낫다). 컬럼을 실제로 지우는 SQL은
+// supabase/remove_silence_score_migration.sql 에 있다.
 
 function calcControversyScore(articles) {
   const uniqueOutlets = new Set(articles.map(a => a.outlet_id)).size;
@@ -186,10 +201,38 @@ exports.handler = async function(event) {
     const existingStories = await supabaseGet('stories', `?created_at=gte.${since}&select=title`);
     const existingTitles = new Set(existingStories.map(s => s.title));
 
-    const articlesWithName = unprocessed.map(a => ({
+    let articlesWithName = unprocessed.map(a => ({
       ...a,
       outlet_name: outletMap[a.outlet_id] || '알 수 없음'
     }));
+
+    // ── buzz 우선 정렬 (2026-08-17) ─────────────────────────────────────────
+    // 화제성 인덱스는 실패해도 무시한다 — 그 경우 종전과 동일한 최신순으로 진행된다.
+    // 여기서 계산한 점수는 클러스터 대표 제목으로 옮겨 담아, 뒤 단계(resolve-topics)가
+    // 다시 계산하지 않아도 되게 한다.
+    let buzzIndex = null;
+    const buzzByArticleId = new Map();
+    try {
+      buzzIndex = await fetchBuzzIndex({ perFeedLimit: 40, timeoutMs: 7000 });
+      for (const a of articlesWithName) {
+        const r = scoreTitle(a.title, buzzIndex, { publishedAt: a.published_at });
+        buzzByArticleId.set(a.id, r);
+      }
+      articlesWithName.sort((x, y) => {
+        const d = (buzzByArticleId.get(y.id)?.score || 0) - (buzzByArticleId.get(x.id)?.score || 0);
+        if (d !== 0) return d;
+        return String(y.published_at || '').localeCompare(String(x.published_at || ''));
+      });
+      const topScore = buzzByArticleId.get(articlesWithName[0]?.id)?.score || 0;
+      console.log(`buzz 정렬 완료: 최고 ${topScore}점, 피드 ${buzzIndex.stats.feeds_ok}/8`);
+    } catch (e) {
+      console.error('buzz 정렬 생략(최신순으로 진행):', e.message);
+    }
+
+    if (articlesWithName.length > CLUSTER_INPUT_LIMIT) {
+      console.log(`클러스터 입력 ${articlesWithName.length}건 → 상위 ${CLUSTER_INPUT_LIMIT}건으로 절단(buzz 순)`);
+      articlesWithName = articlesWithName.slice(0, CLUSTER_INPUT_LIMIT);
+    }
 
     console.log(`클러스터링 시작: ${articlesWithName.length}개 기사`);
 
@@ -218,22 +261,33 @@ exports.handler = async function(event) {
           continue;
         }
 
-        if (shouldSkipStory(cluster.story_title)) {
-          console.log('스킵:', cluster.story_title);
+        // 2026-08-17: 주제 배제는 사라졌다. 여기서 걸리는 건 광고/낚시/무정보 자동생성물뿐이다.
+        const skip = skipReason(cluster.story_title);
+        if (skip) {
+          console.log(`스킵(${skip}):`, cluster.story_title);
           continue;
         }
 
         const repArticle = articlesWithName[cluster.representative_index] || clusterArticles[0];
-        const silenceScore = calcSilenceScore(clusterArticles.length, totalOutlets);
         const controversyScore = calcControversyScore(clusterArticles);
 
-        const [story] = await supabasePost('stories', {
+        const storyRow = {
           title: cluster.story_title,
           representative_article_id: repArticle.id,
-          silence_score: silenceScore,
           controversy_score: controversyScore,
           published_at: repArticle.published_at,
-        });
+        };
+
+        let story;
+        try {
+          [story] = await supabasePost('stories', storyRow);
+        } catch (e) {
+          // silence_score가 NOT NULL로 남아 있는 경우에만 걸린다. 컬럼을 실제로 드롭하면
+          // 이 경로는 영구히 죽는다(정상). 여기서 죽으면 스토리 생성이 전부 멈추므로 방어한다.
+          if (!/silence_score/.test(e.message)) throw e;
+          console.warn('silence_score NOT NULL 제약 감지 — 0으로 채워 재시도(컬럼 드롭 SQL 미적용 상태)');
+          [story] = await supabasePost('stories', { ...storyRow, silence_score: 0 });
+        }
 
         if (!story) continue;
 
@@ -256,7 +310,7 @@ exports.handler = async function(event) {
           label: 'T0',
         }).catch(e => console.error('T0 log 실패:', e.message));
 
-        console.log(`스토리 생성: "${cluster.story_title}" (침묵:${silenceScore} 논쟁:${controversyScore})`);
+        console.log(`스토리 생성: "${cluster.story_title}" (논쟁:${controversyScore} 출처:${uniqueOutletCount}곳)`);
 
       } catch(e) {
         console.error('스토리 생성 오류:', e.message);

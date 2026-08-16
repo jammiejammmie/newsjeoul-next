@@ -34,7 +34,8 @@ export async function getEntityStories(entityId: string, limit = 20) {
   const supabase = client()
   const { data } = await supabase
     .from('entity_stories')
-    .select('relevance_score, stories(id, title, silence_score, controversy_score, created_at)')
+    // 2026-08-17: silence_score 제거(buzz_score 전환) — lib/topics.ts와 동일한 이유
+    .select('relevance_score, stories(id, title, controversy_score, created_at)')
     .eq('entity_id', entityId)
     .order('relevance_score', { ascending: false })
     .limit(limit)

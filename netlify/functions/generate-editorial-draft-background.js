@@ -12,6 +12,8 @@
 // -background 접미사로 최대 15분까지 실행 가능해져 배치 크기를 다시 늘렸다. 호출자는 202를 즉시 받고
 // 결과를 못 받으므로(운영은 Cron 자동 호출, 관리자 화면은 상태만 별도 조회) 반환값은 로그 확인용일 뿐이다.
 
+const { prioritizeForPublish, fetchRecentPublished } = require('./buzz-engine');
+
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY;
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
@@ -285,12 +287,31 @@ exports.handler = async function (event) {
   }
 
   try {
-    const pending = await supabaseGet(
+    // ── buzz 우선순위 + 카테고리 쿼터 (2026-08-17, PM 지시) ─────────────────
+    // 종전에는 updated_at 최신순으로 BATCH_SIZE만큼 그대로 집었다. 그래서 (1) 화제성과 무관하게
+    // 발행 순서가 정해졌고 (2) 트럼프·이란처럼 한 사안이 대량 생산되면 그날 발행분을 통째로
+    // 독점했다. 이제 후보를 넉넉히 뽑아온 뒤 buzz 순으로 정렬하고, 카테고리 상한을 적용해 자른다.
+    const POOL_SIZE = Math.max(BATCH_SIZE * 6, 60);
+    const pool = await supabaseGet(
       'topics',
-      `?status=eq.active&editorial_status=eq.planned&gate_status=eq.DEEP_DIVE&select=id,name,summary,ai_context,editorial_retry_count&order=updated_at.desc&limit=${BATCH_SIZE}`
+      `?status=eq.active&editorial_status=eq.planned&gate_status=eq.DEEP_DIVE` +
+      `&select=id,name,summary,category,ai_context,editorial_retry_count,updated_at` +
+      `&order=updated_at.desc&limit=${POOL_SIZE}`
+    );
+    if (!pool.length) {
+      return { statusCode: 200, headers, body: JSON.stringify({ ok: true, targetedThisRun: 0 }) };
+    }
+
+    const recentPublished = await fetchRecentPublished(supabaseGet);
+    const priority = prioritizeForPublish(pool, BATCH_SIZE, recentPublished);
+    const pending = priority.selected;
+    console.log(
+      `발행 우선순위: 후보 ${pool.length}건 → 선정 ${pending.length}건 ` +
+      `(쿼터 보류 ${priority.deferred.filter((d) => String(d.defer_reason).startsWith('quota_full')).length}건), ` +
+      `최근 24h 발행 ${recentPublished.length}건, 상한 ${JSON.stringify(priority.report.capOf)}`
     );
     if (!pending.length) {
-      return { statusCode: 200, headers, body: JSON.stringify({ ok: true, targetedThisRun: 0 }) };
+      return { statusCode: 200, headers, body: JSON.stringify({ ok: true, targetedThisRun: 0, quotaBlocked: true }) };
     }
 
     const eventTypeRules = await supabaseGet('event_type_rules', '?select=event_type,common_pitfalls');

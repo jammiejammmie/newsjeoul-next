@@ -2,6 +2,8 @@
 // story → 기존 Topic 매칭 또는 신규 Topic 생성 → topic_stories 연결 → topic_entities 집계 갱신
 // manual(source_type='manual')로 만들어진 Topic도 매칭 후보에 포함된다.
 
+const { fetchBuzzIndex, scoreTitle, bucketOf } = require('./buzz-engine');
+
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY;
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
@@ -64,11 +66,16 @@ async function claudeResolveTopic(storyTitle, candidateTopics) {
 여러 Topic에 동시에 해당되면 여러 개를 배열로 반환해도 된다. 설명 없이 JSON만 반환해라.
 
 뉴스저울은 정치/사회 뉴스만 다루는 사이트가 아니다. category는 세상 전체를 아래 대분류 중 가장 가까운 것으로 분류해라(정치를 특별 취급하지 말고, 아래 목록에서 실제 내용에 맞는 걸 골라라):
-Technology(AI/스마트폰/PC/반도체/로봇/우주/보안), Business(기업/스타트업/투자/M&A/IPO/브랜드),
+Technology(AI/스마트폰/PC/반도체/로봇/보안), Business(기업/스타트업/투자/M&A/IPO/브랜드),
 Economy(경제/금리/환율/물가/원자재/소비), Automobile(자동차/EV/자율주행),
 Health(질병/백신/병원/의약품/건강식품/정신건강), Lifestyle(여행/음식/카페/명품/패션/뷰티),
-Entertainment(영화/OTT/게임/스포츠/음악), Science(우주/기후/환경/에너지),
-Crypto(Bitcoin/Ethereum/Web3), Society(정치/교육/취업/인구/범죄/복지/국제)
+Sports(축구/야구/농구/올림픽/e스포츠/선수 이적·기록), Entertainment(영화/OTT/게임/음악/방송/연예인),
+Science(우주/기후/환경/에너지), Crypto(Bitcoin/Ethereum/Web3),
+Society(정치/선거/교육/취업/인구/범죄/복지/국제/외교)
+
+주의: Sports는 2026-08-17 신설된 대분류다. 종전에는 Entertainment가 스포츠를 함께 삼켰는데,
+스포츠와 연예에 각각 독립된 발행 쿼터가 생겨 더는 같은 분류에 둘 수 없다.
+스포츠 경기·선수·구단 관련이면 Entertainment가 아니라 반드시 Sports로 분류해라.
 
 스토리 제목: "${storyTitle}"
 
@@ -138,12 +145,54 @@ exports.handler = async function (event) {
     const candidateSince = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
     const candidateTopics = await supabaseGet(
       'topics',
-      `?status=in.(active,dormant)&updated_at=gte.${candidateSince}&select=id,name,summary,description&order=updated_at.desc&limit=20`
+      `?status=in.(active,dormant)&updated_at=gte.${candidateSince}&select=id,name,summary,description,category&order=updated_at.desc&limit=20`
     );
+
+    // ── 화제성 인덱스 (2026-08-17) ──────────────────────────────────────────
+    // 여기서 계산한 buzz를 topics.ai_context.buzz에 적재한다. 이후 발행 단계
+    // (editorial-plan / publish-gate / editorial-draft / publish-routed-content)는 전부
+    // 이 값을 읽어 우선순위와 카테고리 쿼터를 집행한다.
+    //
+    // 왜 새 컬럼을 만들지 않았나: topics.ai_context는 이미 존재하는 jsonb이고, 새 컬럼을 만들면
+    // Supabase SQL Editor 마이그레이션(승인 필요)을 기다려야 해서 코드 배포만으로는 동작하지
+    // 않는다. 기존 jsonb에 키 하나를 더하는 쪽이 즉시 동작하고 되돌리기도 쉽다.
+    let buzzIndex = null;
+    try {
+      buzzIndex = await fetchBuzzIndex({ perFeedLimit: 40, timeoutMs: 7000 });
+      console.log(`buzz 인덱스 로드: 피드 ${buzzIndex.stats.feeds_ok}/8, 트렌드 ${buzzIndex.stats.trends}건`);
+    } catch (e) {
+      console.error('buzz 인덱스 로드 실패(buzz 없이 진행):', e.message);
+    }
+
+    // ai_context는 반드시 병합 저장한다 — 통째로 덮어쓰면 plan/gate/weight/draft가 사라진다
+    // (2026-08-03 generate-node-insights에서 28건이 실제로 이 방식으로 손상됐다).
+    async function saveBuzz(topicId, storyTitle, category) {
+      if (!buzzIndex) return null;
+      const r = scoreTitle(storyTitle, buzzIndex, { publishedAt: new Date().toISOString() });
+      const [current] = await supabaseGet('topics', `?id=eq.${topicId}&select=ai_context`);
+      const prev = (current && current.ai_context) || {};
+      const prevBuzz = prev.buzz;
+      // 같은 Topic에 여러 story가 붙으면 가장 화제성 높은 story 기준으로 유지한다
+      // (토픽의 화제성은 그 토픽을 대표하는 가장 뜨거운 사안이 결정한다).
+      if (prevBuzz && typeof prevBuzz.score === 'number' && prevBuzz.score >= r.score) return prevBuzz;
+
+      const buzz = {
+        score: r.score,
+        reasons: r.reasons,
+        matched: r.matched,
+        bucket_hint: r.bucket_hint,
+        quota_bucket: bucketOf(category, r.bucket_hint),
+        source_title: storyTitle,
+        computed_at: new Date().toISOString(),
+      };
+      await supabasePatch('topics', `?id=eq.${topicId}`, { ai_context: { ...prev, buzz } });
+      return buzz;
+    }
 
     const results = [];
     let topicsCreated = 0;
     let linksCreated = 0;
+    let buzzWritten = 0;
 
     for (const story of unprocessed) {
       try {
@@ -170,9 +219,19 @@ exports.handler = async function (event) {
             if (!created) continue;
             topicId = created.id;
             topicsCreated++;
-            candidateTopics.push({ id: topicId, name: d.name, summary: d.description });
+            candidateTopics.push({ id: topicId, name: d.name, summary: d.description, category: d.category || null });
           }
           if (!topicId) continue;
+
+          // 화제성 적재 — 실패해도 Topic 연결 자체는 계속 간다(buzz는 우선순위 신호지 필수 경로가 아니다).
+          try {
+            const known = candidateTopics.find((t) => t.id === topicId);
+            const category = d.action === 'new' ? (d.category || null) : (known && known.category) || null;
+            const buzz = await saveBuzz(topicId, story.title, category);
+            if (buzz) buzzWritten++;
+          } catch (e) {
+            console.error('buzz 적재 실패:', topicId, e.message);
+          }
 
           await supabasePost('topic_stories', {
             topic_id: topicId,
@@ -213,7 +272,11 @@ exports.handler = async function (event) {
 
     return {
       statusCode: 200, headers,
-      body: JSON.stringify({ ok: true, dry: isDry, storiesProcessed: results.length, topicsCreated, linksCreated, results: isDry ? results : undefined }),
+      body: JSON.stringify({
+        ok: true, dry: isDry, storiesProcessed: results.length, topicsCreated, linksCreated,
+        buzzWritten, buzzFeeds: buzzIndex ? buzzIndex.stats : null,
+        results: isDry ? results : undefined,
+      }),
     };
   } catch (e) {
     console.error('resolve-topics 에러:', e.message);

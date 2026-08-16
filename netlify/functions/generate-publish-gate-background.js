@@ -17,6 +17,8 @@
 //
 // Background Function(15분 예산) — Editorial Engine 다른 함수들과 동일 패턴.
 
+const { sortByBuzz } = require('./buzz-engine');
+
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY;
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
@@ -148,12 +150,18 @@ exports.handler = async function (event) {
   }
 
   try {
-    const topics = await supabaseGet(
+    // buzz 우선 정렬(2026-08-17) — 게이트도 화제성 높은 Topic부터 판정받게 한다.
+    // 쿼터는 여기서 걸지 않는다(게이트는 발행 여부가 아니라 콘텐츠 유형 판정이라, 여기서
+    // 잘라내면 뒤 단계가 고를 후보 풀 자체가 편향된다).
+    const POOL_SIZE = Math.max(BATCH_SIZE * 5, 50);
+    const pool = await supabaseGet(
       'topics',
-      `?status=eq.active&editorial_status=eq.planned&gate_status=eq.pending_gate&select=id,name,summary,category,ai_context&order=updated_at.desc&limit=${BATCH_SIZE}`
+      `?status=eq.active&editorial_status=eq.planned&gate_status=eq.pending_gate&select=id,name,summary,category,ai_context,updated_at&order=updated_at.desc&limit=${POOL_SIZE}`
     );
+    const topics = sortByBuzz(pool).slice(0, BATCH_SIZE);
+    console.log(`게이트 대상: 후보 ${pool.length}건 → buzz 상위 ${topics.length}건`);
 
-    const stats = { targeted: topics.length, ruleRejected: 0, failed: 0 };
+    const stats = { targeted: topics.length, poolSize: pool.length, ruleRejected: 0, failed: 0 };
     ROUTES.forEach((r) => { stats[r] = 0; });
 
     for (const topic of topics) {

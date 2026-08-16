@@ -433,7 +433,9 @@ export async function getTopicStories(topicId: string, limit = 20) {
   const supabase = client()
   const { data } = await supabase
     .from('topic_stories')
-    .select('relevance_score, stories(id, title, silence_score, controversy_score, created_at, published_at)')
+    // 2026-08-17: silence_score 제거(buzz_score 전환). 컬럼을 실제로 드롭하면 select에 이름이
+    // 남아 있는 것만으로 PostgREST가 400을 반환하므로, 소비하지 않는 컬럼은 여기서도 반드시 뺀다.
+    .select('relevance_score, stories(id, title, controversy_score, created_at, published_at)')
     .eq('topic_id', topicId)
     .order('relevance_score', { ascending: false })
     .limit(limit)

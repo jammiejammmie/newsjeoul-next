@@ -713,7 +713,7 @@ export default function AdminPage() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
           <div>
             <div style={{ fontSize: 13, fontWeight: 700 }}>🔗 스토리 처리</div>
-            <div style={{ fontSize: 11, color: 'var(--muted)' }}>클러스터링 + 침묵지수 계산</div>
+            <div style={{ fontSize: 11, color: 'var(--muted)' }}>buzz 정렬 + 클러스터링 + 논쟁지수 계산</div>
           </div>
           <div style={{ fontSize: 10, padding: '3px 9px', background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 999, color: 'var(--muted)' }}>매 3시간+30분</div>
         </div>

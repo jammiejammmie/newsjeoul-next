@@ -28,6 +28,8 @@
 //
 // Background Function(15분 예산) — Editorial Engine 다른 함수들과 동일 패턴.
 
+const { prioritizeForPublish, fetchRecentPublished } = require('./buzz-engine');
+
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY;
 
@@ -153,14 +155,28 @@ exports.handler = async function (event) {
   const isDry = event.queryStringParameters?.dry === 'true';
 
   try {
-    const topics = await supabaseGet(
+    // ── buzz 우선순위 + 카테고리 쿼터 (2026-08-17, PM 지시) ─────────────────
+    // 종전 정렬 기준은 importance_score(무게 엔진 산출값)였다. 무게는 "사회적 중요도" 축이고
+    // buzz는 "지금 얼마나 뜨거운가" 축이라 서로 다른 것을 잰다. 발행 순서는 buzz가 정하고,
+    // 무게는 동점 처리와 화면 표시에 계속 쓴다(둘 중 하나를 버리지 않는다).
+    const POOL_SIZE = Math.max(BATCH_SIZE * 6, 60);
+    const pool = await supabaseGet(
       'topics',
       `?status=eq.active&editorial_status=eq.planned&gate_status=in.(${ROUTABLE_GATES.join(',')})` +
-      `&select=id,name,slug,category,gate_status,importance_score,ai_context` +
-      `&order=importance_score.desc&limit=${BATCH_SIZE}`
+      `&select=id,name,slug,category,gate_status,importance_score,ai_context,updated_at` +
+      `&order=importance_score.desc&limit=${POOL_SIZE}`
     );
 
-    const stats = { considered: topics.length, published: 0, skipped: 0, failed: 0 };
+    const recentPublished = await fetchRecentPublished(supabaseGet);
+    const priority = prioritizeForPublish(pool, BATCH_SIZE, recentPublished);
+    const topics = priority.selected;
+    const quotaDeferred = priority.deferred.filter((d) => String(d.defer_reason).startsWith('quota_full')).length;
+    console.log(
+      `발행 우선순위: 후보 ${pool.length}건 → 선정 ${topics.length}건 (쿼터 보류 ${quotaDeferred}건), ` +
+      `최근 24h 발행 ${recentPublished.length}건, 상한 ${JSON.stringify(priority.report.capOf)}`
+    );
+
+    const stats = { considered: topics.length, poolSize: pool.length, quotaDeferred, published: 0, skipped: 0, failed: 0 };
     const skipReasons = {};
     const byGate = {};
     const samples = [];

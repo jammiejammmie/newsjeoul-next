@@ -8,6 +8,8 @@
 // Background Function(2026-07-11): Netlify 동기 함수 26초 하드캡 회피 + 365일 무인 운영 목표에 맞춰
 // Cron 자동 호출 전제로 전환(운영은 자동, 관리자 버튼은 개발·검증용). 호출자는 202 즉시 수신.
 
+const { sortByBuzz } = require('./buzz-engine');
+
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY;
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
@@ -167,13 +169,19 @@ exports.handler = async function (event) {
     const [zeitgeistRow] = await supabaseGet('daily_zeitgeist', `?date=eq.${today}&select=tags`);
     const zeitgeistTags = zeitgeistRow?.tags || [];
 
-    const pending = await supabaseGet(
+    // ── buzz 우선순위 (2026-08-17) ──────────────────────────────────────────
+    // 여기는 아직 발행이 아니라 "기획" 단계라 카테고리 쿼터는 걸지 않는다(쿼터를 앞단에 걸면
+    // 뒤 단계가 고를 후보 자체가 편향된다). 대신 화제성 높은 Topic이 먼저 기획을 받도록 정렬만 한다.
+    const POOL_SIZE = Math.max(BATCH_SIZE * 5, 50);
+    const pool = await supabaseGet(
       'topics',
-      `?status=eq.active&editorial_status=eq.pending&select=id,name,summary,category,ai_context,editorial_retry_count&order=updated_at.desc&limit=${BATCH_SIZE}`
+      `?status=eq.active&editorial_status=eq.pending&select=id,name,summary,category,ai_context,editorial_retry_count,updated_at&order=updated_at.desc&limit=${POOL_SIZE}`
     );
-    if (!pending.length) {
+    if (!pool.length) {
       return { statusCode: 200, headers, body: JSON.stringify({ ok: true, processed: 0 }) };
     }
+    const pending = sortByBuzz(pool).slice(0, BATCH_SIZE);
+    console.log(`기획 대상: 후보 ${pool.length}건 → buzz 상위 ${pending.length}건`);
 
     const editorsPool = await supabaseGet('editors', '?active=eq.true&select=id,name,perspective_tag,domains,last_assigned_at,preferred_event_types,content_missions,assignment_count');
     const recentlyAssigned = new Map(); // 이 배치 안에서 방금 배정한 것도 반영(같은 에디터 몰림 방지)
