@@ -81,57 +81,122 @@ function Logo({ size = 1, tone = colors.paper }: { size?: number; tone?: string 
 }
 
 // ── 표지 ────────────────────────────────────────────────────────────────────
-function Cover({ title, category, badge }: { title: string; category: string; badge: string }) {
-  const accent = domainColors[category] || colors.amber
+// 2026-08-17 전면 개편(PM 지시): "선비 수준으로 점잖아서 인스타 피드에서 스크롤을 멈추게 못함".
+// 바꾼 것 — ① 단색 잉크 배경 → 카테고리별 강렬한 그라데이션 ② 제목 최대 92px → 훅 최대 150px
+// ③ 이모지 1개 ④ 숫자를 화면 중앙에 독립적으로 크게 ⑤ 하단 브랜드 고정.
+//
+// 이모지를 1개만 쓰는 이유: 🔥💥⚡를 한꺼번에 붙이면 스팸 계정처럼 보여 오히려 신뢰를 깎는다.
+// 세기를 올리는 것과 싸구려로 보이는 것은 다르다 — 크기·대비로 세게 만들고, 이모지는 악센트로만.
+const COVER_GRADIENTS: Record<string, [string, string]> = {
+  Society: ['#C8102E', '#4A0D1A'],
+  Economy: ['#A8791F', '#3A2606'],
+  Business: ['#B4603F', '#3A1A0E'],
+  Crypto: ['#A8791F', '#2A1C04'],
+  Technology: ['#2E8B7F', '#06231F'],
+  Science: ['#2E8B7F', '#052622'],
+  Sports: ['#C8102E', '#2A0509'],
+  Entertainment: ['#7A4FD6', '#1E0C3D'],
+  Health: ['#2E8B7F', '#05231D'],
+  Automobile: ['#3F5BD9', '#0A1440'],
+  Lifestyle: ['#B4603F', '#33150A'],
+}
+const DEFAULT_GRADIENT: [string, string] = ['#C8102E', '#2A0509']
+
+// 훅 줄 수·길이에 따라 폰트를 정한다. satori에는 자동 축소가 없어 직접 계산해야
+// 긴 훅이 카드 밖으로 흘러나가지 않는다. 목표는 "최대한 크게".
+function hookSize(lines: string[]) {
+  const longest = lines.reduce((m, l) => Math.max(m, l.length), 0)
+  const n = lines.length
+  if (longest <= 6) return n <= 2 ? 150 : 118
+  if (longest <= 9) return n <= 2 ? 120 : 100
+  if (longest <= 12) return n <= 2 ? 100 : 86
+  if (longest <= 16) return 82
+  return 68
+}
+
+function Cover({
+  title, category, badge, hook, sub, emoji, stat,
+}: {
+  title: string; category: string; badge: string
+  hook: string; sub: string; emoji: string; stat: string
+}) {
+  const [g1, g2] = COVER_GRADIENTS[category] || DEFAULT_GRADIENT
+  // hook이 없으면(구버전 호출) 기존 title을 훅으로 쓴다 — 하위호환.
+  const hookText = (hook || title || '뉴스저울').trim()
+  const lines = hookText.split('\n').map((l) => l.trim()).filter(Boolean).slice(0, 3)
+  const size = hookSize(lines)
+
   return (
     <div
       style={{
         display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
-        width: '100%', height: '100%', background: colors.ink,
-        padding: '84px 76px', position: 'relative', fontFamily: 'NotoSansKR',
+        width: '100%', height: '100%',
+        background: `linear-gradient(150deg, ${g1} 0%, ${g2} 62%, #0B0D10 100%)`,
+        padding: '76px 68px', position: 'relative', fontFamily: 'NotoSansKR',
       }}
     >
+      {/* 상단 광원 — 그라데이션만으로는 평평해 보여 초점을 하나 만든다 */}
       <div
         style={{
-          display: 'flex', position: 'absolute', top: -180, right: -140,
-          width: 640, height: 640, borderRadius: 320,
-          background: `radial-gradient(circle, ${hexToRgba(accent, 0.22)}, transparent 70%)`,
+          display: 'flex', position: 'absolute', top: -260, right: -200,
+          width: 800, height: 800, borderRadius: 400,
+          background: `radial-gradient(circle, ${hexToRgba('#FFFFFF', 0.16)}, transparent 68%)`,
         }}
       />
-      <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
-        <Logo size={0.85} />
-        <div style={{ display: 'flex', fontSize: 34, fontWeight: 900, color: colors.paper, letterSpacing: '-0.02em' }}>
-          뉴스저울
+
+      {/* 상단: 카테고리 뱃지 */}
+      <div style={{ display: 'flex', alignItems: 'center' }}>
+        <div
+          style={{
+            display: 'flex', fontSize: 32, fontWeight: 900, color: '#FFFFFF',
+            background: hexToRgba('#000000', 0.32), border: `3px solid ${hexToRgba('#FFFFFF', 0.5)}`,
+            padding: '12px 30px', borderRadius: 999, letterSpacing: '0.04em',
+          }}
+        >
+          {emoji ? `${emoji} ` : ''}{trunc(badge, 12)}
         </div>
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column' }}>
+      {/* 중앙: 훅. stat이 있으면 그 줄만 더 크고 노란색으로 뽑아 시선을 먼저 잡는다 */}
+      <div style={{ display: 'flex', flexDirection: 'column', marginTop: -20 }}>
+        {lines.map((line, i) => {
+          const isStatLine = Boolean(stat) && line.includes(stat)
+          return (
+            <div
+              key={i}
+              style={{
+                display: 'flex',
+                fontSize: isStatLine ? Math.round(size * 1.12) : size,
+                fontWeight: 900,
+                lineHeight: 1.12,
+                color: isStatLine ? '#FFE24A' : '#FFFFFF',
+                letterSpacing: '-0.045em',
+                wordBreak: 'keep-all',
+                textShadow: '0 6px 28px rgba(0,0,0,0.45)',
+              }}
+            >
+              {line}
+            </div>
+          )
+        })}
+
+        {/* 구분선 + 소제목 */}
+        <div style={{ display: 'flex', width: 150, height: 8, background: '#FFE24A', marginTop: 44, marginBottom: 26 }} />
         <div
           style={{
-            display: 'flex', alignSelf: 'flex-start',
-            fontSize: 30, fontWeight: 900, color: colors.ink, background: accent,
-            padding: '12px 28px', borderRadius: 999, marginBottom: 36, letterSpacing: '0.02em',
+            display: 'flex', fontSize: 40, fontWeight: 700,
+            color: hexToRgba('#FFFFFF', 0.9), letterSpacing: '-0.02em', wordBreak: 'keep-all',
           }}
         >
-          {trunc(badge, 14)}
-        </div>
-        {/* wordBreak: keep-all — 없으면 "국회 본회/의 표결"처럼 한글 단어 중간에서 줄이 끊긴다.
-            satori 기본값이 단어 경계를 무시하기 때문에 카드 텍스트에는 항상 명시해야 한다. */}
-        <div
-          style={{
-            display: 'flex', fontSize: titleSize(title), fontWeight: 900,
-            lineHeight: 1.28, color: colors.paper, letterSpacing: '-0.03em',
-            wordBreak: 'keep-all',
-          }}
-        >
-          {trunc(title, 70)}
+          {trunc(sub || '이 이슈 이면에 뭐가 있나', 24)}
         </div>
       </div>
 
+      {/* 하단: 브랜드 */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
-        <div style={{ display: 'flex', width: 72, height: 5, background: accent }} />
-        <div style={{ display: 'flex', fontSize: 26, fontWeight: 700, color: colors.stone }}>
-          이 이슈 이면에 뭐가 있나
+        <Logo size={0.7} tone="#FFFFFF" />
+        <div style={{ display: 'flex', fontSize: 36, fontWeight: 900, color: '#FFFFFF', letterSpacing: '-0.02em' }}>
+          뉴스저울
         </div>
       </div>
     </div>
@@ -222,8 +287,13 @@ export async function GET(req: NextRequest) {
   const badge = p.get('badge') || '오늘의 이슈'
   const index = Number(p.get('i') || 1)
   const total = Number(p.get('n') || 1)
+  // 표지 개편(2026-08-17)으로 추가된 파라미터. 없으면 title로 폴백해 구버전 URL도 그대로 동작한다.
+  const hook = p.get('hook') || ''
+  const sub = p.get('sub') || ''
+  const emoji = p.get('emoji') || ''
+  const stat = p.get('stat') || ''
 
-  const allText = ['뉴스저울', '이 이슈 이면에 뭐가 있나', title, text, heading, badge, `${index}/${total}`].join(' ')
+  const allText = ['뉴스저울', '이 이슈 이면에 뭐가 있나', title, text, heading, badge, hook, sub, stat, `${index}/${total}`].join(' ')
 
   try {
     const [font700, font900] = await Promise.all([loadFont(allText, 700), loadFont(allText, 900)])
@@ -234,7 +304,7 @@ export async function GET(req: NextRequest) {
     const node =
       slide === 'body' ? <Body heading={heading} text={text} index={index} total={total} category={category} />
       : slide === 'end' ? <End text={text || '매일 이슈의 이면을 봅니다'} />
-      : <Cover title={title} category={category} badge={badge} />
+      : <Cover title={title} category={category} badge={badge} hook={hook} sub={sub} emoji={emoji} stat={stat} />
 
     return new ImageResponse(node, {
       width: W,

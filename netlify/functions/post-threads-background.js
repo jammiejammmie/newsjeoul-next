@@ -118,6 +118,8 @@ const REQUEST_HEADERS = { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + S
 //   4. 시간대가 유형을 가른다 — 뉴스 07~14시(KST), 에버그린 18~23시(KST).
 //   5. 뉴스 제목이 허브 키워드를 건드리면 그 허브 링크를 댓글에 함께 단다(관련성 70점 이상).
 const strategy = require('./threads-strategy');
+const { buildCta } = require('./engagement-cta');
+const { buildCoverHook } = require('./cover-hook');
 
 // ── 배급 일시 정지 스위치(2026-08-12 PM 지시) ────────────────────────────────
 // 지금은 **정지 상태**다. 재개하려면 아래 기본값을 false로 바꿔 배포하면 된다(한 줄).
@@ -1300,6 +1302,25 @@ async function createContainer(text, replyToId, imageUrl) {
   return data.id;
 }
 
+// CTA를 본문 뒤에 붙이되 Threads 하드리밋(500자)을 넘지 않게 한다.
+// 넘칠 것 같으면 저장 유도(🔖)를 먼저 버리고 질문만 남긴다 — 질문이 참여에 직접 기여하는 쪽이라
+// 둘 중 하나를 포기해야 하면 질문을 지킨다. 그래도 안 들어가면 CTA 없이 원문만 내보낸다.
+function appendCta(baseText, ctaText) {
+  const base = String(baseText || '').trim();
+  const cta = String(ctaText || '').trim();
+  if (!cta) return base;
+
+  const full = `${base}\n\n${cta}`;
+  if (full.length <= THREADS_MAX_CHARS) return full;
+
+  const questionOnly = cta.split('\n')[0];
+  const shorter = `${base}\n\n${questionOnly}`;
+  if (shorter.length <= THREADS_MAX_CHARS) return shorter;
+
+  console.warn(`THREADS_CTA_DROPPED[${CHANNEL}]: 링크 댓글이 ${base.length}자라 CTA를 넣을 자리가 없음`);
+  return base;
+}
+
 // 카드뉴스 표지 이미지 URL — 인스타와 같은 /card 라우트를 공유한다(디자인이 두 채널에서 어긋나지 않는다).
 const CATEGORY_BADGE_THREADS = {
   Society: '정치·사회', Economy: '경제', Business: '기업', Technology: '테크·AI',
@@ -1308,11 +1329,18 @@ const CATEGORY_BADGE_THREADS = {
 };
 
 function buildCardImageUrl(topic) {
+  // 인스타와 완전히 같은 훅을 쓴다 — 두 채널에서 같은 이슈가 다른 얼굴로 나가면
+  // 브랜드가 흩어지고, 어느 쪽 훅이 먹혔는지 비교도 안 된다.
+  const hook = buildCoverHook(topic);
   const qs = new URLSearchParams({
     slide: 'cover',
     title: topic.name || '뉴스저울',
     category: topic.category || '',
     badge: CATEGORY_BADGE_THREADS[topic.category] || '오늘의 이슈',
+    hook: hook.hook,
+    sub: hook.sub,
+    emoji: hook.emoji,
+    stat: hook.stat,
     i: '1', n: '1',
   }).toString();
   return `https://newsjeoul.co.kr/card?${qs}`;
@@ -1385,9 +1413,9 @@ async function attemptNewsPost({ topic, hubMatch, detail }) {
 
   // 2. Claude 문구 생성(여기부터 비용 발생) — 본문 + 댓글1(배경) + 댓글2(심층)를 호출 1회로 받는다.
   //    나눠 호출하면 비용이 3배가 되고, 무엇보다 세 칸이 서로 겹치는 말을 하게 된다.
-  let text, commentContext, commentDepth;
+  let text, commentContext, commentDepth, postFormat;
   try {
-    ({ text, commentContext, commentDepth } = await generateDeepPost(topic));
+    ({ text, commentContext, commentDepth, format: postFormat } = await generateDeepPost(topic));
   } catch (genErr) {
     // 조립 실패(우리 버그)와 Claude API 실패(외부 요인)를 구분한다 — 사유가 섞이면
     // "posts_succeeded=0"의 원인을 엉뚱한 곳에서 찾게 된다.
@@ -1445,10 +1473,16 @@ async function attemptNewsPost({ topic, hubMatch, detail }) {
     } : null,
     {
       label: 'site',
-      text: strategy.buildCommentText({
-        primaryLabel: `전문 보기(오늘 다루는 이슈 ${activeTopicCount}개)`,
-        primaryUrl: url,
-      }),
+      // 참여 유도(2026-08-17 PM 지시)는 연재의 맨 끝, 링크와 같은 칸에 붙인다.
+      // 별도 댓글로 하나 더 만들지 않는 이유: 댓글이 5개까지 늘어나면 연재가 늘어져 보이고
+      // API 호출도 한 번 더 든다. 끝까지 읽은 사람이 보는 위치라는 목적은 그대로 달성된다.
+      text: appendCta(
+        strategy.buildCommentText({
+          primaryLabel: `전문 보기(오늘 다루는 이슈 ${activeTopicCount}개)`,
+          primaryUrl: url,
+        }),
+        buildCta(topic, { format: postFormat }).text
+      ),
     },
   ].filter(Boolean);
 

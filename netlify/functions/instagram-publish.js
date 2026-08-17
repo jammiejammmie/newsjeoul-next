@@ -27,6 +27,9 @@
 // 아직 자격증명이 없어 **실게시 경로는 검증되지 않았다**. dry=true로 호출하면 실제 API를 치지 않고
 // 어떤 요청을 보낼지(슬라이드 URL·캡션·엔드포인트)만 반환하므로 그 부분은 지금도 검증 가능하다.
 
+const { buildCta } = require('./engagement-cta');
+const { buildCoverHook } = require('./cover-hook');
+
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY;
 const IG_USER_ID = process.env.INSTAGRAM_USER_ID;
@@ -86,8 +89,20 @@ function buildSlides(topic) {
   const category = topic.category || '';
   const badge = CATEGORY_BADGE[category] || '오늘의 이슈';
 
+  // 표지는 제목을 그대로 쓰지 않는다(2026-08-17 개편) — cover-hook이 실제 숫자·유형을 근거로
+  // 스크롤을 멈출 훅을 만든다. 없는 사실은 만들지 않는다(cover-hook.js 주석 참고).
+  const hook = buildCoverHook(topic);
   const slides = [
-    { slide: 'cover', title: topic.name, category, badge },
+    {
+      slide: 'cover',
+      title: topic.name,
+      category,
+      badge,
+      hook: hook.hook,
+      sub: hook.sub,
+      emoji: hook.emoji,
+      stat: hook.stat,
+    },
   ];
 
   const lead = draft.lead || topic.summary || '';
@@ -132,10 +147,17 @@ function buildCaption(topic) {
   const keywords = (draft.display_keywords || []).slice(0, 5);
   const tags = keywords.map((k) => '#' + String(k).replace(/[^\p{L}\p{N}]/gu, '')).filter((t) => t.length > 1);
 
+  // 참여 유도(2026-08-17 PM 지시) — 해시태그 **앞**에 둔다.
+  // 해시태그 뒤로 밀면 인스타가 캡션을 접을 때 "...더 보기" 아래로 들어가 아무도 못 본다.
+  const cta = buildCta(topic);
+
   const body = [
     topic.name,
     '',
     lead,
+    '',
+    cta.question,
+    cta.save,
     '',
     '전체 내용은 프로필 링크에서 확인하세요.',
     '',

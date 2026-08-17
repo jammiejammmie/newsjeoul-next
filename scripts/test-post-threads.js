@@ -479,7 +479,10 @@ async function main() {
   //     remaining=60 기준 최소값이 2(하루 시작 시점: 60÷48)이므로 다건 게시 경로는 항상 검증된다.
   {
     const { computePostsThisRun } = require(path)._testUtils;
-    const expected = computePostsThisRun(60, 0); // articleCount=600 → dailyTarget=60(clamp), postedTotal=0
+    // 2026-08-17: dailyTarget clamp가 20~60 → 10~15로 바뀌었다. articleCount=600이면
+    // 600×0.10=60 → 상한 15로 clamp되므로 기대값도 15 기준으로 계산해야 한다(60을 그대로 두면
+    // 코드가 쓰는 목표와 어긋나 항상 실패한다).
+    const expected = computePostsThisRun(15, 0);
     // 후보를 실행당 상한(MAX_POSTS_PER_RUN=6)만큼 채운다. 예전엔 4개만 뒀는데 expected는 실행
     // 시각에 따라 2~6으로 달라져서, 하루 끝 무렵에는 후보가 모자라 실패했다 — 코드가 아니라
     // 테스트가 시간에 의존하던 결함이다(실측: 2026-08-12 22:26 UTC에서 expected=6, 후보 4).
@@ -494,8 +497,11 @@ async function main() {
     const { body, patched } = await run({ pool, articleCount: 600, postedTotal: 0 });
     const distinctTopics = new Set(body.results.map((r) => r.topicId));
     check(
+      // expected >= 2 요구를 뺀 이유: 하루 목표가 15로 줄어 하루 끝 무렵에는 실행당 1건이
+      // 정상값이 된다(remaining 15 ÷ 남은 실행 기회). 다건 경로 자체는 11-a~11-i 유닛이 고정한다.
+      // 여기서 지켜야 할 것은 "계산된 건수만큼, 서로 다른 Topic으로, 실제로 게시되는가"다.
       `23) 1회 실행에서 ${expected}건 게시(상한 내), 서로 다른 Topic 선택`,
-      expected >= 2 && body.postsAttemptedThisRun === expected && body.postsSucceededThisRun === expected &&
+      expected >= 1 && body.postsAttemptedThisRun === expected && body.postsSucceededThisRun === expected &&
       distinctTopics.size === expected && patched.length === expected
     );
   }
@@ -543,11 +549,19 @@ async function main() {
   // 24) 후보 소진 시 조기 중단 — 목표는 충분히 남았지만(3건 시도 가능) 후보가 1개뿐이면 1건만
   //     게시하고 억지로 채우지 않고 중단(no_candidate로 자연 종료)
   {
+    // 2026-08-17: 시도 건수를 2로 하드코딩하고 있었는데, 하루 목표가 15로 줄면서 실행 시각에
+    // 따라 실행당 1건이 정상값이 됐다. 시각에 의존하지 않도록 기대값을 코드와 같은 식으로 구한다.
+    const { computePostsThisRun } = require(path)._testUtils;
+    const expected = computePostsThisRun(15, 0);
     const only = makeTopic('t-only-one', '단일 후보', '사회', 500);
     const { body } = await run({ pool: [only], articleCount: 600, postedTotal: 0 });
     check(
-      '24) 후보 소진 시 조기 중단(억지로 채우지 않음)',
-      body.postsAttemptedThisRun === 2 && body.postsSucceededThisRun === 1 && body.results[1].reason === 'no_candidate'
+      `24) 후보 소진 시 조기 중단(억지로 채우지 않음, 이번 실행 시도 ${expected}건)`,
+      expected >= 2
+        // 2건 이상 시도할 수 있는 시각이면: 1건 성공 후 후보가 없어 두 번째에서 멈춰야 한다
+        ? body.postsAttemptedThisRun === expected && body.postsSucceededThisRun === 1 && body.results[1].reason === 'no_candidate'
+        // 1건만 시도하는 시각이면: 그 1건이 성공하고 끝나는 것이 정상(조기 중단할 여지가 없다)
+        : body.postsAttemptedThisRun === 1 && body.postsSucceededThisRun === 1
     );
   }
 
@@ -624,9 +638,12 @@ async function main() {
       `29) 본문 1000자여도 500자 이내로 마감(실측 ${first?.text?.length}자) + 본문에 링크 없음`,
       first?.ok === true && first.text.length <= 500 && !first.text.includes('http')
     );
+    // 2026-08-17: 참여 유도(CTA)가 링크 뒤에 붙으면서 "링크로 끝난다"는 조건은 더 이상 성립하지
+    // 않는다. 이 테스트가 지키려던 것은 "본문이 잘려도 링크만은 온전하다"이므로, 끝 위치가 아니라
+    // 링크가 훼손 없이 들어있는지를 본다.
     check(
-      '29b) 본문이 잘려도 링크는 댓글 끝에 온전히 붙어있음',
-      commentRequests[0]?.text.endsWith(first.url)
+      '29b) 본문이 잘려도 링크는 댓글에 온전히 들어있음',
+      commentRequests.some((c) => c.text.includes(first.url))
     );
   }
 
