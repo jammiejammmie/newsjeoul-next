@@ -96,8 +96,12 @@ async function claudeGenerate(prompt) {
       'anthropic-version': '2023-06-01',
     },
     body: JSON.stringify({
-      model: 'claude-sonnet-5',
-      max_tokens: 4000 /* 2026-08-06: sonnet-5 adaptive thinking이 max_tokens를 함께 소진한다 — 잘림 여유 확보 */,
+      // 2026-08-17(비용 분석): 관계·엔티티 추출은 본문에 이미 있는 사실을 구조화 JSON으로
+      // 옮기는 추출 작업이라 haiku 난이도다. sonnet-5로 두면 adaptive thinking(2026-08-06
+      // 일괄 수정에서 누락)이 4000토큰 예산을 먹으면서 출력 단가 3배를 그대로 부담한다.
+      // haiku-4.5는 thinking이 기본 꺼짐이라 예산이 온전히 결과 JSON에 쓰인다.
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 4000,
       messages: [{ role: 'user', content: prompt }],
     }),
     signal: AbortSignal.timeout(60000),

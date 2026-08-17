@@ -126,11 +126,12 @@ ${ruleSummaries}
       'anthropic-version': '2023-06-01',
     },
     body: JSON.stringify({
-      model: 'claude-sonnet-5',
-      // 2026-08-06: sonnet-5는 thinking 생략 시 adaptive thinking이 켜지고 max_tokens는
-      // thinking+텍스트 합계 상한이다. 600토큰짜리 에디터 배정(구조화 JSON)에서 thinking이
-      // 예산을 먹으면 배정이 실패하고 Topic이 pending에 남는다(실측 pending 75건).
-      thinking: { type: 'disabled' },
+      // 2026-08-17(비용 분석): 하루 160회(3시간마다 20건). 출력이 에디터 배정·사건 유형·축
+      // 가중치처럼 값 범위가 정해진 구조화 JSON이고, 아래 2026-08-06 메모대로 thinking도 이미
+      // 꺼둔 상태라 sonnet-5의 이점이 남아 있지 않다. haiku-4.5로 내려 출력 단가를 1/3로 한다.
+      // 다만 이 단계는 본문 품질의 설계도에 해당하므로, 전환 후 실제 발행물의 축 커버리지와
+      // 에디터 배정이 이전과 같은지 먼저 확인할 대상이다(이번 전환 중 유일하게 판단이 섞인 곳).
+      model: 'claude-haiku-4-5-20251001',
       max_tokens: 1200,
       messages: [{ role: 'user', content: prompt }],
     }),

@@ -79,8 +79,9 @@ ELIGIBLE인 경우에만 자연스럽고 짧은(1~2문장) 답변 초안을 작�
     // thinking+텍스트 합계 상한이다. 300토큰은 이 파이프라인에서 가장 좁은 예산이라
     // thinking이 켜지면 거의 확실히 본문이 0바이트로 온다(전 파이프라인 공통 수정).
     body: JSON.stringify({
-      model: 'claude-sonnet-5',
-      thinking: { type: 'disabled' },
+      // 2026-08-17(비용 분석): 매시간 도는 섀도 스캔이고, thinking을 끈 채 800토큰짜리
+      // 짧은 판정만 뽑는 용도라 haiku-4.5로 충분하다(출력 단가 1/3).
+      model: 'claude-haiku-4-5-20251001',
       max_tokens: 800,
       messages: [{ role: 'user', content: prompt }],
     }),

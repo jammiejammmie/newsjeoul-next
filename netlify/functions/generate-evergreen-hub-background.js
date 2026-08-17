@@ -95,7 +95,8 @@ timeline은 확실한 날짜만. 모르면 빈 배열.`;
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
-    body: JSON.stringify({ model: 'claude-sonnet-5', max_tokens: 8000 /* 2026-08-06: sonnet-5 adaptive thinking이 max_tokens를 함께 소진한다 — 잘림 여유 확보 */, messages: [{ role: 'user', content: prompt }] }),
+    // 2026-08-17(비용 분석): 에버그린 허브도 색인 대상 장문이라 sonnet-5 유지, effort만 medium.
+    body: JSON.stringify({ model: 'claude-sonnet-5', output_config: { effort: 'medium' }, max_tokens: 8000 /* 2026-08-06: sonnet-5 adaptive thinking이 max_tokens를 함께 소진한다 — 잘림 여유 확보 */, messages: [{ role: 'user', content: prompt }] }),
   });
   if (!res.ok) throw new Error('Claude API 에러: ' + await res.text());
   const data = await res.json();

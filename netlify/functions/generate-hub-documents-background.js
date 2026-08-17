@@ -155,7 +155,10 @@ faq는 3~5개. 본문에서 답을 이미 다룬 질문을 골라 짧게 다시 
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
-    body: JSON.stringify({ model: 'claude-sonnet-5', max_tokens: MAX_TOKENS, messages: [{ role: 'user', content: prompt }] }),
+    // 2026-08-17(비용 분석): 허브 문서는 색인 대상 장문이라 sonnet-5를 유지한다.
+    // 다만 adaptive thinking이 8000토큰 예산의 상당 부분을 쓰고 있어 effort로 깊이만 낮춘다
+    // (하루 8회로 호출량은 적지만 1회당 예산이 파이프라인에서 가장 크다).
+    body: JSON.stringify({ model: 'claude-sonnet-5', output_config: { effort: 'medium' }, max_tokens: MAX_TOKENS, messages: [{ role: 'user', content: prompt }] }),
   });
   if (!res.ok) throw new Error('Claude API 에러: ' + await res.text());
   const data = await res.json();

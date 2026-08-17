@@ -101,13 +101,13 @@ async function claudeJudge(prompt) {
       'anthropic-version': '2023-06-01',
     },
     body: JSON.stringify({
-      model: 'claude-sonnet-5',
-      // 2026-08-06: thinking 명시 필수. sonnet-5는 이 필드를 생략하면 adaptive thinking이
-      // 켜지고, max_tokens는 thinking+텍스트 **합계** 상한이다. 500토큰짜리 분류 호출에서
-      // thinking이 예산을 삼키면 text 블록이 0개로 와서 게이트 판정이 통째로 실패한다
-      // (published 중 gate_status='pending_gate' 19건이 그 흔적). 분류는 추론 여유가
-      // 필요 없으므로 끈다. budget_tokens는 sonnet-5에서 제거됨 — 쓰면 400.
-      thinking: { type: 'disabled' },
+      // 2026-08-17(비용 분석): 하루 200회(3시간마다 25건)로 파이프라인에서 호출 횟수가 가장
+      // 많은 함수다. 하는 일은 Topic을 정해진 게이트 라우트 중 하나로 고르는 열거형 분류라
+      // haiku 난이도이고, 아래 2026-08-06 메모대로 이미 thinking을 끈 상태라 sonnet-5를 써도
+      // 얻는 게 없다. haiku-4.5로 내리면 같은 판정을 출력 단가 1/3로 한다.
+      // (haiku-4.5는 thinking이 기본 꺼짐이므로 thinking 필드 자체가 불필요하다.
+      //  effort는 haiku-4.5에서 미지원 — 넣으면 400이다.)
+      model: 'claude-haiku-4-5-20251001',
       max_tokens: 1000,
       messages: [{ role: 'user', content: prompt }],
     }),

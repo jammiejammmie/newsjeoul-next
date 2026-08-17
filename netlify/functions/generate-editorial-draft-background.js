@@ -155,8 +155,15 @@ async function claudeGenerate(prompt) {
         // 대신 예산을 늘린다 — sonnet-5는 thinking 생략 시 adaptive thinking이 켜지고
         // max_tokens는 thinking+텍스트 **합계** 상한이다. 8000은 2300자 본문(약 3000토큰)에
         // thinking이 붙으면 다시 잘릴 수 있는 값이었다(아래 2026-07-11 주석과 같은 증상 재발).
+        //
+        // 2026-08-17(비용 분석): 저장된 usage 8건 실측 — 입력 평균 2,562 / 출력 평균 7,601토큰,
+        // 그중 thinking이 5,470토큰(출력의 72%)이었다. 즉 기사 본문(약 2,100토큰)보다 사고과정에
+        // 3.6배를 쓰고 있었고, 이 함수 하나가 전체 API 비용의 약 절반이었다. 장문 해설이라
+        // thinking을 끄지는 않고 effort로 깊이만 낮춘다(sonnet-5의 medium ≈ sonnet-4.6의 high).
+        output_config: { effort: 'medium' },
         max_tokens: 16000, // 2026-07-11: 3000으로는 1400~2300자 구조화 출력이 잘려서(stop_reason=max_tokens)
                            // 매번 파싱 실패하던 것으로 확인 — 여유있게 상향
+                           // (상한은 그대로 둔다 — 안 쓰면 과금되지 않고, 잘림 방어가 우선이다)
         messages: [{ role: 'user', content: prompt }],
       }),
       signal: AbortSignal.timeout(120000),
@@ -224,7 +231,10 @@ function deterministicQA(draft, plan, diagnostic) {
     else if (markers.some((m) => !m.basis || !String(m.basis).trim())) reasons.push('대립 관점 중 근거(basis)가 빠진 항목이 있음');
   }
 
-  return { pass: reasons.length === 0, reasons, totalLength };
+  // 2026-08-17: usage를 성공 경로에도 남긴다. 지금까지 토큰 사용량은 실패한 Topic의
+  // lastDiagnostic에만 남아서, 비용 분석을 하려면 "실패한 8건"을 표본으로 써야 했다.
+  // 발행량이 곧 비용인 파이프라인이라 이 숫자는 상시로 보이는 편이 낫다.
+  return { pass: reasons.length === 0, reasons, totalLength, usage: diagnostic?.usage || null };
 }
 
 // 3b — LLM 정성 QA(§10, Phase 4). 3a 통과분만 실행(비용 절감). Editorial OS의 유형별
@@ -254,7 +264,13 @@ ${bodyText}
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-5',
+        // 2026-08-17: 여기는 2026-08-06 thinking 일괄 수정에서 빠져 있던 호출부다.
+        // sonnet-5는 thinking 미지정 시 adaptive thinking이 켜지고 max_tokens는 thinking+텍스트
+        // **합계** 상한이므로, 400토큰 예산은 thinking만으로 소진돼 text 블록이 비고 아래
+        // '3b 파싱 실패 → 통과 처리' 분기로 조용히 빠졌다. 즉 정성 QA가 사실상 무력화된 상태였다.
+        // haiku-4.5는 thinking이 기본 꺼짐이라 400토큰 예산이 온전히 판정 JSON에 쓰인다.
+        // 작업 자체도 "패턴 해당 여부 + 신뢰도" 이진 판정이라 haiku 난이도다(비용은 1/3).
+        model: 'claude-haiku-4-5-20251001',
         max_tokens: 400,
         messages: [{ role: 'user', content: prompt }],
       }),
