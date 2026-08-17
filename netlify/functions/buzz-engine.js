@@ -78,6 +78,46 @@ const QUOTA_PLAN = [
   { bucket: 'etc', label: '기타', cap: 0.10 },
 ];
 
+// ── 채널별 쿼터 (2026-08-17 PM 지시) ────────────────────────────────────────
+// 계기: 스레드에서 처음으로 반응이 나온 글이 스트레이키즈(연예)였다(좋아요 18).
+// 배급 채널은 "무엇이 실제로 읽히는가"에 맞추고, 웹 발행은 종전 균형을 유지한다.
+//
+// ★ 채널별로 표를 나눈 이유: QUOTA_PLAN은 발행 파이프라인(editorial-draft /
+// publish-routed-content)도 함께 쓴다. 위 표를 그대로 바꾸면 웹사이트 발행까지 연예 70%가 되어
+// 색인·SEO 축이 무너진다. 배급만 바꾸려면 표가 분리돼 있어야 한다.
+//
+// cap: 0인 버킷은 "상한 0"이 아니라 **게시 대상 제외**를 뜻한다(아래 capOf 계산 참고).
+const THREADS_QUOTA_PLAN = [
+  { bucket: 'entertainment', label: '연예/엔터', cap: 0.70 },
+  { bucket: 'sports', label: '스포츠', cap: 0.20 },
+  { bucket: 'politics_intl', label: '정치/국제', cap: 0.10 },
+  { bucket: 'economy', label: '경제/주식', cap: 0 },
+  { bucket: 'tech_ai', label: '테크/AI', cap: 0 },
+  { bucket: 'product_consumer', label: '신제품/소비', cap: 0 },
+  { bucket: 'etc', label: '기타', cap: 0 },
+];
+
+// 인스타는 연예/엔터만. 카드뉴스 포맷이 인물·작품 이슈에서 가장 잘 먹힌다는 판단.
+const INSTAGRAM_QUOTA_PLAN = [
+  { bucket: 'entertainment', label: '연예/엔터', cap: 1.00 },
+  { bucket: 'sports', label: '스포츠', cap: 0 },
+  { bucket: 'politics_intl', label: '정치/국제', cap: 0 },
+  { bucket: 'economy', label: '경제/주식', cap: 0 },
+  { bucket: 'tech_ai', label: '테크/AI', cap: 0 },
+  { bucket: 'product_consumer', label: '신제품/소비', cap: 0 },
+  { bucket: 'etc', label: '기타', cap: 0 },
+];
+
+// cap 0을 "제외"로 해석하는 상한 계산. cap>0일 때만 최소 1건을 보장한다
+// (그러지 않으면 비율이 작은 버킷이 floor로 0이 되어 영구히 굶는다).
+function capsFor(plan, total) {
+  const caps = {};
+  for (const q of plan) {
+    caps[q.bucket] = q.cap > 0 ? Math.max(1, Math.floor(q.cap * total)) : 0;
+  }
+  return caps;
+}
+
 // topics.category(resolve-topics가 붙이는 대분류) → 쿼터 버킷.
 // Sports는 이번 개편에서 새로 생긴 대분류다(종전에는 Entertainment가 스포츠를 함께 삼켰는데,
 // 스포츠에 독립 쿼터 15%가 생긴 이상 같은 버킷에 두면 쿼터를 집행할 수 없다).
@@ -94,6 +134,17 @@ const CATEGORY_TO_BUCKET = {
   Automobile: 'product_consumer',
   Health: 'etc',
   Science: 'etc',
+
+  // 한글 카테고리 별칭(2026-08-17 추가). 운영 데이터는 영문이지만, 과거 데이터나 수동 입력으로
+  // 한글 값이 들어오면 전부 'etc'로 뭉개져 조용히 잘못된 버킷에 배정된다. 방어적으로 매핑해둔다.
+  '정치': 'politics_intl', '국제': 'politics_intl', '사회': 'politics_intl', '외교': 'politics_intl',
+  '경제': 'economy', '금융': 'economy', '기업': 'economy', '증시': 'economy',
+  'IT': 'tech_ai', '테크': 'tech_ai', 'AI': 'tech_ai', '과학': 'etc',
+  '스포츠': 'sports',
+  '연예': 'entertainment', '문화': 'entertainment', '영화': 'entertainment', '음악': 'entertainment',
+  '자동차': 'product_consumer', '소비': 'product_consumer', '유통': 'product_consumer',
+  '생활정보': 'product_consumer', '라이프': 'product_consumer',
+  '건강': 'etc', '의료': 'etc',
 };
 
 function bucketOf(category, fallbackHint) {
@@ -527,6 +578,9 @@ function prioritizeForPublish(topics, limit, recentPublished, options) {
 module.exports = {
   BUZZ_FEEDS,
   QUOTA_PLAN,
+  THREADS_QUOTA_PLAN,
+  INSTAGRAM_QUOTA_PLAN,
+  capsFor,
   QUOTA_WINDOW_HOURS,
   fetchRecentPublished,
   CATEGORY_TO_BUCKET,

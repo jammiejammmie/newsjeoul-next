@@ -83,5 +83,34 @@ const DAILY_TARGET = 20;
   check('5) 한 카테고리만 있어도 0건이 되지 않음(overflow 허용)', selected.length > 0, `${selected.length}건`);
 }
 
+// ── 6) 채널별 쿼터 (2026-08-17 PM 지시) ──────────────────────────────────────
+// 스레드 연예70/스포츠20/정치10, 인스타 연예100. 웹 발행은 균형 유지.
+{
+  const { THREADS_QUOTA_PLAN, INSTAGRAM_QUOTA_PLAN, capsFor } = require('../netlify/functions/buzz-engine');
+  const t = capsFor(THREADS_QUOTA_PLAN, 20);
+  check('6) 스레드 배분: 연예 14 / 스포츠 4 / 정치 2 = 20건',
+    t.entertainment === 14 && t.sports === 4 && t.politics_intl === 2, JSON.stringify(t));
+  check('6b) 스레드: 경제·테크·신제품·기타는 게시 제외(0)',
+    t.economy === 0 && t.tech_ai === 0 && t.product_consumer === 0 && t.etc === 0, JSON.stringify(t));
+
+  const i = capsFor(INSTAGRAM_QUOTA_PLAN, 20);
+  const othersZero = Object.entries(i).filter(([k]) => k !== 'entertainment').every(([, v]) => v === 0);
+  check('6c) 인스타: 연예만 20건, 나머지 전부 제외', i.entertainment === 20 && othersZero, JSON.stringify(i));
+
+  // 채널 쿼터를 바꿔도 웹 발행 쿼터는 딸려가면 안 된다(SEO·색인 축 보호).
+  check('6d) 웹 발행 쿼터는 균형 유지 — 채널 변경에 영향받지 않음',
+    QUOTA_PLAN.find((q) => q.bucket === 'entertainment').cap === 0.15 &&
+    QUOTA_PLAN.find((q) => q.bucket === 'economy').cap === 0.20);
+}
+
+// ── 7) 한글 카테고리 매핑 ────────────────────────────────────────────────────
+// 한글 값이 들어오면 전부 'etc'로 뭉개져 조용히 잘못된 버킷에 배정되던 문제.
+{
+  const cases = [['정치', 'politics_intl'], ['경제', 'economy'], ['IT', 'tech_ai'],
+    ['스포츠', 'sports'], ['연예', 'entertainment'], ['자동차', 'product_consumer'], ['생활정보', 'product_consumer']];
+  const bad = cases.filter(([k, v]) => bucketOf(k, null) !== v);
+  check('7) 한글 카테고리가 올바른 버킷으로 매핑됨', bad.length === 0, bad.map((b) => b[0]).join(','));
+}
+
 console.log(`\n${fail === 0 ? '전체 통과' : '일부 실패'}(${pass}/${pass + fail})`);
 process.exit(fail === 0 ? 0 : 1);

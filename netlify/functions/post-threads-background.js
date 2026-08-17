@@ -120,7 +120,7 @@ const REQUEST_HEADERS = { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + S
 const strategy = require('./threads-strategy');
 const { buildCta } = require('./engagement-cta');
 const { buildCoverHook } = require('./cover-hook');
-const { QUOTA_PLAN, bucketOf } = require('./buzz-engine');
+const { QUOTA_PLAN, THREADS_QUOTA_PLAN, capsFor, bucketOf } = require('./buzz-engine');
 
 // ── 배급 일시 정지 스위치(2026-08-12 PM 지시) ────────────────────────────────
 // 지금은 **정지 상태**다. 재개하려면 아래 기본값을 false로 바꿔 배포하면 된다(한 줄).
@@ -434,28 +434,41 @@ function computeBuzzComponent(topic) {
 //
 // 상한은 "오늘 목표 × 카테고리 비율"이다. 이미 상한에 닿은 버킷의 후보는 후보군에서 아예 뺀다.
 // 전부 상한에 닿으면 원본을 돌려준다 — 배급이 0건이 되는 것보다는 상한을 넘기는 편이 낫다.
+// 2026-08-17: 채널 전용 표(THREADS_QUOTA_PLAN)를 쓴다 — 연예 70 / 스포츠 20 / 정치 10.
+// cap 0인 버킷은 게시 대상에서 아예 제외된다(상한 0이 아니라 "안 올린다"는 뜻).
+//
+// ★ 상한을 다 채웠을 때 원본 풀로 되돌리지 않는다. 종전에는 "배급이 0건이 되는 것보다 낫다"는
+// 이유로 폴백을 뒀는데, 그러면 cap 0으로 막아둔 카테고리가 상한 도달 시점에 되살아나
+// "인스타/스레드는 연예만"이라는 지시가 무너진다. 후보가 없으면 그냥 게시하지 않는다.
+// 테스트 훅 — 기존 테스트 다수는 "점수 로직"을 검증하려고 여러 카테고리 후보를 깔아둔다.
+// 채널 쿼터(연예70/스포츠20/정치10)를 그대로 적용하면 그 후보들이 쿼터에서 먼저 잘려
+// 검증 대상(점수)에 도달하지 못한다. 균형 표로 돌려 점수 로직만 보게 한다.
+// 채널 쿼터 자체는 scripts/test-category-quota.js가 따로 고정한다.
+function activeQuotaPlan() {
+  return process.env.THREADS_QUOTA_MODE === 'balanced' ? QUOTA_PLAN : THREADS_QUOTA_PLAN;
+}
+
 function applyCategoryQuotaToPool(pool, postedStats, dailyTarget) {
+  const THREADS_QUOTA_PLAN = activeQuotaPlan();
   const counts = {};
-  for (const q of QUOTA_PLAN) counts[q.bucket] = 0;
+  for (const q of THREADS_QUOTA_PLAN) counts[q.bucket] = 0;
   for (const [category, n] of Object.entries((postedStats && postedStats.byCategory) || {})) {
     const b = bucketOf(category, null);
     counts[b] = (counts[b] || 0) + n;
   }
 
-  const capOf = {};
-  for (const q of QUOTA_PLAN) {
-    // 최소 1건은 허용 — 목표가 15건이면 기타(5%)는 floor로 0이 되어 영원히 못 나간다.
-    capOf[q.bucket] = Math.max(1, Math.floor(q.cap * dailyTarget));
-  }
+  const capOf = capsFor(THREADS_QUOTA_PLAN, dailyTarget);
 
-  const allowed = pool.filter((t) => counts[bucketOf(t.category, null)] < capOf[bucketOf(t.category, null)]);
-  if (!allowed.length) {
-    console.log(`CATEGORY_QUOTA_ALL_FULL[${CHANNEL}]: 전 버킷 상한 도달 — 쿼터 미적용으로 진행`);
-    return pool;
-  }
+  const allowed = pool.filter((t) => {
+    const b = bucketOf(t.category, null);
+    return (capOf[b] || 0) > 0 && counts[b] < capOf[b];
+  });
+
   if (allowed.length < pool.length) {
-    const blocked = QUOTA_PLAN.filter((q) => counts[q.bucket] >= capOf[q.bucket]).map((q) => `${q.label}(${counts[q.bucket]}/${capOf[q.bucket]})`);
-    console.log(`CATEGORY_QUOTA_APPLIED[${CHANNEL}]: ${pool.length}건 → ${allowed.length}건, 상한도달=[${blocked.join(', ')}]`);
+    const blocked = THREADS_QUOTA_PLAN
+      .filter((q) => (capOf[q.bucket] || 0) === 0 || counts[q.bucket] >= capOf[q.bucket])
+      .map((q) => `${q.label}(${counts[q.bucket]}/${capOf[q.bucket]})`);
+    console.log(`CATEGORY_QUOTA_APPLIED[${CHANNEL}]: ${pool.length}건 → ${allowed.length}건, 제외=[${blocked.join(', ')}]`);
   }
   return allowed;
 }

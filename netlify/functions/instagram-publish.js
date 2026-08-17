@@ -238,16 +238,28 @@ async function pickTopic() {
   const withDraft = pool.filter((t) => t.ai_context?.draft?.lead);
   if (!withDraft.length) return null;
 
+  // ── 카테고리 쿼터 (2026-08-17 PM 지시: 인스타는 연예/엔터만) ──────────────
+  // 계기: 스레드에서 처음 반응이 나온 글이 스트레이키즈(연예)였다(좋아요 18).
+  // cap 0인 버킷은 아예 제외한다. 연예 후보가 없으면 **게시하지 않는다** —
+  // 여기서 다른 카테고리로 폴백하면 "인스타는 연예만"이라는 지시가 무너진다.
+  const { sortByBuzz, INSTAGRAM_QUOTA_PLAN, capsFor, bucketOf } = require('./buzz-engine');
+  const caps = capsFor(INSTAGRAM_QUOTA_PLAN, IG_DAILY_MAX);
+  const inQuota = withDraft.filter((t) => (caps[bucketOf(t.category, null)] || 0) > 0);
+  if (!inQuota.length) {
+    console.log(`INSTAGRAM_QUOTA_EMPTY: 연예/엔터 후보 0건(전체 후보 ${withDraft.length}건) — 게시하지 않음`);
+    return null;
+  }
+
   // buzz 상위 선별 — 스레드와 같은 문턱·같은 표본 조건을 쓴다(채널마다 기준이 다르면
   // "왜 스레드엔 올라갔는데 인스타엔 안 올라갔나"를 설명할 수 없다).
-  const withBuzz = withDraft.filter((t) => typeof t.ai_context?.buzz?.score === 'number');
-  let candidates = withDraft;
+  const withBuzz = inQuota.filter((t) => typeof t.ai_context?.buzz?.score === 'number');
+  let candidates = inQuota;
   if (withBuzz.length >= BUZZ_FLOOR_MIN_SAMPLE) {
     const passed = withBuzz.filter((t) => t.ai_context.buzz.score >= MIN_BUZZ_SCORE_FOR_POST);
     if (passed.length) candidates = passed;
   }
 
-  const { sortByBuzz } = require('./buzz-engine');
+  console.log(`INSTAGRAM_QUOTA: 전체 ${withDraft.length}건 → 연예/엔터 ${inQuota.length}건 → 선정 후보 ${candidates.length}건`);
   return sortByBuzz(candidates)[0];
 }
 
