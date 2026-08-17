@@ -315,7 +315,12 @@ exports.handler = async function(event) {
           outlet_id: outlet.id,
           source_url: c.url,
           url_resolution_status: c.already_canonical ? 'resolved' : 'pending',
-          ...(c.already_canonical ? { url_resolved_at: new Date().toISOString() } : {}),
+          // ★ 조건부 스프레드로 키를 넣었다 빼면 안 된다. PostgREST 배치 INSERT는
+          // 모든 객체가 **같은 키 집합**을 가져야 하고, 어긋나면 PGRST102("All object keys
+          // must match")로 배치 전체가 실패한다. 트렌드 기사만 url_resolved_at을 갖고
+          // Top Stories/섹션 기사는 없어서, 화제성축 저장이 계속 0건이었다(2026-08-17 실측).
+          // 항상 키를 두고 값만 null로 둔다.
+          url_resolved_at: c.already_canonical ? new Date().toISOString() : null,
         });
         buzzByOrigin[c.buzz_origin] = (buzzByOrigin[c.buzz_origin] || 0) + 1;
       }
