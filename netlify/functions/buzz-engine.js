@@ -64,14 +64,18 @@ const RECENCY_ZERO_HOURS = 48;  // 48시간이면 0
 // "트럼프/이란 같은 단일 이슈가 전체를 독점하지 않게" — 상한(cap)이지 목표치(target)가 아니다.
 // 어떤 버킷이 미달이어도 그 몫을 다른 버킷이 넘겨받지 않는다(넘겨받으면 상한의 의미가 사라진다).
 // 합계는 정확히 100%.
+// 2026-08-17 재조정(PM 지시 "정치/국제는 20도 많다, 15로"):
+//   politics_intl 0.20 → 0.15. 남은 5%는 etc(건강·과학)로 돌려 합계 100%를 유지한다.
+//   etc로 보낸 이유: 실측(8/10~8/16)에서 건강·과학은 게시 0%였다. 남는 몫을 이미 잘 나가는
+//   경제·테크에 얹으면 "편중을 줄인다"는 목적과 반대로 간다.
 const QUOTA_PLAN = [
-  { bucket: 'politics_intl', label: '정치/국제', cap: 0.20 },
+  { bucket: 'politics_intl', label: '정치/국제', cap: 0.15 },
   { bucket: 'economy', label: '경제/주식', cap: 0.20 },
   { bucket: 'tech_ai', label: '테크/AI', cap: 0.15 },
   { bucket: 'sports', label: '스포츠', cap: 0.15 },
   { bucket: 'entertainment', label: '연예/엔터', cap: 0.15 },
   { bucket: 'product_consumer', label: '신제품/소비', cap: 0.10 },
-  { bucket: 'etc', label: '기타', cap: 0.05 },
+  { bucket: 'etc', label: '기타', cap: 0.10 },
 ];
 
 // topics.category(resolve-topics가 붙이는 대분류) → 쿼터 버킷.

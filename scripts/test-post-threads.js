@@ -265,18 +265,25 @@ async function main() {
     check('9) Exploration 가능성 높은 후보 우선 → expanded 선택', first?.ok === true && first.topicId === 't-expanded');
   }
 
-  // 10) 오늘 목표 계산 공식 직접 검증(articles 기준, clamp 10~15)
-  //     2026-08-17 PM 지시로 상하한이 20~60 → 10~15로 바뀌었다. 비율(0.10)은 그대로다.
-  //     실제 생산량(기사 약 540건/일)에서는 54 → 상한 15로 clamp되므로 사실상 매일 15건이 목표다.
+  // 10) 오늘 목표 계산 공식 직접 검증(articles 기준, clamp 20~20)
+  //     2026-08-17 PM 결정: 20~60 → 10~15 → 최종 20 고정.
+  //     20으로 고정한 근거는 카테고리 쿼터의 반올림이다 — 상한은 floor(비율 × 목표)인데
+  //     목표 15면 15%×15=2.25→2로 깎여 7개 버킷 합이 13건(목표보다 2건 손실)이 된다.
+  //     20이면 15%×20=3, 20%×20=4, 10%×20=2로 전부 정수라 손실 0, 합이 정확히 20이다.
   {
     const { computeDailyTarget } = require(path)._testUtils;
     const checks = [
-      ['10-a) articles=0 → 최소 10', computeDailyTarget(0) === 10],
-      ['10-b) articles=100 → 최소 10(100×0.1=10)', computeDailyTarget(100) === 10],
-      ['10-c) articles=130 → 13', computeDailyTarget(130) === 13],
-      ['10-d) articles=210 → 최대 15(21 clamp)', computeDailyTarget(210) === 15],
-      ['10-e) articles=1000 → 최대 15(clamp)', computeDailyTarget(1000) === 15],
-      ['10-f) 실제 생산량(540건) → 15', computeDailyTarget(540) === 15],
+      ['10-a) articles=0 → 최소 20', computeDailyTarget(0) === 20],
+      ['10-b) articles=100 → 20(하한)', computeDailyTarget(100) === 20],
+      ['10-c) articles=200 → 20', computeDailyTarget(200) === 20],
+      ['10-d) articles=1000 → 20(상한)', computeDailyTarget(1000) === 20],
+      ['10-e) 실제 생산량(540건) → 20', computeDailyTarget(540) === 20],
+      // 쿼터 반올림 손실이 0인지 — 이 성질이 깨지면 목표를 올려도 게시가 안 늘어난다.
+      ['10-f) 카테고리 상한 합계가 목표(20)와 정확히 일치', (() => {
+        const { QUOTA_PLAN } = require('../netlify/functions/buzz-engine');
+        const sum = QUOTA_PLAN.reduce((a, q) => a + Math.max(1, Math.floor(q.cap * 20)), 0);
+        return sum === 20;
+      })()],
     ];
     checks.forEach(([label, pass]) => check(label, pass));
   }

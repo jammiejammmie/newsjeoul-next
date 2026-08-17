@@ -120,6 +120,7 @@ const REQUEST_HEADERS = { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + S
 const strategy = require('./threads-strategy');
 const { buildCta } = require('./engagement-cta');
 const { buildCoverHook } = require('./cover-hook');
+const { QUOTA_PLAN, bucketOf } = require('./buzz-engine');
 
 // ── 배급 일시 정지 스위치(2026-08-12 PM 지시) ────────────────────────────────
 // 지금은 **정지 상태**다. 재개하려면 아래 기본값을 false로 바꿔 배포하면 된다(한 줄).
@@ -174,9 +175,14 @@ const RECENT_HISTORY_WINDOW = 3; // 최근 게시 패턴(recentPattern) 판단�
 // buzz 상위 이슈만 골라 카드뉴스 이미지 + 4단 댓글 연재로 깊게 올린다. 건당 무게가 커졌으므로
 // 건수를 줄인다(같은 품으로 60건을 만들 수 없고, 만들 이유도 없다).
 // 비율(0.10)은 그대로 두고 상하한만 조인다 — 기사 540건/일 기준 54 → 상한 15로 clamp된다.
+// 2026-08-17 재조정(PM 결정): 10~15 → 20 고정에 가깝게.
+// 근거는 쿼터 반올림이다. 카테고리 상한은 floor(비율 × 목표)로 계산되는데, 목표가 15면
+// 15%×15=2.25 → 2로 깎여 7개 버킷 합이 13건이 된다(목표보다 2건 적다).
+// 목표 20이면 15%×20=3, 20%×20=4, 10%×20=2로 전부 정수라 손실이 0이고 합이 정확히 20이 된다.
+// 카테고리마다 최소 2건이 확보되는 지점이기도 하다.
 const ARTICLE_TARGET_RATIO = 0.10; // articles × 10%
-const MIN_DAILY_TARGET = 10;
-const MAX_DAILY_TARGET = 15;
+const MIN_DAILY_TARGET = 20;
+const MAX_DAILY_TARGET = 20;
 // 목표치 이내일 때(공급 여유 있음) 요구 점수는 낮게, 목표치를 초과했을 때(이미 충분히 배급됨)는
 // 정말 뛰어난 후보만 통과하도록 점진적으로 엄격해진다 — 고정 상한이 아니라 적응형 문턱값이다.
 const DISTRIBUTION_SCORE_FLOOR = 55;
@@ -417,6 +423,41 @@ function computeBuzzComponent(topic) {
   if (!buzz || typeof buzz.score !== 'number') return null; // 미계산 — 중립 처리
   if (buzz.score <= 0) return 0;
   return Math.min(100, Math.round((buzz.score / 120) * 100));
+}
+
+// ── 카테고리 쿼터 하드 상한 (2026-08-17 PM 지시) ────────────────────────────
+// 실측(8/10~8/16): 정치/국제가 매일 42~65%를 먹었다. 상한 20%의 2~3배다.
+// 원인은 명확했다 — 쿼터를 발행 파이프라인(editorial-draft / publish-routed-content)에만 걸고
+// 배급(Threads/Instagram)에는 안 걸었다. 배급에는 categoryAllocation이라는 가중치 0.16짜리
+// **소프트** 신호밖에 없어서, 정치 후보가 다른 축(품질·무게·buzz)에서 조금만 앞서면 그대로 이긴다.
+// 소프트 신호로는 편중이 안 잡힌다는 것이 7일치 데이터로 증명됐으므로 하드 상한을 건다.
+//
+// 상한은 "오늘 목표 × 카테고리 비율"이다. 이미 상한에 닿은 버킷의 후보는 후보군에서 아예 뺀다.
+// 전부 상한에 닿으면 원본을 돌려준다 — 배급이 0건이 되는 것보다는 상한을 넘기는 편이 낫다.
+function applyCategoryQuotaToPool(pool, postedStats, dailyTarget) {
+  const counts = {};
+  for (const q of QUOTA_PLAN) counts[q.bucket] = 0;
+  for (const [category, n] of Object.entries((postedStats && postedStats.byCategory) || {})) {
+    const b = bucketOf(category, null);
+    counts[b] = (counts[b] || 0) + n;
+  }
+
+  const capOf = {};
+  for (const q of QUOTA_PLAN) {
+    // 최소 1건은 허용 — 목표가 15건이면 기타(5%)는 floor로 0이 되어 영원히 못 나간다.
+    capOf[q.bucket] = Math.max(1, Math.floor(q.cap * dailyTarget));
+  }
+
+  const allowed = pool.filter((t) => counts[bucketOf(t.category, null)] < capOf[bucketOf(t.category, null)]);
+  if (!allowed.length) {
+    console.log(`CATEGORY_QUOTA_ALL_FULL[${CHANNEL}]: 전 버킷 상한 도달 — 쿼터 미적용으로 진행`);
+    return pool;
+  }
+  if (allowed.length < pool.length) {
+    const blocked = QUOTA_PLAN.filter((q) => counts[q.bucket] >= capOf[q.bucket]).map((q) => `${q.label}(${counts[q.bucket]}/${capOf[q.bucket]})`);
+    console.log(`CATEGORY_QUOTA_APPLIED[${CHANNEL}]: ${pool.length}건 → ${allowed.length}건, 상한도달=[${blocked.join(', ')}]`);
+  }
+  return allowed;
 }
 
 // buzz 문턱 적용 — 표본이 충분할 때만 거른다(위 BUZZ_FLOOR_MIN_SAMPLE 주석 참고).
@@ -799,7 +840,12 @@ async function selectCandidate(excludeIds = new Set(), hubs = []) {
   // 아무리 잘 쓰였어도 이번 개편의 대상이 아니기 때문이다.
   const buzzFiltered = applyBuzzFloor(pool);
 
-  const scoredAll = buzzFiltered.map((t) => ({ topic: t, base: computeEditorialScore(t) }));
+  // 카테고리 하드 상한 — buzz 문턱 **다음**에 건다. 순서가 중요하다:
+  // 쿼터를 먼저 걸면 "정치 상한이 남았으니 약한 정치 기사라도 통과"가 되어 화제성이 희생된다.
+  // buzz를 먼저 걸어 강한 후보만 남긴 뒤 쿼터로 분배해야 "카테고리별로 강력한 것만"이 된다.
+  const quotaFiltered = applyCategoryQuotaToPool(buzzFiltered, postedStats, dailyTarget);
+
+  const scoredAll = quotaFiltered.map((t) => ({ topic: t, base: computeEditorialScore(t) }));
   const eligible = scoredAll.filter((s) => passesMinimumQuality(s.topic, s.base));
   const ineligible = scoredAll.filter((s) => !passesMinimumQuality(s.topic, s.base));
   const ineligibleRows = ineligible.map((s) => ({
@@ -1137,13 +1183,17 @@ async function generateDeepPost(topic) {
 - 댓글2(찬반/이면 심층): [형식 A]를 골랐으면 "찬성측은 이렇게 본다 / 반대측은 이렇게 본다"를
   여기에 쓴다(양쪽 분량을 맞추고 어느 쪽이 옳은지 판정하지 마라).
   [형식 B]를 골랐으면 표면 뒤의 진짜 쟁점과 이해관계(누가 얻고 누가 잃는가)를 쓴다. 400자 이내.
+- 댓글3(앞으로 볼 것): 이 사안이 다음에 어떤 분기점을 맞는지 쓴다. 예정된 일정·표결·발표·판결,
+  또는 무엇이 확인되면 방향이 갈리는지. 앞의 세 칸에서 이미 쓴 문장을 반복하지 마라. 400자 이내.
+  ※ 예정에 없는 일정을 지어내지 마라. 자료에 날짜가 없으면 "무엇을 지켜봐야 하는지"만 써라.
 
 설명 없이 아래 JSON만 반환해라(코드블록 없이):
 {
   "format": "A" 또는 "B" (위에서 고른 형식),
   "text": "본문 — 핵심 요약(${BODY_TARGET_CHARS}자 이내, 링크 제외)",
   "comment_context": "댓글1 — 배경/맥락 상세(400자 이내, 링크 제외)",
-  "comment_depth": "댓글2 — 찬반 또는 이면 심층(400자 이내, 링크 제외)"
+  "comment_depth": "댓글2 — 찬반 또는 이면 심층(400자 이내, 링크 제외)",
+  "comment_outlook": "댓글3 — 앞으로 볼 것(400자 이내, 링크 제외)"
 }`;
 
   // ★ 2026-08-06: 게시 실패의 최대 원인 수정.
@@ -1193,6 +1243,7 @@ async function generateDeepPost(topic) {
     format: parsed.format || null,
     commentContext: truncateAtSentenceBoundary(String(parsed.comment_context || '').trim(), COMMENT_BUDGET),
     commentDepth: truncateAtSentenceBoundary(String(parsed.comment_depth || '').trim(), COMMENT_BUDGET),
+    commentOutlook: truncateAtSentenceBoundary(String(parsed.comment_outlook || '').trim(), COMMENT_BUDGET),
   };
 }
 
@@ -1413,9 +1464,9 @@ async function attemptNewsPost({ topic, hubMatch, detail }) {
 
   // 2. Claude 문구 생성(여기부터 비용 발생) — 본문 + 댓글1(배경) + 댓글2(심층)를 호출 1회로 받는다.
   //    나눠 호출하면 비용이 3배가 되고, 무엇보다 세 칸이 서로 겹치는 말을 하게 된다.
-  let text, commentContext, commentDepth, postFormat;
+  let text, commentContext, commentDepth, commentOutlook, postFormat;
   try {
-    ({ text, commentContext, commentDepth, format: postFormat } = await generateDeepPost(topic));
+    ({ text, commentContext, commentDepth, commentOutlook, format: postFormat } = await generateDeepPost(topic));
   } catch (genErr) {
     // 조립 실패(우리 버그)와 Claude API 실패(외부 요인)를 구분한다 — 사유가 섞이면
     // "posts_succeeded=0"의 원인을 엉뚱한 곳에서 찾게 된다.
@@ -1461,9 +1512,13 @@ async function attemptNewsPost({ topic, hubMatch, detail }) {
   //    링크를 마지막에 두는 이유: 연재를 다 읽은 사람이 가장 클릭 의사가 높고, 링크가 중간에
   //    끼면 거기서 이탈해 뒤 내용이 읽히지 않는다.
   const activeTopicCount = await fetchActiveTopicCount();
+  // 2026-08-17 PM 지시로 내용 댓글을 3개로 늘렸다.
+  // 근거: 4단 중 뒤 2칸이 링크뿐이라, 사람들이 "댓글 = 링크"로 학습해 아예 안 누르게 된다.
+  // 링크 댓글 앞에 읽을거리를 한 칸 더 두면 연재를 끝까지 내려올 이유가 생긴다.
   const commentPlan = [
     { label: 'context', text: commentContext },
     { label: 'depth', text: commentDepth },
+    { label: 'outlook', text: commentOutlook },
     hubMatch ? {
       label: 'hub',
       text: strategy.buildCommentText({
