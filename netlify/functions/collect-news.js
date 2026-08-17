@@ -14,6 +14,20 @@ const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY;
 const { resolveGoogleNewsUrl, mapWithConcurrency } = require('./resolve-google-news-url');
 const { fetchBuzzIndex, BUZZ_FEEDS } = require('./buzz-engine');
 
+// ★ 2026-08-17 치명적 버그 수정 — 수집이 통째로 막혀 있었다.
+//
+// 종전 코드는 POST에 `Prefer: resolution=ignore-duplicates`만 보냈다. 그런데 PostgREST에서
+// 이 헤더는 **on_conflict 쿼리 파라미터가 함께 있을 때만** 동작한다. 없으면 그냥 무시되고,
+// 배치 안에 이미 존재하는 url이 하나라도 섞이면 23505(unique 위반)로 **배치 전체가 실패**한다.
+//
+// 구글뉴스 RSS는 같은 기사를 계속 다시 주기 때문에 배치에는 항상 중복이 섞인다.
+// 그래서 실제로는 "새 기사 1건 + 기존 14건"인 배치가 통째로 버려지고 있었다.
+// 실측(2026-08-17 08:21 운영 로그): 언론사 24곳 전부 23505로 실패, 화제성축은
+// 후보 264건 중 saved 0건. 구글 Top Stories 34건 중 DB에 들어온 것이 1건뿐이었던 이유다.
+// "김민석 탁자 위 신발", "하영 증조부 친일" 같은 당일 최상위 이슈를 놓친 직접 원인이기도 하다.
+//
+// 수정: articles INSERT에 `?on_conflict=url`을 붙여 중복 행만 조용히 건너뛰게 한다.
+// 이제 배치에 중복이 몇 건 있든 새 기사만 정상 저장된다.
 async function supabaseQuery(method, table, body, params = '') {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}${params}`, {
     method,
@@ -21,7 +35,8 @@ async function supabaseQuery(method, table, body, params = '') {
       'apikey': SUPABASE_KEY,
       'Authorization': 'Bearer ' + SUPABASE_KEY,
       'Content-Type': 'application/json',
-      'Prefer': method === 'POST' ? 'resolution=ignore-duplicates' : '',
+      // return=minimal — 저장된 행을 돌려받을 이유가 없고, 대량 INSERT에서 응답만 커진다.
+      'Prefer': method === 'POST' ? 'resolution=ignore-duplicates,return=minimal' : '',
     },
     body: body ? JSON.stringify(body) : undefined,
   });
@@ -30,6 +45,15 @@ async function supabaseQuery(method, table, body, params = '') {
     throw new Error(`Supabase ${method} ${table}: ${err}`);
   }
   return method === 'GET' ? res.json() : res;
+}
+
+// articles 전용 INSERT — on_conflict=url이 반드시 붙어야 한다(위 주석 참고).
+// 저장 시도 건수를 그대로 돌려주되, 실제 신규 저장 수는 알 수 없다(return=minimal).
+// 그래도 "배치가 통째로 죽지 않는다"가 핵심이므로 이 형태가 맞다.
+async function insertArticles(rows) {
+  if (!rows || !rows.length) return 0;
+  await supabaseQuery('POST', 'articles', rows, '?on_conflict=url');
+  return rows.length;
 }
 
 async function fetchGoogleNewsRSS(query) {
@@ -243,7 +267,7 @@ exports.handler = async function(event) {
           }));
 
           // Supabase에 저장 (중복 URL 무시)
-          await supabaseQuery('POST', 'articles', articles);
+          await insertArticles(articles);
           console.log(`${outlet.name}: ${items.length}개 저장`);
           totalSaved += items.length;
         } catch(e) {
@@ -297,8 +321,7 @@ exports.handler = async function(event) {
 
       if (rows.length) {
         // 중복 URL은 Prefer: resolution=ignore-duplicates로 조용히 무시된다(기존 동작과 동일).
-        await supabaseQuery('POST', 'articles', rows);
-        buzzSaved = rows.length;
+        buzzSaved = await insertArticles(rows);
       }
       console.log(
         `화제성축 완료: 후보 ${buzzCandidates}건 → 저장 ${buzzSaved}건 ` +
