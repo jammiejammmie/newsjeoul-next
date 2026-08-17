@@ -120,7 +120,7 @@ export const galaxyS25Ultra: HubConfig = {
     allowed: true,
     slots: [
       { slot: 's25u-body', label: 'S25 울트라 자급제', network: 'coupang', kind: 'device', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=9187805942&itemId=27106552110&vendorItemId=95897701835&traceid=V0-153-ac00f0153f24ef6d&requestid=20260814035856954029702220&token=31850C%7CMIXED' },
-      { slot: 's25u-spen', label: 'S25 울트라 호환 S펜', network: 'coupang', kind: 'accessory', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=8631414198&itemId=25627538588&vendorItemId=92617743318&traceid=V0-153-9062c1d63e591488&clickBeacon=09bd8c60-9749-11f1-9fd2-dfe84504deaa%7E3&requestid=20260814035857650042890101&token=31850C%7CMIXED' },
+      { slot: 's25u-spen', label: 'S25 울트라 호환 S펜', network: 'coupang', kind: 'accessory', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=8734143428&itemId=28754914021&vendorItemId=92375244363&traceid=V0-153-6228bb3933fce002&requestid=20260818033406337306037846&token=31850C%7CMIXED' },
       { slot: 's25u-film', label: 'S25 울트라 보호필름', network: 'coupang', kind: 'accessory', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=8709735623&itemId=25295825491&vendorItemId=92291143984&traceid=V0-153-4a7d2f9433f8df88&clickBeacon=b2afbb90-94ec-11f1-a87b-269eee1ffae1%7E3&requestid=20260811035255499073372513&token=31850C%7CMIXED' },
     ],
   },
