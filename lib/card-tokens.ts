@@ -101,8 +101,17 @@ export function toLines(input: string | string[] | null | undefined, max = 3): s
   return arr.map((s) => s.trim()).filter(Boolean).slice(0, max)
 }
 
-/** 상한 초과 시 자른다. 자르면 카피가 깨지므로 호출부에서 로그를 남길 것(SPEC §4). */
-export function clamp(text: string, max: number): string {
-  const chars = [...(text || '')]
-  return chars.length <= max ? (text || '') : chars.slice(0, max).join('')
+// ── 글자 수 상한 검증 (SPEC §4 + §Interactions) ────────────────────────────
+// 넘치는 카피를 조용히 잘라내지 않는다. satori에 자동 축소가 없다는 것은 "넘치면 깨진다"는
+// 뜻이고, 깨진 카드가 인스타에 올라가는 것보다 500이 낫다 — SPEC이 "조용히 잘린 이미지를
+// 내보내지 말 것"으로 못박은 지점이다. 어떤 슬롯이 몇 자인지까지 본문에 적어 돌려준다.
+//
+// 상한은 카피를 고치라는 신호다. 여기서 자동으로 줄이면 편집자가 문제를 영영 모른다.
+export type LimitEntry = [slot: string, value: string, max: number]
+
+export function checkLimits(entries: LimitEntry[]): string | null {
+  const bad = entries
+    .filter(([, v, max]) => [...(v || '')].length > max)
+    .map(([slot, v, max]) => `${slot} ${[...v].length}자(상한 ${max}자): "${v}"`)
+  return bad.length ? `카피 상한 초과 — ${bad.join(' / ')}` : null
 }

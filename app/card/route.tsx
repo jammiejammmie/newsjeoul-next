@@ -1,7 +1,8 @@
 import { ImageResponse } from 'next/og'
 import type { NextRequest } from 'next/server'
 import { colors, domainColors } from '@/lib/design-tokens'
-import { cardColor, SKIN_PAD, titleSize as coverTitleSize, quoteSize, toLines, clamp } from '@/lib/card-tokens'
+import { cardColor, SKIN_PAD, titleSize as coverTitleSize, quoteSize, subheadSize, toLines, checkLimits } from '@/lib/card-tokens'
+import type { LimitEntry } from '@/lib/card-tokens'
 
 // ── 인스타그램 카드뉴스 이미지 생성 (2026-08-17, PM 지시) ───────────────────
 // Instagram Graph API는 바이너리 업로드를 받지 않는다 — 반드시 "공개 URL"로 호스팅된 이미지를
@@ -24,6 +25,13 @@ export const runtime = 'edge'
 
 const W = 1080
 const H = 1350
+
+// CDN 캐싱 금지 — 2026-08-17 실측 사고(아래 GET 말미 주석 참고). Netlify Edge가 쿼리스트링을
+// 무시하고 경로만으로 캐시 키를 잡아서 서로 다른 5장이 전부 같은 이미지로 돌아왔다.
+const NO_STORE = {
+  'Cache-Control': 'no-store, max-age=0',
+  'Netlify-CDN-Cache-Control': 'no-store',
+}
 
 async function loadFont(allText: string, weight: 400 | 700 | 900) {
   const chars = [...new Set(allText.replace(/\s/g, ''))].join('')
@@ -505,6 +513,242 @@ function CoverNews({
   )
 }
 
+// ── 2번 what — 헤더 밴드 + 가로 데이터 바 (SPEC §2.2) ──────────────────────
+// "무슨 일인가"는 사실만 놓는 장이다(SPEC §4.2: 해석 금지). 막대는 값 비례가 아니라
+// **시각 비례**로 폭을 직접 지정한다 — 값 차이가 작을 때 비례로 그리면 차이가 안 보인다.
+// 그래서 폭은 호출부가 200~700px 사이로 정해서 보내고, 여기서는 그대로 그린다.
+const BAR_FILL = { ink: cardColor.ink, gray: cardColor.inkLine, red: cardColor.red } as const
+type BarColor = keyof typeof BAR_FILL
+type Bar = { label: string; value: string; width: number; color: BarColor }
+
+function CardWhat({
+  label, subheadLines, bars, source, index, total,
+}: {
+  label: string; subheadLines: string[]; bars: Bar[]; source: string; index: number; total: number
+}) {
+  const PAD = SKIN_PAD.news
+  const sSize = subheadSize(subheadLines.join(''))
+
+  return (
+    <div
+      style={{
+        width: W,
+        height: H,
+        boxSizing: 'border-box',
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+        background: cardColor.paper,
+        fontFamily: 'Pretendard',
+      }}
+    >
+      <div
+        style={{
+          height: 190,
+          background: cardColor.ink,
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          padding: `0 ${PAD}px`,
+        }}
+      >
+        <span style={{ fontSize: 34, fontWeight: 700, letterSpacing: '.1em', lineHeight: 1, color: cardColor.paper }}>
+          {label}
+        </span>
+        <span style={{ fontSize: 30, fontWeight: 700, lineHeight: 1, color: cardColor.mutedDark }}>
+          {index} / {total}
+        </span>
+      </div>
+
+      <div
+        style={{
+          height: 1160,
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'space-between',
+          padding: `52px ${PAD}px`,
+        }}
+      >
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          {subheadLines.map((l, i) => (
+            <div
+              key={i}
+              style={{
+                display: 'flex',
+                fontSize: sSize,
+                fontWeight: 800,
+                letterSpacing: '-.04em',
+                lineHeight: 1.2,
+                color: cardColor.ink,
+              }}
+            >
+              {l}
+            </div>
+          ))}
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+          {bars.map((b, i) => (
+            <div key={i} style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
+              <span style={{ width: 120, fontSize: 34, fontWeight: 700, lineHeight: 1, color: cardColor.muted }}>
+                {b.label}
+              </span>
+              <div style={{ width: b.width, height: 56, background: BAR_FILL[b.color] }} />
+              <span
+                style={{
+                  fontSize: 40,
+                  fontWeight: 800,
+                  lineHeight: 1,
+                  color: b.color === 'red' ? cardColor.red : cardColor.ink,
+                }}
+              >
+                {b.value}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ width: '100%', height: 3, background: cardColor.line }} />
+          <span style={{ fontSize: 38, fontWeight: 500, lineHeight: 1.5, color: cardColor.body }}>{source}</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── 5번 end — 상단 paper + 하단 ink 푸터 (SPEC §2.5) ───────────────────────
+// 마무리는 결론을 내리는 장이 아니라 **다음에 확인할 시점**을 담는 장이다(SPEC §4.4).
+// "판단 유보 + 검증 시점" — 이게 이 매체의 논조라 카피 규칙이 레이아웃만큼 중요하다.
+function CardEnd({
+  label, headlineLines, body, tagline, cta, index, total,
+}: {
+  label: string; headlineLines: string[]; body: string; tagline: string; cta: string
+  index: number; total: number
+}) {
+  const PAD = SKIN_PAD.news
+  // 헤드라인 86px 기준(SPEC §2.5). 3줄까지 들어가므로 길면 단계적으로 줄인다.
+  const n = [...headlineLines.join('')].length
+  const hSize = n <= 14 ? 86 : n <= 21 ? 74 : 64
+
+  return (
+    <div
+      style={{
+        width: W,
+        height: H,
+        boxSizing: 'border-box',
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+        background: cardColor.paper,
+        fontFamily: 'Pretendard',
+      }}
+    >
+      <div
+        style={{
+          height: 1010,
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'space-between',
+          padding: `60px ${PAD}px`,
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span style={{ fontSize: 34, fontWeight: 700, letterSpacing: '.1em', lineHeight: 1, color: cardColor.red }}>
+            {label}
+          </span>
+          <span style={{ fontSize: 30, fontWeight: 700, lineHeight: 1, color: cardColor.muted }}>
+            {index} / {total}
+          </span>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          {headlineLines.map((l, i) => (
+            <div
+              key={i}
+              style={{
+                display: 'flex',
+                fontSize: hSize,
+                fontWeight: 800,
+                letterSpacing: '-.045em',
+                lineHeight: 1.2,
+                color: cardColor.ink,
+              }}
+            >
+              {l}
+            </div>
+          ))}
+        </div>
+
+        <span style={{ fontSize: 42, fontWeight: 500, lineHeight: 1.6, color: cardColor.body }}>{body}</span>
+      </div>
+
+      <div
+        style={{
+          height: 340,
+          background: cardColor.ink,
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          padding: `0 ${PAD}px`,
+        }}
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <span style={{ fontSize: 46, fontWeight: 800, letterSpacing: '-.02em', lineHeight: 1, color: cardColor.paper }}>
+            뉴스저울
+          </span>
+          <span style={{ fontSize: 32, fontWeight: 500, lineHeight: 1, color: cardColor.mutedDark }}>{tagline}</span>
+        </div>
+        <span
+          style={{
+            fontSize: 34,
+            fontWeight: 700,
+            lineHeight: 1.3,
+            color: cardColor.ink,
+            background: cardColor.paper,
+            padding: '22px 26px',
+          }}
+        >
+          {cta}
+        </span>
+      </div>
+    </div>
+  )
+}
+
+// bars 쿼리 파싱 — `라벨:값:폭:색` 행을 `|`로 이어 보낸다.
+//   예) bars=VIP:22만:520:ink|일반:16.5만:390:gray|암표:30만+:700:red
+// SPEC §5.2의 검증(3~4행, 폭 200~700)을 여기서 하고, 어긋나면 이유를 문자열로 돌려준다.
+// 조용히 잘린 이미지를 내보내지 않는 것이 이 라우트의 규칙이다(SPEC §Interactions).
+function parseBars(raw: string | null): { bars: Bar[] } | { error: string } {
+  if (!raw) return { error: 'bars 파라미터가 없다 (형식: 라벨:값:폭:색|…)' }
+  const rows = raw.split('|').map((s) => s.trim()).filter(Boolean)
+  if (rows.length < 3 || rows.length > 4) {
+    return { error: `막대는 3~4행이어야 한다 (받은 행 수: ${rows.length})` }
+  }
+
+  const bars: Bar[] = []
+  for (const row of rows) {
+    const [label, value, widthRaw, colorRaw] = row.split(':')
+    const width = Number(widthRaw)
+    if (!label || !value || !Number.isFinite(width)) {
+      return { error: `막대 형식 오류: "${row}" (라벨:값:폭:색)` }
+    }
+    if (width < 200 || width > 700) {
+      // SPEC §2.2: 값 차이가 작으면 차이가 안 보이므로 최소 폭 200px을 보장할 것.
+      return { error: `막대 폭은 200~700이어야 한다: "${row}" (받은 값: ${width})` }
+    }
+    const color = (colorRaw || 'ink') as BarColor
+    if (!(color in BAR_FILL)) {
+      return { error: `막대 색은 ink|gray|red 중 하나여야 한다: "${row}"` }
+    }
+    const over = checkLimits([['bar.label', label, 4], ['bar.value', value, 7]])
+    if (over) return { error: `"${row}" — ${over}` }
+    bars.push({ label, value, width, color })
+  }
+  return { bars }
+}
+
 export async function GET(req: NextRequest) {
   const p = req.nextUrl.searchParams
   const slide = p.get('slide') || 'cover'
@@ -530,6 +774,78 @@ export async function GET(req: NextRequest) {
   const titleLines = toLines(p.get('title'), 2)
   const useNewCover = slide === 'cover' && quoteA.length > 0 && quoteB.length > 0 && titleLines.length > 0
 
+  // ── 2번 what — 새 슬라이드라 레거시 충돌이 없다. 데이터가 어긋나면 그대로 500으로 막는다.
+  if (slide === 'what') {
+    const parsed = parseBars(p.get('bars'))
+    if ('error' in parsed) return new Response(parsed.error, { status: 500 })
+    const subheadLines = toLines(p.get('subhead'), 2)
+    if (!subheadLines.length) return new Response('subhead가 없다 (2줄까지, 각 24자)', { status: 500 })
+
+    const label = p.get('label') || '무슨 일인가'
+    const source = p.get('source') || ''
+    const over = checkLimits([
+      ...subheadLines.map((l, i) => [`subhead[${i}]`, l, 24] as LimitEntry),
+      ['source', source, 34],
+      ['label', label, 8],
+    ])
+    if (over) return new Response(over, { status: 500 })
+
+    try {
+      const fonts = await loadPretendard(new URL(req.url).origin)
+      return new ImageResponse(
+        <CardWhat
+          label={label}
+          subheadLines={subheadLines}
+          bars={parsed.bars}
+          source={source}
+          index={index}
+          total={total}
+        />,
+        { width: W, height: H, fonts, headers: NO_STORE }
+      )
+    } catch (e) {
+      console.error('카드뉴스 what 생성 오류:', e)
+      return new Response(`card what error: ${e instanceof Error ? e.message : String(e)}`, { status: 500 })
+    }
+  }
+
+  // ── 5번 end — 레거시 end(text만 받던 것)와 같은 이름이라, 새 카피(headline)가 있을 때만
+  // 새 디자인으로 간다. 없으면 기존 마무리 카드로 떨어져 현행 인스타 게시가 안 끊긴다.
+  const endHeadline = toLines(p.get('headline'), 3)
+  if (slide === 'end' && endHeadline.length > 0) {
+    const endLabel = p.get('label') || '마무리'
+    const endBody = p.get('body') || text
+    const endTagline = p.get('tagline') || '양쪽을 같이 재는 뉴스'
+    const endCta = p.get('cta') || '전문 보기'
+    const over = checkLimits([
+      ...endHeadline.map((l, i) => [`headline[${i}]`, l, 18] as LimitEntry),
+      ['body', endBody, 48],
+      ['tagline', endTagline, 14],
+      ['cta', endCta, 10],
+      ['label', endLabel, 8],
+    ])
+    if (over) return new Response(over, { status: 500 })
+
+    try {
+      const fonts = await loadPretendard(new URL(req.url).origin)
+      return new ImageResponse(
+        <CardEnd
+          label={endLabel}
+          headlineLines={endHeadline}
+          body={endBody}
+          tagline={endTagline}
+          cta={endCta}
+          index={index}
+          total={total}
+        />,
+        { width: W, height: H, fonts, headers: NO_STORE }
+      )
+    } catch (e) {
+      console.error('카드뉴스 end 생성 오류:', e)
+      return new Response(`card end error: ${e instanceof Error ? e.message : String(e)}`, { status: 500 })
+    }
+  }
+
   if (useNewCover) {
     const weightRaw = p.get('weightA')
     const weightA = weightRaw != null && weightRaw !== '' ? Number(weightRaw) : null
@@ -538,33 +854,44 @@ export async function GET(req: NextRequest) {
       return new Response(`weightA는 0~100이어야 한다 (받은 값: ${weightRaw})`, { status: 500 })
     }
 
+    const kicker = p.get('kicker') || ''
+    const labelA = p.get('labelA') || ''
+    const labelB = p.get('labelB') || ''
+    const coverBadge = p.get('badge') || ''
+    const coverCta = p.get('cta') || '양쪽 다 읽어보기 →'
+    const note = p.get('note') || ''
+    const overCover = checkLimits([
+      ...titleLines.map((l, i) => [`title[${i}]`, l, 12] as LimitEntry),
+      ...quoteA.map((l, i) => [`quoteA[${i}]`, l, 16] as LimitEntry),
+      ...quoteB.map((l, i) => [`quoteB[${i}]`, l, 16] as LimitEntry),
+      ['kicker', kicker, 14],
+      ['labelA', labelA, 6],
+      ['labelB', labelB, 6],
+      ['badge', coverBadge, 6],
+      ['cta', coverCta, 12],
+      ['note', note, 10],
+    ])
+    if (overCover) return new Response(overCover, { status: 500 })
+
     try {
       const fonts = await loadPretendard(new URL(req.url).origin)
       const node = (
         <CoverNews
           quoteA={quoteA}
           quoteB={quoteB}
-          titleLines={titleLines.map((l) => clamp(l, 12))}
-          kicker={clamp(p.get('kicker') || '', 14)}
+          titleLines={titleLines}
+          kicker={kicker}
           weightA={weightA}
-          labelA={clamp(p.get('labelA') || '', 6)}
-          labelB={clamp(p.get('labelB') || '', 6)}
-          badge={clamp(p.get('badge') || '', 6)}
+          labelA={labelA}
+          labelB={labelB}
+          badge={coverBadge}
           index={index}
           total={total}
-          cta={clamp(p.get('cta') || '양쪽 다 읽어보기 →', 12)}
-          note={clamp(p.get('note') || '', 10)}
+          cta={coverCta}
+          note={note}
         />
       )
-      return new ImageResponse(node, {
-        width: W,
-        height: H,
-        fonts,
-        headers: {
-          'Cache-Control': 'no-store, max-age=0',
-          'Netlify-CDN-Cache-Control': 'no-store',
-        },
-      })
+      return new ImageResponse(node, { width: W, height: H, fonts, headers: NO_STORE })
     } catch (e) {
       // 폰트를 못 실으면 satori가 전 웨이트를 400으로 떨어뜨린다(SPEC §1.2가 지목한 사고).
       // 무게가 무너진 표지를 내보내느니 실패를 드러낸다.
