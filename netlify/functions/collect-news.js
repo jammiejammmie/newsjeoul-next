@@ -290,6 +290,7 @@ exports.handler = async function(event) {
     // 전부 실패해도 위 언론사축 결과(totalSaved)는 이미 저장 완료라 영향이 없다.
     let buzzSaved = 0, buzzUnmatched = 0, buzzCandidates = 0;
     let buzzStats = null;
+    let buzzError = null;
     const buzzByOrigin = {};
     try {
       const index = await fetchBuzzIndex({ perFeedLimit: 40, timeoutMs: 7000 });
@@ -328,6 +329,9 @@ exports.handler = async function(event) {
         `(29곳 미식별 ${buzzUnmatched}건 제외), 피드 ${index.stats.feeds_ok}/8 트렌드 ${index.stats.trends}건`
       );
     } catch (e) {
+      // 에러를 로그에만 남기면 응답만 보고는 "왜 saved가 0인지" 알 수 없다.
+      // 실제로 2026-08-17에 이 때문에 원인 파악이 한 번 막혔다 — 응답에도 실어 보낸다.
+      buzzError = String(e.message || e).slice(0, 400);
       console.error('화제성축 수집 오류(언론사축 결과에는 영향 없음):', e.message);
     }
 
@@ -406,6 +410,7 @@ exports.handler = async function(event) {
           candidates: buzzCandidates,
           unmatchedOutlet: buzzUnmatched,
           byOrigin: buzzByOrigin,
+          error: buzzError,
           feeds: buzzStats,
         },
         urlResolved,
