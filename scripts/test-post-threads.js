@@ -1094,6 +1094,25 @@ async function main() {
   }
 
   const failCount = results.filter((r) => !r.pass).length;
+  // ── 카테고리 배분: 표본 부족 시 배급 잠금 방지 (2026-08-18 실사고 회귀) ──
+  // 오늘 게시 2건(Sports1·Society1)만으로 두 카테고리 게시비중이 0.50이 되어 점수가 0으로
+  // 떨어졌고, 채널 쿼터가 점수 높은 카테고리를 제외하고 있어 14회 연속 게시 실패했다.
+  // 게시가 안 되니 그 2건이 계속 50%로 남아 스스로 풀리지 않았다.
+  {
+    const { computeCategoryAllocationScore: alloc, CATEGORY_ALLOCATION_MIN_SAMPLE: MIN } = require(path)._testUtils;
+    const produced = { total: 14, byCategory: { Society: 1, Sports: 2, Technology: 5, Economy: 3, Entertainment: 1, Business: 1, Crypto: 1 } };
+    const tiny = { total: 2, byCategory: { Sports: 1, Society: 1 } };
+    const raw = Math.max(0, Math.min(100, 50 + (1 / 14 - 0.5) * 200));
+    const got = alloc("Society", produced, tiny);
+    check("배분1) 표본 2건일 때 Society가 0점으로 죽지 않는다", got > 20, "보정전 " + raw.toFixed(0) + " → 현재 " + got.toFixed(0));
+
+    const enough = { total: MIN, byCategory: { Society: 5, Sports: 5 } };
+    const full = alloc("Society", produced, enough);
+    check("배분2) 표본이 충분하면 보정 없이 종전과 동일", Math.abs(full - raw) < 0.001, "현재 " + full.toFixed(1) + " / 종전 " + raw.toFixed(1));
+
+    check("배분3) 게시 실적이 없으면 감점되지 않는다", alloc("Entertainment", produced, { total: 0, byCategory: {} }) >= 50);
+  }
+
   console.log(failCount === 0 ? `\n전체 통과(${results.length}개)` : `\n일부 실패(${failCount}/${results.length})`);
   process.exit(failCount === 0 ? 0 : 1);
 }

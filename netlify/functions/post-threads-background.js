@@ -338,6 +338,10 @@ function passesMinimumQuality(topic, scored) {
 // ── Distribution Score 하위 컴포넌트 ────────────────────────────────
 // 오늘 생산은 많은데 게시는 적게 된 분야("부족한 분야")에 가산점을 준다. gap이 클수록(생산 비중 >
 // 게시 비중) 점수가 올라간다 — 자동차만 100개 생산돼도 자동차만 계속 오르는 문제를 여기서 막는다.
+// 게시 비중을 신뢰하려면 오늘 게시가 최소 이만큼은 쌓여야 한다. 그 전에는 비중이 표본 잡음이라
+// categoryAllocation을 중립(50) 쪽으로 끌어당긴다(아래 함수 주석의 2026-08-18 사고 참고).
+const CATEGORY_ALLOCATION_MIN_SAMPLE = 10;
+
 function computeCategoryAllocationScore(category, producedStats, postedStats) {
   const catCount = Object.keys(producedStats.byCategory).length || 1;
   const producedShare = producedStats.total > 0
@@ -345,7 +349,21 @@ function computeCategoryAllocationScore(category, producedStats, postedStats) {
     : 1 / catCount;
   const postedShare = postedStats.total > 0 ? (postedStats.byCategory[category] || 0) / postedStats.total : 0;
   const gap = producedShare - postedShare;
-  return Math.max(0, Math.min(100, 50 + gap * 200));
+
+  // 표본 보정(2026-08-18) — 오늘 게시 수가 적을 때 이 컴포넌트를 그대로 믿으면 배급이 잠긴다.
+  //
+  // 실사고: 오늘 게시가 2건(Sports 1·Society 1)뿐이었는데, 그 2건만으로 두 카테고리의
+  // 게시비중이 각각 0.50이 됐다. 생산비중은 0.07~0.14라 gap이 -0.43 → 점수 0. 그런데
+  // 채널 쿼터(연예70/스포츠20/정치10, 2026-08-17)가 점수 높은 Technology(100)·Economy(93)를
+  // cap 0으로 제외하고 있어서, 통과 가능한 카테고리가 전부 0점이 되어 14회 연속 게시 실패했다.
+  // 게시가 안 되니 2건이 계속 50%로 남아 스스로 풀리지 않는 잠금이었다(01:00~07:30 UTC).
+  //
+  // 원인은 비중이 표본 2건에서는 의미가 없다는 것이다. 2건 중 1건이면 50%지만 그것은
+  // 편중의 증거가 아니라 표본이 없다는 뜻이다. 그래서 표본이 쌓이기 전까지는 이 컴포넌트를
+  // 중립(50)에 가깝게 끌어당긴다 — buzz 문턱이 BUZZ_FLOOR_MIN_SAMPLE로 쓰는 것과 같은 방식이다.
+  // 표본이 충분해지면 confidence가 1이 되어 종전과 완전히 동일하게 동작한다.
+  const confidence = Math.min(1, postedStats.total / CATEGORY_ALLOCATION_MIN_SAMPLE);
+  return Math.max(0, Math.min(100, 50 + gap * 200 * confidence));
 }
 
 function computeRecentPatternScore(category, recentCategories) {
@@ -1909,4 +1927,5 @@ exports._testUtils = {
   MAX_POSTS_PER_RUN, CONFIGURED_RUNS_PER_HOUR, MIN_GAP_MS, MAX_GAP_MS,
   estimateRunsPerHourFromLog, RUN_BUDGET_MS, PER_POST_ESTIMATE_MS,
   MIN_RUNS_PER_HOUR, MAX_RUNS_PER_HOUR, MAX_CANDIDATE_RETRIES,
+  computeCategoryAllocationScore, CATEGORY_ALLOCATION_MIN_SAMPLE,
 };
