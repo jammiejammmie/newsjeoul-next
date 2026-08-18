@@ -723,6 +723,12 @@ function CardEnd({
 // 블록에 두 줄로 쌓인다(레퍼런스 "팬은 화났고 / 제작사는 원가를 말한다").
 // 원형은 §3.1 규칙(슬라이드당 최대 2개, 음수 offset, position:relative 텍스트 컨테이너)을 따른다
 // — 표지 항목표의 "원형 3개"는 요약 문구고 §3.1 규칙 텍스트가 정본이라 2개로 구현했다.
+// 연예(8D) 표지는 따옴표를 쓰지 않는다(SPEC §8 — 실제 발언이 아닌 합성 관점에 큰따옴표를
+// 붙이면 인용으로 읽힌다). 호출부는 8B용으로 따옴표를 붙여 보내므로 여기서만 벗긴다.
+function stripQuotes(t: string): string {
+  return (t || '').replace(/^["'“”‘’]+|["'“”‘’]+$/g, '').trim()
+}
+
 function CoverEnt({
   quoteA, kicker, titleLines, quoteB, badge, index, total, cta,
 }: {
@@ -730,6 +736,10 @@ function CoverEnt({
   badge: string; index: number; total: number; cta: string
 }) {
   const tSize = coverTitleSize(titleLines.join(''))
+  // 대립 두 줄은 각 진영의 문장을 한 줄로 합친 것이라 8B의 인용(16자)보다 길어질 수 있다.
+  // 46px는 레퍼런스 값이고, 그대로 두면 긴 문장이 카드 밖으로 나간다 — 길이에 따라 낮춘다.
+  const tensionLen = Math.max(...[quoteA, quoteB].map((q) => [...stripQuotes(q.join(' '))].length), 0)
+  const tensionSize = tensionLen <= 14 ? 46 : tensionLen <= 20 ? 40 : 34
 
   return (
     <div
@@ -740,7 +750,11 @@ function CoverEnt({
       }}
     >
       <div style={{ display: 'flex', position: 'absolute', top: -140, right: -160, width: 620, height: 620, borderRadius: 620, background: cardColor.ink }} />
-      <div style={{ display: 'flex', position: 'absolute', bottom: 250, left: -90, width: 340, height: 340, borderRadius: 340, background: cardColor.red }} />
+      {/* 붉은 원: 레퍼런스는 bottom 250이지만 그 자리는 대립 두 줄과 겹친다(실측 y 859~992 vs 원 760~1010).
+          ink 글자가 crimson 위에 올라가 SPEC §1.1(red 면 위에는 paper/on-red만)을 깨뜨린다.
+          아래로 내려 텍스트를 비우고 프레임 밖으로 더 흘린다 — §3.1의 '음수 offset으로 밖으로 나가야 한다'에 오히려 부합.
+          하단 카운터 알약은 paper 배경이라 원 위에 와도 대비가 유지된다. */}
+      <div style={{ display: 'flex', position: 'absolute', bottom: -80, left: -120, width: 340, height: 340, borderRadius: 340, background: cardColor.red }} />
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', position: 'relative' }}>
         <span style={{ display: 'flex', fontSize: 34, fontWeight: 800, lineHeight: 1, color: cardColor.ink }}>뉴스저울</span>
@@ -770,9 +784,14 @@ function CoverEnt({
             </div>
           ))}
         </div>
+        {/* 대립 한 줄 (레퍼런스 8d) — 8B처럼 인용 두 개를 큰 블록으로 쌓지 않는다.
+            레퍼런스는 46px 두 줄로 긴장을 압축한다: "팬은 화났고 / 제작사는 원가를 말한다".
+            2026-08-18 실측에서 quoteA+quoteB를 그대로 4줄로 쌓았더니 (a) 한 덩어리로 읽혀
+            대립 구도가 사라지고 (b) 아래쪽 두 줄이 붉은 원과 겹쳐 대비가 무너졌다.
+            따옴표는 붙이지 않는다 — perspective_markers는 합성 관점이지 실제 발언이 아니다(SPEC §8). */}
         <div style={{ display: 'flex', flexDirection: 'column', marginTop: 30 }}>
-          {[...quoteA, ...quoteB].map((l, i) => (
-            <div key={i} style={{ display: 'flex', fontSize: 46, fontWeight: 700, lineHeight: 1.45, color: cardColor.ink }}>
+          {[quoteA, quoteB].map((side, i) => stripQuotes(side.join(' '))).filter(Boolean).map((l, i) => (
+            <div key={i} style={{ display: 'flex', fontSize: tensionSize, fontWeight: 700, lineHeight: 1.45, color: cardColor.ink }}>
               {l}
             </div>
           ))}
