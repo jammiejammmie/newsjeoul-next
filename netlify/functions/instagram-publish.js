@@ -29,6 +29,7 @@
 
 const { buildCta } = require('./engagement-cta');
 const { buildCoverHook } = require('./cover-hook');
+const { buildCardContent } = require('./card-content');
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY;
@@ -81,11 +82,47 @@ function cardUrl(params) {
   return `${SITE}/card?${qs}`;
 }
 
-// ── 카드 구성 ───────────────────────────────────────────────────────────────
+// ── 카드 구성 (SPEC v1) ──────────────────────────────────────────────────
+// 2026-08-18: 노차장 SPEC v1(골격 8B + 연예 스킨 8D)로 전환. card-content.js가 카테고리(연예/
+// 사회)+대립 관점 2개 조건을 만족하는 토픽에 한해 5장 전체(cover/what/viewA/viewB/end) 카피를
+// 만들어준다 — 조건 미달·생성 실패는 null로 돌아오고, 그때만 구버전 3~5장 방식으로 폴백한다.
+// 라이브 게시를 절대 막지 않기 위해 실패는 항상 폴백이지 에러가 아니다.
+async function buildSlides(topic) {
+  const content = await buildCardContent(topic).catch((e) => {
+    console.error('CARD_CONTENT 호출 실패(구버전 카드로 폴백):', e.message);
+    return null;
+  });
+  if (content) return buildSlidesFromCardContent(topic, content);
+  return buildLegacySlides(topic);
+}
+
+function buildSlidesFromCardContent(topic, content) {
+  const { skin, cover, what, viewA, viewB, end } = content;
+  const bars = (what.bars || [])
+    .map((b) => `${b.label}:${b.value}:${b.width}:${b.color}`)
+    .join('|');
+
+  const slides = [
+    { slide: 'cover', skin, title: cover.titleLines.join('\n'), quoteA: cover.quoteA, quoteB: cover.quoteB, kicker: cover.kicker, weightA: String(cover.weightA), labelA: cover.labelA, labelB: cover.labelB, badge: cover.badge },
+    { slide: 'what', skin, subhead: what.subheadLines.join('\n'), bars, source: what.source },
+    { slide: 'viewA', skin, headline: viewA.headlineLines.join('\n'), body: viewA.body, attribution: viewA.attribution },
+    { slide: 'viewB', skin, headline: viewB.headlineLines.join('\n'), body: viewB.body, attribution: viewB.attribution },
+    { slide: 'end', skin, headline: end.headlineLines.join('\n'), body: end.body, cta: '전문 보기 →' },
+  ];
+
+  return slides.map((s, i, arr) => ({
+    ...s,
+    i: i + 1,
+    n: arr.length,
+    url: cardUrl({ ...s, i: i + 1, n: arr.length }),
+  }));
+}
+
+// ── 구버전 카드(2026-08-17 훅 방식) — card-content.js가 null을 돌려줄 때만 쓴다 ─────────
 // Threads와 같은 원칙을 쓴다(PM 지시 §5): 대립 사안은 찬반 양측을, 그 외는 "표면 뒤의 배경"을 보여준다.
 // 이미 generate-editorial-draft가 만들어둔 draft.perspective_markers(엇갈리는 시각)를 그대로 재사용하므로
 // 카드뉴스를 위해 Claude를 다시 호출하지 않는다(비용 0).
-function buildSlides(topic) {
+function buildLegacySlides(topic) {
   const draft = topic.ai_context?.draft || {};
   const perspectives = draft.perspective_markers || [];
   const category = topic.category || '';
@@ -314,7 +351,7 @@ exports.handler = async function (event) {
       return { statusCode: 200, headers, body: JSON.stringify({ ok: true, skipped: true, reason: 'no_candidate' }) };
     }
 
-    const slides = buildSlides(topic);
+    const slides = await buildSlides(topic);
     const caption = buildCaption(topic);
 
     if (isDry) {

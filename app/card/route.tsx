@@ -2,7 +2,7 @@ import { ImageResponse } from 'next/og'
 import type { NextRequest } from 'next/server'
 import { colors, domainColors } from '@/lib/design-tokens'
 import { cardColor, SKIN_PAD, titleSize as coverTitleSize, quoteSize, subheadSize, toLines, checkLimits } from '@/lib/card-tokens'
-import type { LimitEntry } from '@/lib/card-tokens'
+import type { LimitEntry, CardSkin } from '@/lib/card-tokens'
 
 // ── 인스타그램 카드뉴스 이미지 생성 (2026-08-17, PM 지시) ───────────────────
 // Instagram Graph API는 바이너리 업로드를 받지 않는다 — 반드시 "공개 URL"로 호스팅된 이미지를
@@ -716,6 +716,270 @@ function CardEnd({
   )
 }
 
+// ── 8D 연예 스킨(리소 형광) — 표지 (SPEC §3 / 레퍼런스 8d) ──────────────────
+// 골격 슬롯(quoteA/kicker/titleLines/quoteB/badge/cta)은 8B와 같은 데이터 계약을 쓰지만,
+// 3밴드 대립 구조 대신 flu(형광) 전면 + 원형 장식으로 바뀐다(SPEC §3 표). 무게 바·labelA/B는
+// 이 스킨엔 자리가 없어 렌더하지 않는다 — quoteA·quoteB는 위/아래로 나뉘지 않고 한 텍스트
+// 블록에 두 줄로 쌓인다(레퍼런스 "팬은 화났고 / 제작사는 원가를 말한다").
+// 원형은 §3.1 규칙(슬라이드당 최대 2개, 음수 offset, position:relative 텍스트 컨테이너)을 따른다
+// — 표지 항목표의 "원형 3개"는 요약 문구고 §3.1 규칙 텍스트가 정본이라 2개로 구현했다.
+function CoverEnt({
+  quoteA, kicker, titleLines, quoteB, badge, index, total, cta,
+}: {
+  quoteA: string[]; kicker: string; titleLines: string[]; quoteB: string[]
+  badge: string; index: number; total: number; cta: string
+}) {
+  const tSize = coverTitleSize(titleLines.join(''))
+
+  return (
+    <div
+      style={{
+        width: W, height: H, boxSizing: 'border-box', overflow: 'hidden',
+        display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
+        background: cardColor.flu, padding: '56px 52px', position: 'relative', fontFamily: 'Pretendard',
+      }}
+    >
+      <div style={{ display: 'flex', position: 'absolute', top: -140, right: -160, width: 620, height: 620, borderRadius: 620, background: cardColor.ink }} />
+      <div style={{ display: 'flex', position: 'absolute', bottom: 250, left: -90, width: 340, height: 340, borderRadius: 340, background: cardColor.red }} />
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', position: 'relative' }}>
+        <span style={{ display: 'flex', fontSize: 34, fontWeight: 800, lineHeight: 1, color: cardColor.ink }}>뉴스저울</span>
+        {badge ? (
+          <span style={{ display: 'flex', fontSize: 26, fontWeight: 800, lineHeight: 1, color: cardColor.flu, background: cardColor.ink, padding: '12px 16px', borderRadius: 100 }}>
+            {badge}
+          </span>
+        ) : null}
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', position: 'relative' }}>
+        {kicker ? (
+          <span
+            style={{
+              display: 'flex', alignSelf: 'flex-start', fontSize: 40, fontWeight: 800,
+              letterSpacing: '.06em', color: cardColor.ink, background: cardColor.paper,
+              padding: '16px 20px', transform: 'rotate(-2deg)',
+            }}
+          >
+            {kicker}
+          </span>
+        ) : null}
+        <div style={{ display: 'flex', flexDirection: 'column', marginTop: 26 }}>
+          {titleLines.map((l, i) => (
+            <div key={i} style={{ display: 'flex', fontSize: tSize, fontWeight: 800, letterSpacing: '-.05em', lineHeight: 1.02, color: cardColor.paper }}>
+              {l}
+            </div>
+          ))}
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', marginTop: 30 }}>
+          {[...quoteA, ...quoteB].map((l, i) => (
+            <div key={i} style={{ display: 'flex', fontSize: 46, fontWeight: 700, lineHeight: 1.45, color: cardColor.ink }}>
+              {l}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'relative' }}>
+        <span style={{ display: 'flex', fontSize: 30, fontWeight: 800, lineHeight: 1, color: cardColor.ink, background: cardColor.paper, padding: '14px 18px', borderRadius: 100 }}>
+          {index} / {total}
+        </span>
+        <span style={{ display: 'flex', fontSize: 32, fontWeight: 800, lineHeight: 1, color: cardColor.paper, background: cardColor.ink, padding: '18px 24px', borderRadius: 100 }}>
+          {cta}
+        </span>
+      </div>
+    </div>
+  )
+}
+
+// ── 8D — 무슨 일인가 (레퍼런스 8d 2번 슬라이드) ─────────────────────────────
+// 8B의 ink 헤더 밴드 대신 알약 배지 라벨 하나. 막대 대신 값이 칩(알약)으로 나열된다.
+// source는 "날짜 큰 글씨 + 나머지·카운터 작은 글씨" 두 줄로 쪼갠다(레퍼런스가 그렇게 나뉜다).
+function CardWhatEnt({
+  label, subheadLines, bars, source, index, total,
+}: {
+  label: string; subheadLines: string[]; bars: Bar[]; source: string; index: number; total: number
+}) {
+  const sSize = subheadSize(subheadLines.join(''))
+  const CHIP_STYLE: Record<BarColor, { bg: string; color: string }> = {
+    gray: { bg: cardColor.flu, color: cardColor.ink },
+    ink: { bg: cardColor.ink, color: cardColor.paper },
+    red: { bg: cardColor.red, color: cardColor.paper },
+  }
+  const parts = source.split('·').map((s) => s.trim()).filter(Boolean)
+  const [big, ...rest] = parts
+
+  return (
+    <div
+      style={{
+        width: W, height: H, boxSizing: 'border-box', overflow: 'hidden',
+        display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
+        background: cardColor.paper, padding: '56px 52px', fontFamily: 'Pretendard',
+      }}
+    >
+      <span style={{ display: 'flex', alignSelf: 'flex-start', fontSize: 36, fontWeight: 800, letterSpacing: '.06em', color: cardColor.paper, background: cardColor.ink, padding: '16px 20px', borderRadius: 100 }}>
+        {label}
+      </span>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          {subheadLines.map((l, i) => (
+            <div key={i} style={{ display: 'flex', fontSize: sSize, fontWeight: 800, letterSpacing: '-.04em', lineHeight: 1.18, color: cardColor.ink }}>
+              {l}
+            </div>
+          ))}
+        </div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14 }}>
+          {bars.map((b, i) => {
+            const st = CHIP_STYLE[b.color]
+            return (
+              <span key={i} style={{ display: 'flex', fontSize: 40, fontWeight: 800, lineHeight: 1, color: st.color, background: st.bg, padding: '18px 22px', borderRadius: 100 }}>
+                {b.label} {b.value}
+              </span>
+            )
+          })}
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {big ? <span style={{ display: 'flex', fontSize: 52, fontWeight: 800, lineHeight: 1.3, color: cardColor.ink }}>{big}</span> : null}
+        <span style={{ display: 'flex', fontSize: 32, fontWeight: 600, lineHeight: 1, color: cardColor.mutedDark }}>
+          {[...rest, `${index} / ${total}`].join(' · ')}
+        </span>
+      </div>
+    </div>
+  )
+}
+
+// ── viewA / viewB — 대립형(T1) 전면 슬라이드 (SPEC §2.3~§2.4, §3) ──────────
+// news·ent 두 스킨을 한 컴포넌트로 묶는다 — 슬롯(headline/body/attribution/카운터)이
+// 완전히 같고 색·장식만 갈리기 때문이다(레퍼런스 8b/8d 3·4번 슬라이드 대조 결과).
+// A와 B는 배경(ink/red)과 몇몇 대비색만 바뀌는 완전 대칭 — 호출부가 headlineLines 줄 수를
+// A/B 동일하게 맞춰야 한다(SPEC §2.4 "줄 수가 다르면 대칭이 깨진다").
+function CardView({
+  side, skin, label, headlineLines, body, attribution, index, total,
+}: {
+  side: 'A' | 'B'; skin: CardSkin
+  label: string; headlineLines: string[]; body: string; attribution: string
+  index: number; total: number
+}) {
+  const isNews = skin !== 'ent'
+  const bg = side === 'A' ? cardColor.ink : cardColor.red
+  const n = [...headlineLines.join('')].length
+  const hSize = n <= 14 ? 90 : n <= 21 ? 78 : 68
+
+  const bodyColor = isNews
+    ? (side === 'A' ? cardColor.bodyDark : cardColor.onRed)
+    : (side === 'A' ? cardColor.flu : cardColor.onRed)
+  // news 상단 카운터색 — 8B 레퍼런스가 A/B에서 다른 값을 쓴다(4번 슬라이드만 밝은 톤).
+  const newsCounterColor = side === 'A' ? cardColor.mutedDark : cardColor.onRed
+  const entPill = side === 'A'
+    ? { bg: cardColor.flu, color: cardColor.ink }
+    : { bg: cardColor.paper, color: cardColor.red }
+  const entFooterColor = side === 'A' ? cardColor.bodyDark : cardColor.onRed
+
+  return (
+    <div
+      style={{
+        width: W, height: H, boxSizing: 'border-box', overflow: 'hidden',
+        display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
+        background: bg, padding: isNews ? '60px 56px' : '56px 52px', position: 'relative', fontFamily: 'Pretendard',
+      }}
+    >
+      {!isNews ? (
+        <div
+          style={{
+            display: 'flex', position: 'absolute', width: 520, height: 520, borderRadius: 520,
+            background: side === 'A' ? cardColor.red : cardColor.ink,
+            ...(side === 'A' ? { bottom: -180, right: -120 } : { top: -160, left: -140 }),
+          }}
+        />
+      ) : null}
+
+      {isNews ? (
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'relative' }}>
+          <span style={{ display: 'flex', fontSize: 34, fontWeight: 700, letterSpacing: '.1em', lineHeight: 1, color: cardColor.paper }}>{label}</span>
+          <span style={{ display: 'flex', fontSize: 30, fontWeight: 700, lineHeight: 1, color: newsCounterColor }}>{index} / {total}</span>
+        </div>
+      ) : (
+        <span
+          style={{
+            display: 'flex', alignSelf: 'flex-start', fontSize: 36, fontWeight: 800, letterSpacing: '.06em',
+            color: entPill.color, background: entPill.bg, padding: '16px 20px', borderRadius: 100, position: 'relative',
+          }}
+        >
+          {label}
+        </span>
+      )}
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: isNews ? 30 : 28, position: 'relative' }}>
+        {headlineLines.map((l, i) => (
+          <div key={i} style={{ display: 'flex', fontSize: hSize, fontWeight: 800, letterSpacing: '-.045em', lineHeight: 1.18, color: cardColor.paper }}>
+            {l}
+          </div>
+        ))}
+        <span style={{ display: 'flex', fontSize: 42, fontWeight: isNews ? 500 : 600, lineHeight: isNews ? 1.6 : 1.55, color: bodyColor }}>
+          {body}
+        </span>
+      </div>
+
+      {isNews ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 20, position: 'relative' }}>
+          <div style={{ display: 'flex', width: 70, height: 70, background: cardColor.paper }} />
+          <span style={{ display: 'flex', fontSize: 32, fontWeight: 600, lineHeight: 1.35, color: newsCounterColor }}>{attribution}</span>
+        </div>
+      ) : (
+        <span style={{ display: 'flex', fontSize: 30, fontWeight: 700, lineHeight: 1, color: entFooterColor, position: 'relative' }}>
+          {[attribution, `${index} / ${total}`].filter(Boolean).join(' · ')}
+        </span>
+      )}
+    </div>
+  )
+}
+
+// ── 8D — 마무리 (레퍼런스 8d 5번 슬라이드) ──────────────────────────────────
+// 8B end와 달리 상단 paper/하단 ink 2밴드가 아니라 flu 전면 1장이고, 태그라인·카운터가 없다
+// (레퍼런스에 없다 — 있는 그대로 옮긴다).
+function CardEndEnt({
+  label, headlineLines, body, cta,
+}: {
+  label: string; headlineLines: string[]; body: string; cta: string
+}) {
+  const n = [...headlineLines.join('')].length
+  const hSize = n <= 14 ? 88 : n <= 21 ? 76 : 66
+
+  return (
+    <div
+      style={{
+        width: W, height: H, boxSizing: 'border-box', overflow: 'hidden',
+        display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
+        background: cardColor.flu, padding: '56px 52px', position: 'relative', fontFamily: 'Pretendard',
+      }}
+    >
+      <div style={{ display: 'flex', position: 'absolute', top: 340, right: -190, width: 600, height: 600, borderRadius: 600, background: cardColor.paper }} />
+
+      <span style={{ display: 'flex', alignSelf: 'flex-start', fontSize: 36, fontWeight: 800, letterSpacing: '.06em', color: cardColor.flu, background: cardColor.ink, padding: '16px 20px', borderRadius: 100, position: 'relative' }}>
+        {label}
+      </span>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 26, position: 'relative' }}>
+        {headlineLines.map((l, i) => (
+          <div key={i} style={{ display: 'flex', fontSize: hSize, fontWeight: 800, letterSpacing: '-.045em', lineHeight: 1.18, color: cardColor.ink }}>
+            {l}
+          </div>
+        ))}
+        <span style={{ display: 'flex', fontSize: 42, fontWeight: 600, lineHeight: 1.55, color: cardColor.ink }}>{body}</span>
+      </div>
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'relative' }}>
+        <span style={{ display: 'flex', fontSize: 44, fontWeight: 800, lineHeight: 1, color: cardColor.ink }}>뉴스저울</span>
+        <span style={{ display: 'flex', fontSize: 32, fontWeight: 800, lineHeight: 1, color: cardColor.flu, background: cardColor.ink, padding: '20px 26px', borderRadius: 100 }}>
+          {cta}
+        </span>
+      </div>
+    </div>
+  )
+}
+
 // bars 쿼리 파싱 — `라벨:값:폭:색` 행을 `|`로 이어 보낸다.
 //   예) bars=VIP:22만:520:ink|일반:16.5만:390:gray|암표:30만+:700:red
 // SPEC §5.2의 검증(3~4행, 폭 200~700)을 여기서 하고, 어긋나면 이유를 문자열로 돌려준다.
@@ -759,6 +1023,10 @@ export async function GET(req: NextRequest) {
   const badge = p.get('badge') || '오늘의 이슈'
   const index = Number(p.get('i') || 1)
   const total = Number(p.get('n') || 1)
+  // 스킨(SPEC §3·§5) — 8B(news) 골격은 그대로 두고 색·장식만 8D(ent)로 갈아끼운다.
+  // guide(§6.3)는 T3 붙을 때 추가한다. 잘못된 값이 오면 news로 떨어뜨린다(카드 생성 자체는 막지 않는다).
+  const skinParam = p.get('skin')
+  const skin: CardSkin = skinParam === 'ent' || skinParam === 'guide' ? skinParam : 'news'
   // 표지 개편(2026-08-17)으로 추가된 파라미터. 없으면 title로 폴백해 구버전 URL도 그대로 동작한다.
   const hook = p.get('hook') || ''
   const sub = p.get('sub') || ''
@@ -792,20 +1060,44 @@ export async function GET(req: NextRequest) {
 
     try {
       const fonts = await loadPretendard(new URL(req.url).origin)
-      return new ImageResponse(
-        <CardWhat
-          label={label}
-          subheadLines={subheadLines}
-          bars={parsed.bars}
-          source={source}
-          index={index}
-          total={total}
-        />,
-        { width: W, height: H, fonts, headers: NO_STORE }
-      )
+      const node = skin === 'ent'
+        ? <CardWhatEnt label={label} subheadLines={subheadLines} bars={parsed.bars} source={source} index={index} total={total} />
+        : <CardWhat label={label} subheadLines={subheadLines} bars={parsed.bars} source={source} index={index} total={total} />
+      return new ImageResponse(node, { width: W, height: H, fonts, headers: NO_STORE })
     } catch (e) {
       console.error('카드뉴스 what 생성 오류:', e)
       return new Response(`card what error: ${e instanceof Error ? e.message : String(e)}`, { status: 500 })
+    }
+  }
+
+  // ── 3·4번 viewA/viewB — T1 대립형 (SPEC §2.3~§2.4) ─────────────────────────
+  // A/B는 완전 대칭이어야 한다(SPEC §2.4) — headlineLines 줄 수가 다르면 500으로 막는다.
+  // 호출부가 두 슬라이드를 각각 요청하므로 여기서는 한쪽만 검증하고, 줄 수 불일치는
+  // 카피 생성 단계(§5.2 assert)가 1차로 막아야 하지만 라우트에서도 조용히 넘기지 않는다.
+  if (slide === 'viewA' || slide === 'viewB') {
+    const side = slide === 'viewA' ? 'A' : 'B'
+    const headlineLines = toLines(p.get('headline'), 3)
+    const body = p.get('body') || ''
+    const attribution = p.get('attribution') || ''
+    const label = p.get('label') || (side === 'A' ? '이렇게 본다' : '이렇게도 본다')
+    if (!headlineLines.length) return new Response('headline이 없다 (3줄까지, 각 21자)', { status: 500 })
+    const over = checkLimits([
+      ...headlineLines.map((l, i) => [`headline[${i}]`, l, 21] as LimitEntry),
+      ['body', body, 52],
+      ['attribution', attribution, 16],
+      ['label', label, 8],
+    ])
+    if (over) return new Response(over, { status: 500 })
+
+    try {
+      const fonts = await loadPretendard(new URL(req.url).origin)
+      const node = (
+        <CardView side={side} skin={skin} label={label} headlineLines={headlineLines} body={body} attribution={attribution} index={index} total={total} />
+      )
+      return new ImageResponse(node, { width: W, height: H, fonts, headers: NO_STORE })
+    } catch (e) {
+      console.error('카드뉴스 view 생성 오류:', e)
+      return new Response(`card view error: ${e instanceof Error ? e.message : String(e)}`, { status: 500 })
     }
   }
 
@@ -828,18 +1120,10 @@ export async function GET(req: NextRequest) {
 
     try {
       const fonts = await loadPretendard(new URL(req.url).origin)
-      return new ImageResponse(
-        <CardEnd
-          label={endLabel}
-          headlineLines={endHeadline}
-          body={endBody}
-          tagline={endTagline}
-          cta={endCta}
-          index={index}
-          total={total}
-        />,
-        { width: W, height: H, fonts, headers: NO_STORE }
-      )
+      const node = skin === 'ent'
+        ? <CardEndEnt label={endLabel} headlineLines={endHeadline} body={endBody} cta={endCta} />
+        : <CardEnd label={endLabel} headlineLines={endHeadline} body={endBody} tagline={endTagline} cta={endCta} index={index} total={total} />
+      return new ImageResponse(node, { width: W, height: H, fonts, headers: NO_STORE })
     } catch (e) {
       console.error('카드뉴스 end 생성 오류:', e)
       return new Response(`card end error: ${e instanceof Error ? e.message : String(e)}`, { status: 500 })
@@ -875,22 +1159,35 @@ export async function GET(req: NextRequest) {
 
     try {
       const fonts = await loadPretendard(new URL(req.url).origin)
-      const node = (
-        <CoverNews
-          quoteA={quoteA}
-          quoteB={quoteB}
-          titleLines={titleLines}
-          kicker={kicker}
-          weightA={weightA}
-          labelA={labelA}
-          labelB={labelB}
-          badge={coverBadge}
-          index={index}
-          total={total}
-          cta={coverCta}
-          note={note}
-        />
-      )
+      const node = skin === 'ent'
+        ? (
+          <CoverEnt
+            quoteA={quoteA}
+            quoteB={quoteB}
+            titleLines={titleLines}
+            kicker={kicker}
+            badge={coverBadge}
+            index={index}
+            total={total}
+            cta={coverCta}
+          />
+        )
+        : (
+          <CoverNews
+            quoteA={quoteA}
+            quoteB={quoteB}
+            titleLines={titleLines}
+            kicker={kicker}
+            weightA={weightA}
+            labelA={labelA}
+            labelB={labelB}
+            badge={coverBadge}
+            index={index}
+            total={total}
+            cta={coverCta}
+            note={note}
+          />
+        )
       return new ImageResponse(node, { width: W, height: H, fonts, headers: NO_STORE })
     } catch (e) {
       // 폰트를 못 실으면 satori가 전 웨이트를 400으로 떨어뜨린다(SPEC §1.2가 지목한 사고).

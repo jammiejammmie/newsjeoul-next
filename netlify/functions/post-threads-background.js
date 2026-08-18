@@ -120,6 +120,7 @@ const REQUEST_HEADERS = { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + S
 const strategy = require('./threads-strategy');
 const { buildCta } = require('./engagement-cta');
 const { buildCoverHook } = require('./cover-hook');
+const { buildCardContent } = require('./card-content');
 const { QUOTA_PLAN, THREADS_QUOTA_PLAN, capsFor, bucketOf } = require('./buzz-engine');
 
 // ── 배급 일시 정지 스위치(2026-08-12 PM 지시) ────────────────────────────────
@@ -1392,7 +1393,35 @@ const CATEGORY_BADGE_THREADS = {
   Automobile: '자동차', Lifestyle: '라이프', Crypto: '크립토',
 };
 
-function buildCardImageUrl(topic) {
+// 2026-08-18: 노차장 SPEC v1(골격 8B + 연예 스킨 8D) 표지로 전환 — 스레드는 캐러셀이 없어서
+// §6.1대로 cover 한 장만 쓴다. card-content.js가 카테고리(연예/사회)+대립 관점 2개 조건을
+// 만족하는 토픽만 새 표지용 카피를 만들어준다 — 조건 미달·생성 실패는 null로 돌아오고,
+// 그때만 구버전(hook/sub/emoji/stat) 표지로 폴백한다. 라이브 게시를 절대 막지 않기 위함.
+async function buildCardImageUrl(topic) {
+  const content = await buildCardContent(topic).catch((e) => {
+    console.error('CARD_CONTENT 호출 실패(구버전 표지로 폴백):', e.message);
+    return null;
+  });
+
+  if (content) {
+    const c = content.cover;
+    const qs = new URLSearchParams({
+      slide: 'cover',
+      skin: content.skin,
+      title: c.titleLines.join('\n'),
+      quoteA: c.quoteA,
+      quoteB: c.quoteB,
+      kicker: c.kicker,
+      weightA: String(c.weightA),
+      labelA: c.labelA,
+      labelB: c.labelB,
+      badge: c.badge,
+      i: '1', n: '1',
+    }).toString();
+    return `https://newsjeoul.co.kr/card?${qs}`;
+  }
+
+  // ── 폴백: 구버전 표지(2026-08-17 훅 방식) ─────────────────────────────────
   // 인스타와 완전히 같은 훅을 쓴다 — 두 채널에서 같은 이슈가 다른 얼굴로 나가면
   // 브랜드가 흩어지고, 어느 쪽 훅이 먹혔는지 비교도 안 된다.
   const hook = buildCoverHook(topic);
@@ -1503,7 +1532,7 @@ async function attemptNewsPost({ topic, hubMatch, detail }) {
   //    이미지 URL이 죽어 있으면 Threads가 컨테이너 생성을 거부하므로, 이미지 때문에 게시가
   //    통째로 실패하는 일은 막는다: IMAGE로 실패하면 TEXT로 한 번 더 시도한다.
   let postId;
-  const cardImageUrl = buildCardImageUrl(topic);
+  const cardImageUrl = await buildCardImageUrl(topic);
   try {
     let containerId;
     try {
