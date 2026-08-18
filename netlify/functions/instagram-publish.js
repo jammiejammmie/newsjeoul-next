@@ -31,6 +31,21 @@ const { buildCta } = require('./engagement-cta');
 const { buildCoverHook, hasSubstance } = require('./cover-hook');
 const { buildCardContent } = require('./card-content');
 
+// 같은 사건으로 판정되면 이 기간 안에는 다시 올리지 않는다. 후속 보도가 이어지는 이슈라도
+// 인스타 캐러셀은 같은 카드 구성이라 독자에겐 재탕으로 보인다.
+const REPOST_WINDOW_DAYS = 14;
+// 같은 사건 판정 문턱. 수집(clustering)의 MATCH_THRESHOLD(0.42)를 그대로 쓰지 않는다 —
+// 두 작업은 오탐 비용이 다르다. 수집에서 잘못 묶이면 기사 하나가 엉뚱한 토픽에 붙을 뿐이지만,
+// 게시에서 잘못 묶이면 멀쩡한 소식이 소리 없이 안 나간다.
+// titleSimilarity는 4글자 이상 공통어가 하나라도 있으면 0.55를 바닥값으로 주기 때문에
+// ("최고위원" 같은 일반 명사에도 걸린다) 0.42는 게시 억제용으로는 너무 낮다.
+// 실측 라벨 6쌍(같은 사건 3 / 다른 사건 3): 0.42 → 5/6, 0.75 → 6/6.
+//   막음  스트레이 키즈 빌보드 200 1위 ≈ …9연속 1위            1.000
+//   막음  트럼프-김정은 사진 공개 ≈ …판문점 회동 사진 공개      1.000
+//   막음  인도네시아 강진 피해 ≈ 인도네시아 강진 및 쓰나미       0.778
+//   통과  국민의힘 최고위원 선거 / 민주당 최고위원 선거          0.667  ← 0.42면 오탐
+const REPOST_SIMILARITY = 0.75;
+
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY;
 const IG_USER_ID = process.env.INSTAGRAM_USER_ID;
@@ -288,15 +303,46 @@ async function pickTopic() {
     return null;
   }
 
+  // ── 같은 사건 재게시 차단 (2026-08-18, PM 지적) ──────────────────────────
+  // 계기: "스트레이 키즈 빌보드 200 9연속 1위"(08-17 게시)와 "스트레이 키즈 빌보드 200 1위"
+  // (08-18 게시)가 24시간 간격으로 나갔다. 같은 사건인데 토픽이 둘로 갈려 있었고, 중복 방지가
+  // 토픽 단위(posted_at is null)뿐이라 그대로 통과했다. 인스타는 연예만 게시(쿼터)라 후보 풀이
+  // 좁고 30분마다 도니 이 구멍이 특히 자주 드러난다.
+  //
+  // 제목 유사도는 buzz-engine의 titleSimilarity를 쓰되, 문턱은 게시 전용 값을 따로 둔다
+  // (REPOST_SIMILARITY 주석 참고 — 수집용 0.42를 그대로 쓰면 다른 사건까지 막는다).
+  // 실측: 위 두 제목 1.000 / 무관한 연예 제목쌍("어벤져스 예고편" vs "스파이더맨 흥행") 0.000.
+  const { titleSimilarity } = require('./buzz-engine');
+  let fresh = substantive;
+  try {
+    const recentTitles = await fetchRecentPostedTitles(REPOST_WINDOW_DAYS);
+    if (recentTitles.length) {
+      const dropped = [];
+      fresh = substantive.filter((t) => {
+        const dup = recentTitles.find((prev) => titleSimilarity(t.name, prev) >= REPOST_SIMILARITY);
+        if (dup) dropped.push(`${t.name} ≈ ${dup}`);
+        return !dup;
+      });
+      if (dropped.length) console.log(`INSTAGRAM_REPOST_FILTER: ${dropped.length}건 제외 — ${dropped.slice(0, 3).join(' / ')}`);
+    }
+  } catch (e) {
+    // 조회 실패로 게시를 멈추지는 않는다 — 중복 위험보다 배급 정지가 더 나쁘다.
+    console.error('INSTAGRAM_REPOST_FILTER_FAILED(중복 검사만 생략):', e.message);
+  }
+  if (!fresh.length) {
+    console.log(`INSTAGRAM_ALL_REPOSTS: 후보 ${substantive.length}건이 전부 최근 ${REPOST_WINDOW_DAYS}일 내 게시한 사건 — 게시하지 않음`);
+    return null;
+  }
+
   // ── 카테고리 쿼터 (2026-08-17 PM 지시: 인스타는 연예/엔터만) ──────────────
   // 계기: 스레드에서 처음 반응이 나온 글이 스트레이키즈(연예)였다(좋아요 18).
   // cap 0인 버킷은 아예 제외한다. 연예 후보가 없으면 **게시하지 않는다** —
   // 여기서 다른 카테고리로 폴백하면 "인스타는 연예만"이라는 지시가 무너진다.
   const { sortByBuzz, INSTAGRAM_QUOTA_PLAN, capsFor, bucketOf } = require('./buzz-engine');
   const caps = capsFor(INSTAGRAM_QUOTA_PLAN, IG_DAILY_MAX);
-  const inQuota = substantive.filter((t) => (caps[bucketOf(t.category, null)] || 0) > 0);
+  const inQuota = fresh.filter((t) => (caps[bucketOf(t.category, null)] || 0) > 0);
   if (!inQuota.length) {
-    console.log(`INSTAGRAM_QUOTA_EMPTY: 연예/엔터 후보 0건(실체 있는 전체 후보 ${substantive.length}건) — 게시하지 않음`);
+    console.log(`INSTAGRAM_QUOTA_EMPTY: 연예/엔터 후보 0건(중복 제외 후 ${fresh.length}건) — 게시하지 않음`);
     return null;
   }
 
@@ -311,6 +357,16 @@ async function pickTopic() {
 
   console.log(`INSTAGRAM_QUOTA: 전체 ${withDraft.length}건 → 연예/엔터 ${inQuota.length}건 → 선정 후보 ${candidates.length}건`);
   return sortByBuzz(candidates)[0];
+}
+
+// 최근 이 채널에 올린 제목들 — 같은 사건이 토픽만 갈려 다시 나가는 것을 막는 데 쓴다.
+async function fetchRecentPostedTitles(days) {
+  const since = new Date(Date.now() - days * 86400000).toISOString();
+  const rows = await supabaseGet(
+    'topics',
+    `?ai_context->${CHANNEL}->>posted_at=gte.${encodeURIComponent(since)}&select=name&limit=300`
+  );
+  return rows.map((r) => r.name).filter(Boolean);
 }
 
 // 오늘(UTC) 이미 인스타에 올린 건수 — 하루 상한 집행용.
