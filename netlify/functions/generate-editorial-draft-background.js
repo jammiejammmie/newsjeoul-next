@@ -13,6 +13,7 @@
 // 결과를 못 받으므로(운영은 Cron 자동 호출, 관리자 화면은 상태만 별도 조회) 반환값은 로그 확인용일 뿐이다.
 
 const { prioritizeForPublish, fetchRecentPublished } = require('./buzz-engine');
+const { hasSubstance } = require('./cover-hook');
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY;
@@ -223,6 +224,16 @@ function deterministicQA(draft, plan, diagnostic) {
   const bannedLeadOpeners = ['최근', '요즘', '한편', '화제를 모으고 있다', '논란이 되고 있다', '이슈가 되고 있다'];
   if (bannedLeadOpeners.some((w) => (draft.lead || '').trimStart().startsWith(w))) {
     reasons.push('리드 문단이 상투적 도입구로 시작함');
+  }
+
+  // 2026-08-18 긴급 수정(PM 지시) — 실사고: "로시 새 앨범 발표"가 "팬들 사이에 벌써
+  // 술렁임이 시작됐습니다"처럼 확정 사실 없이 상투어로만 채워진 채 발행됐다(카드뉴스/소셜
+  // 포스팅에서 발견). bannedLeadOpeners는 리드 "시작"만 보지만 이 사례는 두 번째 문장에
+  // 있었다 — 그래서 리드+본문 전체를 hasSubstance()로 한 번 더 본다. 여기서 걸러지면 3a
+  // 실패로 재시도되거나(§10) 재시도 상한에서 draft 없이 강등되어, 화면은 summary 폴백으로만
+  // 노출되고 카드뉴스·Threads·Instagram 후보 풀(editorial_status=published 요구)에서도 빠진다.
+  if (!hasSubstance({ name: '', ai_context: { draft } })) {
+    reasons.push('확정 사실(숫자·날짜 등) 없이 상투어·정보부재 문구로만 채워짐(실체 없는 소식)');
   }
 
   if (plan.requires_dual_perspective) {

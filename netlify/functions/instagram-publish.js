@@ -28,7 +28,7 @@
 // 어떤 요청을 보낼지(슬라이드 URL·캡션·엔드포인트)만 반환하므로 그 부분은 지금도 검증 가능하다.
 
 const { buildCta } = require('./engagement-cta');
-const { buildCoverHook } = require('./cover-hook');
+const { buildCoverHook, hasSubstance } = require('./cover-hook');
 const { buildCardContent } = require('./card-content');
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
@@ -275,15 +275,28 @@ async function pickTopic() {
   const withDraft = pool.filter((t) => t.ai_context?.draft?.lead);
   if (!withDraft.length) return null;
 
+  // 실체 없는 소식 배제 (2026-08-18 긴급 수정, PM 지시) — buzz·쿼터와 무관하게 항상 적용한다.
+  // 계기: "로시 새 앨범 발표"(buzz 15, matched=false)가 "팬들 사이에 벌써 술렁임이
+  // 시작됐습니다" 같은 내용 없는 문장으로 나감. 아래 buzz 문턱과 달리 폴백(미필터 원본
+  // 반환)을 두지 않는다 — 화제성이 있어도 실을 내용이 없으면 발행 대상 자체가 아니다.
+  const substantive = withDraft.filter((t) => hasSubstance(t));
+  if (substantive.length < withDraft.length) {
+    console.log(`INSTAGRAM_SUBSTANCE_FILTER: ${withDraft.length}건 → ${substantive.length}건(실체 없는 소식 ${withDraft.length - substantive.length}건 제외)`);
+  }
+  if (!substantive.length) {
+    console.log('INSTAGRAM_NO_SUBSTANCE: 실체 있는 후보 0건 — 게시하지 않음');
+    return null;
+  }
+
   // ── 카테고리 쿼터 (2026-08-17 PM 지시: 인스타는 연예/엔터만) ──────────────
   // 계기: 스레드에서 처음 반응이 나온 글이 스트레이키즈(연예)였다(좋아요 18).
   // cap 0인 버킷은 아예 제외한다. 연예 후보가 없으면 **게시하지 않는다** —
   // 여기서 다른 카테고리로 폴백하면 "인스타는 연예만"이라는 지시가 무너진다.
   const { sortByBuzz, INSTAGRAM_QUOTA_PLAN, capsFor, bucketOf } = require('./buzz-engine');
   const caps = capsFor(INSTAGRAM_QUOTA_PLAN, IG_DAILY_MAX);
-  const inQuota = withDraft.filter((t) => (caps[bucketOf(t.category, null)] || 0) > 0);
+  const inQuota = substantive.filter((t) => (caps[bucketOf(t.category, null)] || 0) > 0);
   if (!inQuota.length) {
-    console.log(`INSTAGRAM_QUOTA_EMPTY: 연예/엔터 후보 0건(전체 후보 ${withDraft.length}건) — 게시하지 않음`);
+    console.log(`INSTAGRAM_QUOTA_EMPTY: 연예/엔터 후보 0건(실체 있는 전체 후보 ${substantive.length}건) — 게시하지 않음`);
     return null;
   }
 

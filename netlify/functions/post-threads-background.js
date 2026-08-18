@@ -119,7 +119,7 @@ const REQUEST_HEADERS = { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + S
 //   5. 뉴스 제목이 허브 키워드를 건드리면 그 허브 링크를 댓글에 함께 단다(관련성 70점 이상).
 const strategy = require('./threads-strategy');
 const { buildCta } = require('./engagement-cta');
-const { buildCoverHook } = require('./cover-hook');
+const { buildCoverHook, hasSubstance } = require('./cover-hook');
 const { buildCardContent } = require('./card-content');
 const { QUOTA_PLAN, THREADS_QUOTA_PLAN, capsFor, bucketOf } = require('./buzz-engine');
 
@@ -850,9 +850,23 @@ async function selectCandidate(excludeIds = new Set(), hubs = []) {
     return { topic: null, reason: 'no_candidate', detail: { poolSize: 0, ...baseDetail } };
   }
 
+  // 실체 없는 소식 배제 (2026-08-18 긴급 수정, PM 지시) — buzz·품질 게이트보다 먼저,
+  // 그리고 그것들과 무관하게 항상 적용한다. 아래 buzz 문턱과 달리 폴백(미필터 원본 반환)을
+  // 두지 않는다 — "화제성 있어 보이지만 실을 내용이 없는" 경우가 buzz 문턱 통과 여부와
+  // 무관하게 걸러져야 하기 때문이다(실사고: buzz 15점짜리가 문턱에 걸려도 표본 부족/전원
+  // 미달 시 폴백으로 원본 풀이 그대로 살아나 결국 게시됐다).
+  const substantivePool = pool.filter((t) => hasSubstance(t));
+  if (substantivePool.length < pool.length) {
+    console.log(`SUBSTANCE_FILTER[${CHANNEL}]: ${pool.length}건 → ${substantivePool.length}건(실체 없는 소식 ${pool.length - substantivePool.length}건 제외)`);
+  }
+  if (!substantivePool.length) {
+    await logSkippedCandidates([{ channel: CHANNEL, reason: 'no_substance', detail: { poolSize: pool.length } }]);
+    return { topic: null, reason: 'no_substance', detail: { poolSize: 0, ...baseDetail } };
+  }
+
   // buzz 상위 선별(2026-08-17) — 품질 게이트보다 먼저 적용한다. 화제성이 없는 이슈는
   // 아무리 잘 쓰였어도 이번 개편의 대상이 아니기 때문이다.
-  const buzzFiltered = applyBuzzFloor(pool);
+  const buzzFiltered = applyBuzzFloor(substantivePool);
 
   // 카테고리 하드 상한 — buzz 문턱 **다음**에 건다. 순서가 중요하다:
   // 쿼터를 먼저 걸면 "정치 상한이 남았으니 약한 정치 기사라도 통과"가 되어 화제성이 희생된다.
