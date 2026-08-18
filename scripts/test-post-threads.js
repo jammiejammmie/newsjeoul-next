@@ -15,6 +15,12 @@ process.env.POST_GAP_MAX_MS = '10';
 process.env.THREADS_DISTRIBUTION_PAUSED = 'false';
 // 에버그린은 2026-08-12부터 기본 OFF다(PM 지시 — 품질 점검 동안 뉴스만 돌린다).
 process.env.THREADS_EVERGREEN_ENABLED = 'true';
+// 채널 쿼터는 운영 기본값이 연예70/스포츠20/정치10이라(PM 지시 2026-08-17) 경제·테크·자동차
+// 후보가 아예 제외된다. 아래 배분 회귀 테스트들은 "여러 카테고리 중 무엇을 고르는가"를 보는
+// 것이라 그 상태에서는 40건이 통째로 실패한다. 균형 모드로 돌려서 선택 로직 자체를 검증한다
+// (채널 쿼터의 동작은 scripts/test-category-quota.js가 따로 검증한다).
+// ※ 이 줄이 없으면 40건 실패가 나는데, 원인이 환경 문제로 오인되기 쉽다(2026-08-18 실제 오진).
+process.env.THREADS_QUOTA_MODE = 'balanced';
 
 const path = require('path').resolve(__dirname, '../netlify/functions/post-threads-background.js');
 
@@ -40,8 +46,24 @@ function headRes(count) { return { ok: true, headers: { get: (k) => (k === 'cont
 const results = [];
 function check(label, pass) { results.push({ label, pass }); console.log((pass ? 'PASS' : 'FAIL') + ' - ' + label); }
 
+// 인스타그램은 이 테스트의 대상이 아니다. post-threads-background는 실행 끝에
+// instagram-publish를 await로 부르는데(2026-08-17 "스레드와 동시 실행" 지시), 그 안의
+// waitForContainer가 컨테이너당 최대 60초씩 폴링한다. 스텁으로 막지 않으면 스위트가
+// 21번 부근에서 사실상 끝나지 않고 뒤쪽 테스트가 한 번도 실행되지 않는다
+// (2026-08-18 실측: 두 기기 모두 45건에서 멈춰 있었다).
+// 프로덕션 코드에 테스트 전용 분기를 넣지 않으려고 require.cache에 스텁을 심는다.
+const IG_PATH = require('path').resolve(__dirname, '../netlify/functions/instagram-publish.js');
+function stubInstagram() {
+  require.cache[IG_PATH] = {
+    id: IG_PATH, filename: IG_PATH, loaded: true, exports: {
+      handler: async () => ({ statusCode: 200, body: JSON.stringify({ ok: true, skipped: 'test-stub' }) }),
+    },
+  };
+}
+
 function freshHandler() {
   delete require.cache[require.resolve(path)];
+  stubInstagram();
   return require(path);
 }
 
