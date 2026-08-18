@@ -33,6 +33,20 @@ const { buildCardContent } = require('./card-content');
 
 // 같은 사건으로 판정되면 이 기간 안에는 다시 올리지 않는다. 후속 보도가 이어지는 이슈라도
 // 인스타 캐러셀은 같은 카드 구성이라 독자에겐 재탕으로 보인다.
+// ── 게시 일시 중단 (PM 지시 2026-08-18) ───────────────────────────────────
+// 지시 원문 취지: "김선호가 투병하는 사람 역할 맡는다 끝, 로시가 앨범 낸단다 끝" 수준이면
+// 화제성도 없고 소셜 쓰레기가 된다. 올라가는 양보다 품질이 먼저다.
+// 그래서 기본값을 중단으로 둔다 — 품질 문턱을 올려 실제로 걸러지는 것을 확인하기 전까지
+// 게시하지 않는다. 크론은 그대로 돌고, 이 함수가 즉시 skipped를 돌려준다.
+//
+// 재개 방법 두 가지:
+//   1) 이 상수를 false로 바꾸고 배포한다(권장 — 재개 시점이 git 이력에 남는다)
+//   2) 급하면 Netlify 환경변수 INSTAGRAM_PAUSED=false 로 덮는다(배포 없이 즉시)
+const INSTAGRAM_PAUSED_BY_DEFAULT = true;
+const INSTAGRAM_PAUSED = process.env.INSTAGRAM_PAUSED != null
+  ? process.env.INSTAGRAM_PAUSED === 'true'
+  : INSTAGRAM_PAUSED_BY_DEFAULT;
+
 const REPOST_WINDOW_DAYS = 14;
 // 같은 사건 판정 문턱. 수집(clustering)의 MATCH_THRESHOLD(0.42)를 그대로 쓰지 않는다 —
 // 두 작업은 오탐 비용이 다르다. 수집에서 잘못 묶이면 기사 하나가 엉뚱한 토픽에 붙을 뿐이지만,
@@ -406,6 +420,17 @@ exports.handler = async function (event) {
     }
   }
   const isDry = event.queryStringParameters?.dry === 'true';
+
+  // 중단 중에는 게시 경로로 들어가지 않는다. dry=true(점검용 미리보기)는 통과시킨다 —
+  // 카드·카피가 나아졌는지 확인해야 재개 판단을 할 수 있고, dry는 외부에 아무것도 올리지 않는다.
+  if (INSTAGRAM_PAUSED && !isDry) {
+    console.log('INSTAGRAM_PAUSED: 게시 중단 상태(PM 지시 2026-08-18) — 후보 조회 없이 종료');
+    return {
+      statusCode: 200,
+      headers,
+      body: JSON.stringify({ ok: true, skipped: true, reason: 'paused', note: '품질 문턱 상향 후 재개 예정' }),
+    };
+  }
 
   // 자격증명이 없으면 조용히 실패하지 않고, 무엇이 없는지 명시해서 돌려준다.
   if (!isDry && (!IG_USER_ID || !IG_TOKEN)) {
