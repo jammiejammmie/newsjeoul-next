@@ -139,7 +139,7 @@ async function callClaude(prompt) {
   return JSON.parse(match[0]);
 }
 
-async function supabasePatch(topicId, cardContent) {
+async function supabasePatch(topicId, mergedAiContext) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/topics?id=eq.${topicId}`, {
     method: 'PATCH',
     headers: {
@@ -149,7 +149,7 @@ async function supabasePatch(topicId, cardContent) {
     // ai_context 전체를 새로 읽어 병합하는 대신, PostgREST의 jsonb 병합 연산은 REST로 못 하므로
     // 호출부가 최신 ai_context를 들고 있다고 가정하고 그 스냅샷 위에 card_content만 얹어 보낸다
     // (post-threads-background.js/instagram-publish.js가 topic을 막 읽은 직후 호출하므로 안전하다).
-    body: JSON.stringify({ ai_context: cardContent.__mergedAiContext }),
+    body: JSON.stringify({ ai_context: mergedAiContext }),
   });
   if (!res.ok) console.error('card-content 캐시 저장 실패:', res.status, await res.text());
 }
@@ -175,9 +175,7 @@ async function buildCardContent(topic) {
       const errs = validate(parsed);
       if (!errs.length) {
         const result = { skin, type: 'T1', ...parsed, generated_at: new Date().toISOString() };
-        result.__mergedAiContext = { ...(topic.ai_context || {}), card_content: result };
-        await supabasePatch(topic.id, result);
-        delete result.__mergedAiContext;
+        await supabasePatch(topic.id, { ...(topic.ai_context || {}), card_content: result });
         return result;
       }
       console.warn(`CARD_CONTENT[시도${attempt}]: 검증 실패 —`, errs.join(' / '));
