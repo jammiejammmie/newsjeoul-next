@@ -281,9 +281,25 @@ async function publishSingle(slide, caption) {
 // Threads와 동일하게 "채널당 평생 1회" 원칙을 쓴다(ai_context.instagram.posted_at).
 // 우선순위는 buzz — PM 지시 "화제성/자극성 높은 이슈 우선"이 인스타에도 그대로 적용된다.
 async function pickTopic() {
+  // 쿼터 대상 카테고리를 **쿼리 단계에서** 좁힌다(2026-08-18).
+  // 종전에는 최근 갱신 60건을 통째로 가져와 뒤에서 연예만 걸렀는데, 그 60건이 Society·
+  // Technology로 가득 차 연예가 한 건도 안 들어오는 일이 잦았다(실측: 60건 중 연예 0건,
+  // 반면 미게시 연예 토픽은 56건 적체). 그 결과 인스타는 '방금 갱신된 연예 토픽'만 집게 되고,
+  // 같은 사건으로 새로 만들어진 토픽이 늘 창 맨 앞에 오므로 재게시가 구조적으로 유도됐다
+  // — 스트레이 키즈 건이 정확히 그 경로였다. 카테고리를 DB에서 거르면 60건 예산이 전부
+  // 실제 후보에 쓰인다.
+  const { CATEGORY_TO_BUCKET, INSTAGRAM_QUOTA_PLAN, capsFor: capsForPool } = require('./buzz-engine');
+  const poolCaps = capsForPool(INSTAGRAM_QUOTA_PLAN, IG_DAILY_MAX);
+  const eligibleCategories = Object.keys(CATEGORY_TO_BUCKET)
+    .filter((c) => (poolCaps[CATEGORY_TO_BUCKET[c]] || 0) > 0);
+  // PostgREST in.() — 한글 카테고리 값이 섞이므로 각 값을 큰따옴표로 감싸고 통째로 인코딩한다.
+  const catFilter = eligibleCategories.length
+    ? `&category=in.(${encodeURIComponent(eligibleCategories.map((c) => `"${c}"`).join(','))})`
+    : '';
   const pool = await supabaseGet(
     'topics',
     `?status=eq.active&editorial_status=eq.published&ai_context->${CHANNEL}->>posted_at=is.null` +
+    catFilter +
     `&select=id,slug,name,summary,category,ai_context&order=updated_at.desc&limit=60`
   );
   // draft가 없으면 카드에 채울 내용이 없다(제목만 있는 카드뉴스는 올리지 않는다).
@@ -338,8 +354,8 @@ async function pickTopic() {
   // 계기: 스레드에서 처음 반응이 나온 글이 스트레이키즈(연예)였다(좋아요 18).
   // cap 0인 버킷은 아예 제외한다. 연예 후보가 없으면 **게시하지 않는다** —
   // 여기서 다른 카테고리로 폴백하면 "인스타는 연예만"이라는 지시가 무너진다.
-  const { sortByBuzz, INSTAGRAM_QUOTA_PLAN, capsFor, bucketOf } = require('./buzz-engine');
-  const caps = capsFor(INSTAGRAM_QUOTA_PLAN, IG_DAILY_MAX);
+  const { sortByBuzz, bucketOf } = require('./buzz-engine');
+  const caps = poolCaps; // 위 풀 쿼리에서 이미 계산했다(같은 값을 두 번 만들지 않는다)
   const inQuota = fresh.filter((t) => (caps[bucketOf(t.category, null)] || 0) > 0);
   if (!inQuota.length) {
     console.log(`INSTAGRAM_QUOTA_EMPTY: 연예/엔터 후보 0건(중복 제외 후 ${fresh.length}건) — 게시하지 않음`);
