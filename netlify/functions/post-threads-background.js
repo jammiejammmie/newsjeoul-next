@@ -162,7 +162,14 @@ const EVERGREEN_POOL_LIMIT = 500;
 // ── 상수(마법 숫자 금지 — 전부 여기서 관리, 근거를 주석에 명시) ─────────────
 const MIN_EDITORIAL_SCORE = 60; // 콘텐츠 자체 품질 하한선(100점 만점) — Distribution Score와 별개의 하드 게이트.
 const MIN_BODY_LENGTH = 300; // 본문이 이보다 짧으면 "지나치게 빈약"으로 간주해 무조건 제외.
-const CANDIDATE_POOL_SIZE = 30; // 점수 계산 대상으로 가져올 후보 풀 크기.
+// 2026-08-20: 30 → 150. 후보 풀은 importance_score 상위 N건인데, 30건 창이 채널 쿼터
+// (연예70/스포츠20/정치10)와 구조적으로 어긋나 있었다 — importance_score 상위권은 사회/경제가
+// 독점하고, 쿼터가 원하는 연예·스포츠는 그 아래에 깔려 창 밖에 있었다. 같은 시각 실측 재현:
+//   풀 30  → 실체 27  → buzz 8  → 쿼터 1  → 문턱 통과 1
+//   풀 150 → 실체 136 → buzz 30 → 쿼터 8  → 문턱 통과 3 (스포츠가 처음 등장: 이강인 데뷔골 61점)
+//   풀 400 → 쿼터 10 → 문턱 통과 3        (150 대비 추가 이득 없음 — 페이로드만 커진다)
+// 게시가 0건이면 풀도 그대로라 같은 후보를 30분마다 다시 떨어뜨리는 교착이 된다(8/17~8/20 실사고).
+const CANDIDATE_POOL_SIZE = 150; // 점수 계산 대상으로 가져올 후보 풀 크기.
 const RECENT_HISTORY_WINDOW = 3; // 최근 게시 패턴(recentPattern) 판단에 쓰는 "최근 게시 N건".
 
 // 오늘 목표 게시 수 — PM 재조정 지시(2026-07-22): 기준을 "오늘 published Topic 수"에서 "오늘
@@ -188,6 +195,15 @@ const MAX_DAILY_TARGET = 20;
 // 정말 뛰어난 후보만 통과하도록 점진적으로 엄격해진다 — 고정 상한이 아니라 적응형 문턱값이다.
 const DISTRIBUTION_SCORE_FLOOR = 55;
 const DISTRIBUTION_SCORE_CEILING = 80;
+// 기아 완화 문턱(2026-08-20) — 오늘 아직 한 건도 못 나갔을 때만 쓰는 낮은 하한.
+// 왜 필요한가: categoryAllocation은 postedStats.total이 0이면 confidence 0이라 모든 후보에게
+// 중립 50점을 준다. 즉 "한 건도 안 나간 날"은 배분 신호가 통째로 죽은 채 점수가 깎이고,
+// 그 때문에 못 나가고, 못 나가서 다시 0인 자기강화 교착이 된다(8/20 실측: 24회 실행 전부 skip,
+// 최고점 54 vs 문턱 55 — 1점 차로 하루가 통째로 비었다).
+// 안전 범위: 이 하한은 첫 1건에만 적용된다(1건 나가면 postedToday>0이라 즉시 55로 복귀).
+// 품질 게이트(MIN_EDITORIAL_SCORE 60)와 실체 필터는 그대로 걸리므로 "실체 없는 소식"이
+// 이 완화로 새어나가지는 않는다 — 낮추는 것은 배분·타이밍 점수이지 콘텐츠 품질 기준이 아니다.
+const DISTRIBUTION_SCORE_STARVATION_FLOOR = 45;
 
 // 1회 실행(Netlify Background Function, 최대 15분 예산)당 최대 게시 건수와 게시 사이 간격.
 // 매시간 1건씩만으로는 "하루 20건 이상"을 달성하기 어려워(하루 최대 24건) PM 지시로 도입 —
@@ -601,6 +617,8 @@ async function fetchRunsPerHour() {
 // 정말 좋은 후보는 여전히 통과할 수 있다. 목표가 0(오늘 생산 없음)이면 예외적인 경우만 허용.
 function computeAdaptiveMinDistributionScore(dailyTarget, postedToday) {
   if (dailyTarget <= 0) return DISTRIBUTION_SCORE_CEILING;
+  // 오늘 0건이면 기아 상태 — 첫 1건은 낮은 하한으로 뚫는다(위 상수 주석 참고).
+  if (postedToday <= 0) return DISTRIBUTION_SCORE_STARVATION_FLOOR;
   const progress = postedToday / dailyTarget;
   if (progress <= 1) return DISTRIBUTION_SCORE_FLOOR;
   const over = Math.min(1, progress - 1);
