@@ -4,6 +4,7 @@
 
 const { skipReason } = require('./news-filters');
 const { fetchBuzzIndex, scoreTitle } = require('./buzz-engine');
+const { verifyNamesAgainstSource } = require('./lib/fact-guard');
 
 // 클러스터링에 넣을 기사 상한. 이 위로는 잘려나가는데, 종전에는 그 기준이 "최신순"이라
 // 화제성과 무관하게 잘렸다. 이제 buzz 점수 우선으로 정렬한 뒤 자른다(2026-08-17).
@@ -108,29 +109,14 @@ ${articles.map((a, i) => `${i}. [${a.outlet_name}] ${a.title}`).join('\n')}
 // 지시만으로는 모델이 "이 대통령" 같은 축약 표기를 실명으로 잘못 확장하는 걸 100% 막지
 // 못한다(실제로 발생한 사고). 그래서 코드 레벨로 한 번 더 검증한다: story_title에
 // "실명(2자 이상)+직함" 조합이 있으면, 그 실명이 원본 기사 제목들에 실제로 등장하는지
-// 확인하고, 등장하지 않으면 실명을 지우고 직함만 남긴다(이 파일 프롬프트가 명시한 안전한
-// 대안과 동일한 형태로 폴백 — 사람 검토 없이도 팩트 오류가 발행되는 것 자체를 막는 게 목적).
-const TITLE_WORDS = ['대통령', '총리', '장관', '시장', '회장'];
-// 이름과 직함 사이 공백은 있을 수도 없을 수도 있다("이준석 대통령" vs "李대통령") — \s?로 둘 다 포착.
-const NAME_TITLE_RE = new RegExp(`([가-힣\\u4e00-\\u9fff]{1,4})\\s?(${TITLE_WORDS.join('|')})`, 'g');
-
+// 확인하고, 등장하지 않으면 실명을 지우고 직함만 남긴다.
+//
+// 2026-08-21: 검증 로직 자체를 lib/fact-guard.js로 옮겨 resolve-topics-background.js·
+// generate-editorial-draft-background.js와 공유한다 — "한덕수 국무총리" 사고가 이 파일의
+// 검증만 있고 뒷 단계(topic 이름/요약 생성, 장문 draft 생성)엔 아예 없었던 게 원인이었다
+// (fact-guard.js 파일 상단 주석에 사고 경위 전체 기록).
 function verifyAndSanitizeTitle(storyTitle, sourceTitles) {
-  const sourceText = sourceTitles.join(' ');
-  let sanitized = storyTitle;
-  let flagged = false;
-
-  for (const match of [...storyTitle.matchAll(NAME_TITLE_RE)]) {
-    const [full, namePart, titleWord] = match;
-    // 1글자 성만 있는 축약형("이 대통령"의 "이", 한자 성 "李" 등)은 원문 표기를 그대로 옮긴
-    // 안전한 경우이므로 검증 대상에서 제외 — 2자 이상(=합성된 실명으로 추정)만 검증한다.
-    if (namePart.length < 2) continue;
-    if (sourceText.includes(namePart)) continue;
-
-    // 원본 어디에도 없는 실명 — 팩트 오류로 간주하고 직함만 남긴다.
-    flagged = true;
-    sanitized = sanitized.split(full).join(titleWord);
-  }
-
+  const { sanitized, flagged } = verifyNamesAgainstSource(storyTitle, sourceTitles);
   if (flagged) {
     console.error(`FACT_CHECK_GATE: story_title 실명 미검증으로 직함만 남김 — "${storyTitle}" → "${sanitized}"`);
   }

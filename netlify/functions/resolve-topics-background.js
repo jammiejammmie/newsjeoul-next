@@ -3,6 +3,7 @@
 // manual(source_type='manual')로 만들어진 Topic도 매칭 후보에 포함된다.
 
 const { fetchBuzzIndex, scoreTitle, bucketOf } = require('./buzz-engine');
+const { verifyFields, needsHumanReview, confirmedFactsBlock } = require('./lib/fact-guard');
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY;
@@ -91,6 +92,10 @@ Topic은 "분야"가 아니라 "사안"의 단위다. 인물의 직업이나 기
 
 기존 Topic 후보:
 ${candidateList}
+
+신규 Topic 작성 시 주의(2026-08-21, "장미란 전 국가대표 역도선수" 사고 이후 추가): name/description/summary에
+스토리 제목에 없는 인물의 직업·이력·신원(예: "전 국가대표", "유명인 OOO와 동일인")을 추측해서 덧붙이지 마라.
+동명이인일 수 있다는 전제를 항상 유지해라 — 확인 안 된 신원 결합은 명예훼손으로 이어질 수 있다.${confirmedFactsBlock()}
 
 반환 형식 (배열):
 [{"action": "match", "topic_id": "기존 topic id"}]
@@ -230,19 +235,43 @@ exports.handler = async function (event) {
 
           let topicId = d.topic_id;
           if (d.action === 'new') {
-            const slug = (d.slug_en && /^[a-z0-9-]+$/.test(d.slug_en)) ? d.slug_en : slugify(d.name);
+            // 팩트오류 방지(2026-08-21, "장미란 전 국가대표 역도선수" 사고 대응) — 이 Claude
+            // 호출은 story 제목만 보고 name/summary/description을 새로 쓴다. 원문 기사에 없는
+            // 신원·이력을 지어내도 여기선 아무것도 걸러지지 않았다(사고 당시 실측). story에
+            // 연결된 원본 기사 제목들을 조회해 대조하고, 이름+직함 오류는 자동 정정, 블랙리스트
+            // 재등장이나 Society+위험 키워드+실명 조합은 자동발행 대신 dormant(비공개)로 만든다.
+            const articleLinks = await supabaseGet(
+              'story_articles',
+              `?story_id=eq.${story.id}&select=articles(title)`
+            ).catch(() => []);
+            const sourceTitles = (articleLinks || []).map((r) => r.articles?.title).filter(Boolean);
+            const { patched, blacklistHits } = verifyFields(
+              { name: d.name, summary: d.summary, description: d.description },
+              sourceTitles
+            );
+            const review = needsHumanReview({
+              category: d.category,
+              text: [patched.name, patched.summary, patched.description].filter(Boolean).join(' '),
+              blacklistHits,
+            });
+            if (review.hold) {
+              console.error(`FACT_CHECK_GATE: 신규 토픽 발행 보류(dormant) — "${d.name}" (사유: ${review.reason})`);
+            }
+
+            const slug = (d.slug_en && /^[a-z0-9-]+$/.test(d.slug_en)) ? d.slug_en : slugify(patched.name || d.name);
             const [created] = await supabasePost('topics', {
-              name: d.name,
+              name: patched.name,
               slug,
-              description: d.description || null,
-              summary: d.summary || d.description || null,
+              description: patched.description || null,
+              summary: patched.summary || patched.description || null,
               category: d.category || null,
               source_type: 'ai',
+              ...(review.hold ? { status: 'dormant' } : {}),
             });
             if (!created) continue;
             topicId = created.id;
             topicsCreated++;
-            candidateTopics.push({ id: topicId, name: d.name, summary: d.description, category: d.category || null });
+            candidateTopics.push({ id: topicId, name: patched.name, summary: patched.description, category: d.category || null });
           }
           if (!topicId) continue;
 

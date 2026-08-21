@@ -12,6 +12,8 @@
 //
 // Background Function(15분 예산).
 
+const { verifyFields, needsHumanReview } = require('./lib/fact-guard');
+
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY;
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
@@ -122,6 +124,22 @@ ${editorLine}
 }`;
 }
 
+// 팩트오류 방지(2026-08-21) — 이 파일이 만드는 확장 초안(guide/compare/background/faq 등)은
+// editorial_status 게이트를 전혀 거치지 않고 생성 즉시 topics.ai_context.expansion_drafts에
+// 붙어 /topic/{slug}/{angle}로 바로 렌더링된다(파일 상단 주석 참고) — 발행 보류 상태를 걸
+// 인프라가 없다. 그래서 여기서는 "정정 가능하면 정정, 고위험이면 아예 저장하지 않고 건너뛴다"
+// 방식으로 처리한다(사람 확인 큐에 넣는 대신, 이번 실행에서 그 앵글만 안 만들고 다음 실행에서
+// 다시 시도하게 둔다 — 새 인프라 없이도 위험한 페이지가 뜨는 것 자체는 막는다).
+function sanitizeAndCheck(gen, sourceTitles, category) {
+  const { patched, anyFlagged, blacklistHits } = verifyFields(
+    { title: gen.title, lead: gen.lead, body: gen.body },
+    sourceTitles
+  );
+  const bodyText = [patched.title, patched.lead, patched.body].filter(Boolean).join(' ');
+  const review = needsHumanReview({ category, text: bodyText, blacklistHits });
+  return { patched, flagged: anyFlagged, review };
+}
+
 async function claudeGenerate(prompt) {
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -176,10 +194,17 @@ exports.handler = async function (event) {
       if (!angleConfig || existing.some((d) => d.angle === angleConfig.slug)) continue; // 이미 생성됨
       try {
         const evidence = await gatherEvidence(topic.id);
+        const sourceTitles = evidence.sources.map((s) => s.title).filter(Boolean);
         const editor = pickEditorForAngle(editorsPool, angleConfig, topic.category, new Set());
         const gen = await claudeGenerate(buildPrompt(topic, angleConfig, editor, evidence));
+        const { patched, flagged, review } = sanitizeAndCheck(gen, sourceTitles, topic.category);
+        if (flagged) console.error(`FACT_CHECK_GATE: expansion draft(카테고리) 실명 정정 — topic ${topic.id}, angle ${angleConfig.slug}`);
+        if (review.hold) {
+          console.error(`FACT_CHECK_GATE: expansion draft(카테고리) 저장 보류 — topic ${topic.id}, angle ${angleConfig.slug}, 사유: ${review.reason}`);
+          continue; // 저장하지 않음 — 다음 실행에서 재시도됨(같은 앵글이 아직 없으므로 다시 대상이 됨)
+        }
         const draft = {
-          angle: angleConfig.slug, label: angleConfig.label, title: gen.title, lead: gen.lead, body: gen.body,
+          angle: angleConfig.slug, label: angleConfig.label, title: patched.title, lead: patched.lead, body: patched.body,
           display_keywords: gen.display_keywords || [], editor: editor ? { id: editor.id, name: editor.name, perspective: editor.perspective_tag } : null,
           generated_at: new Date().toISOString(),
         };
@@ -206,11 +231,18 @@ exports.handler = async function (event) {
         const angleConfig = BONUS_ANGLES[angleKey];
         try {
           const evidence = await gatherEvidence(topic.id);
+          const sourceTitles = evidence.sources.map((s) => s.title).filter(Boolean);
           const editor = pickEditorForAngle(editorsPool, angleConfig, topic.category, usedEditorIds);
           if (editor) usedEditorIds.add(editor.id);
           const gen = await claudeGenerate(buildPrompt(topic, angleConfig, editor, evidence));
+          const { patched, flagged, review } = sanitizeAndCheck(gen, sourceTitles, topic.category);
+          if (flagged) console.error(`FACT_CHECK_GATE: expansion draft(보너스) 실명 정정 — topic ${topic.id}, angle ${angleConfig.slug}`);
+          if (review.hold) {
+            console.error(`FACT_CHECK_GATE: expansion draft(보너스) 저장 보류 — topic ${topic.id}, angle ${angleConfig.slug}, 사유: ${review.reason}`);
+            continue;
+          }
           newDrafts.push({
-            angle: angleConfig.slug, label: angleConfig.label, title: gen.title, lead: gen.lead, body: gen.body,
+            angle: angleConfig.slug, label: angleConfig.label, title: patched.title, lead: patched.lead, body: patched.body,
             display_keywords: gen.display_keywords || [], editor: editor ? { id: editor.id, name: editor.name, perspective: editor.perspective_tag } : null,
             generated_at: new Date().toISOString(),
             qa: angleConfig.slug === 'faq' && Array.isArray(gen.qa) ? gen.qa : undefined,

@@ -14,6 +14,7 @@
 
 const { prioritizeForPublish, fetchRecentPublished } = require('./buzz-engine');
 const { hasSubstance } = require('./cover-hook');
+const { verifyFields, needsHumanReview, confirmedFactsBlock } = require('./lib/fact-guard');
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY;
@@ -90,6 +91,13 @@ function buildPrompt(topic, plan, evidence, personaSnippet) {
   return `너는 뉴스저울의 에디토리얼 엔진이다. 아래 이슈에 대해 장문 에디토리얼을 작성해라.
 독자가 "이 사이트는 뉴스를 나열하지 않고 세상을 이해시켜준다"고 느끼게 쓰는 게 목표다.
 보도자료 요약체나 사실 나열이 아니라, 관점이 있는 해설체로 써라. 확인 안 된 사실을 단정하지 마라.
+
+실명 인물 서술 규칙(2026-08-21 사고 이후 추가 — "한덕수 국무총리"처럼 축약 직함을 학습 데이터의
+낡은 기억으로 잘못 풀어 쓴 사고, "장미란 전 국가대표 역도선수"처럼 원문에 없는 신원·이력을
+지어낸 사고가 실제로 있었다): 아래 "참고 가능한 원문 출처"에 등장하지 않는 인물의 실명·직함·
+직업·이력을 추측해서 쓰지 마라. 원문이 "한 총리"처럼 성만 줄여 썼다면 그 축약형을 그대로 쓰거나
+직함만 써라 — 학습 데이터 속 기억으로 실명을 채워 넣지 마라. 인물 이름이 유명인과 같아도, 원문에
+그 유명인이라는 서술이 없으면 동일인이라 단정하지 말고 동명이인일 가능성을 열어둬라.${confirmedFactsBlock()}
 
 ${personaSnippet}
 
@@ -250,21 +258,34 @@ function deterministicQA(draft, plan, diagnostic) {
 
 // 3b — LLM 정성 QA(§10, Phase 4). 3a 통과분만 실행(비용 절감). Editorial OS의 유형별
 // "흔한 저품질 패턴"(common_pitfalls)을 체크리스트로 그대로 이식해 pass/fail+사유+신뢰도를 받는다.
-async function claudeQualitativeQA(draft, commonPitfalls) {
+// 2026-08-21: 종전엔 이 QA가 원문 출처(evidence.sources)를 아예 안 받았다 — "장미란 전
+// 국가대표 역도선수" 같은, 이름은 맞지만 원문에 없는 신원 서술을 잡을 방법이 구조적으로
+// 없었다(QA가 볼 수 있는 게 본문뿐이라 뭐가 원문 기반이고 뭐가 지어낸 건지 판단 불가능).
+// sourceTitles를 받게 하고 체크리스트에 출처 대조 항목을 추가한다.
+async function claudeQualitativeQA(draft, commonPitfalls, sourceTitles) {
   const bodyText = [draft.lead, ...draft.blocks.map((b) => b.content)].join('\n');
   const pitfallList = (commonPitfalls || []).map((p) => `- ${p}`).join('\n') || '(체크리스트 없음)';
+  const sourceList = (sourceTitles || []).map((t) => `- ${t}`).join('\n') || '(출처 없음)';
 
-  const prompt = `아래 장문 에디토리얼이 이 사건 유형의 "흔한 저품질 패턴"에 해당하는지 점검해라.
-설명 없이 JSON만 반환해라.
+  const prompt = `아래 장문 에디토리얼이 이 사건 유형의 "흔한 저품질 패턴"에 해당하는지, 그리고
+실명 인물에 대해 원문 출처에 없는 서술을 지어내지 않았는지 점검해라. 설명 없이 JSON만 반환해라.
 
 저품질 패턴 체크리스트:
 ${pitfallList}
+
+추가 체크(2026-08-21 사고 대응 — 반드시 확인): 본문에 실명 인물이 등장하면, 그 인물에 대한
+직함·직업·이력·신원 서술(예: "전 국가대표", "OOO 전 장관", 특정 유명인과의 동일인 서술)이
+아래 원문 출처 제목에 실제로 나오는 내용인지 확인해라. 원문에 없는 신원·이력 서술이 있으면
+반드시 pass:false로 반려하고 reason에 어떤 인물의 어떤 서술이 출처에 없는지 구체적으로 적어라.
+
+원문 출처 제목(${(sourceTitles || []).length}건):
+${sourceList}
 
 본문:
 ${bodyText}
 
 반환 형식:
-{"pass": true 또는 false, "reason": "해당하면 어떤 패턴인지, 통과면 빈 문자열", "qa_confidence": 0.0~1.0}`;
+{"pass": true 또는 false, "reason": "해당하면 어떤 패턴인지(또는 어떤 인물의 어떤 서술이 출처에 없는지), 통과면 빈 문자열", "qa_confidence": 0.0~1.0}`;
 
   try {
     const res = await fetch('https://api.anthropic.com/v1/messages', {
@@ -343,7 +364,7 @@ exports.handler = async function (event) {
 
     const eventTypeRules = await supabaseGet('event_type_rules', '?select=event_type,common_pitfalls');
 
-    const stats = { published: 0, retried: 0, degraded: 0, failed: 0, qualitativeRejected: 0 };
+    const stats = { published: 0, retried: 0, degraded: 0, failed: 0, qualitativeRejected: 0, heldForReview: 0 };
 
     for (const topic of pending) {
       const plan = topic.ai_context?.plan;
@@ -359,29 +380,62 @@ exports.handler = async function (event) {
         const personaSnippet = buildPersonaSnippet(editorsDetail, plan.requires_dual_perspective, isSafetyLocked);
 
         const evidence = await gatherEvidence(topic.id);
+        const sourceTitles = evidence.sources.map((s) => s.title).filter(Boolean);
         let { draft, diagnostic } = await claudeGenerate(buildPrompt(topic, plan, evidence, personaSnippet));
         if (draft) draft.generated_at = new Date().toISOString(); // Automation Health 대시보드용 신호(2026-07-17)
+
+        // 팩트오류 방지(2026-08-21) — lead/blocks를 원문 출처 제목과 대조해 이름+직함 오류를
+        // 자동 정정한다. process-stories-background.js의 story_title 검증은 여기까지 오지
+        // 못한다(별개 생성 단계) — "한덕수 국무총리"가 draft에 남아있던 실제 사고 지점이 여기다.
+        let blacklistHits = [];
+        if (draft) {
+          const fieldsToVerify = { lead: draft.lead };
+          (draft.blocks || []).forEach((b, i) => { fieldsToVerify[`block_${i}`] = b.content; });
+          const verified = verifyFields(fieldsToVerify, sourceTitles);
+          if (verified.anyFlagged) {
+            console.error(`FACT_CHECK_GATE: draft 실명 미검증으로 정정됨 — topic ${topic.id}`);
+            draft.lead = verified.patched.lead;
+            (draft.blocks || []).forEach((b, i) => { b.content = verified.patched[`block_${i}`]; });
+          }
+          blacklistHits = verified.blacklistHits;
+        }
+
         const qa = deterministicQA(draft, plan, diagnostic);
 
         // 3b — 3a 통과분만 실행(비용 절감, §10)
         let qualitative = null;
         if (qa.pass) {
           const pitfalls = eventTypeRules.find((r) => r.event_type === plan.event_type)?.common_pitfalls;
-          qualitative = await claudeQualitativeQA(draft, pitfalls);
+          qualitative = await claudeQualitativeQA(draft, pitfalls, sourceTitles);
         }
 
         if (qa.pass && qualitative.pass) {
+          // 고위험 콘텐츠 발행 보류(2026-08-21, "장미란" 사고 대응) — Society+위험 키워드+실명
+          // 조합이거나 블랙리스트 이름이 남아있으면 자동발행 대신 사람 확인 대기로 돌린다.
+          // 전체를 다 사람 확인으로 묶으면 그 사이 발행이 멈추므로 조건을 좁게 잡았다.
+          const bodyText = [draft.lead, ...(draft.blocks || []).map((b) => b.content)].join(' ');
+          const review = needsHumanReview({ category: topic.category, text: bodyText, blacklistHits });
+
           const counterMarker = (draft.perspective_markers || []).find((m, i) => i > 0);
           const { lastQaFail, ...cleanContext } = topic.ai_context || {}; // 이전 실패기록은 성공 시 정리
           await supabasePatch('topics', `?id=eq.${topic.id}`, {
-            ai_context: { ...cleanContext, draft, evidence, qa, qualitative },
+            ai_context: { ...cleanContext, draft, evidence, qa, qualitative, ...(review.hold ? { moderationHold: review } : {}) },
             ai_outlook: draft.lead,
             ai_counter_view: counterMarker ? counterMarker.claim : null,
-            editorial_status: 'published',
+            // held_for_review는 editorial_status에 CHECK 제약이 없어 새로 도입 가능하고
+            // (supabase/publish_gate_migration.sql 참고), 'published'가 아니므로 카드뉴스·
+            // Threads·Instagram·홈 피드 등 모든 배급 경로가 자동으로 이 topic을 건너뛴다
+            // (그 경로들은 전부 editorial_status=eq.published로만 조회한다 — 별도 필터 추가 불필요).
+            editorial_status: review.hold ? 'held_for_review' : 'published',
             editorial_retry_count: 0,
             updated_at: new Date().toISOString(),
           });
-          stats.published++;
+          if (review.hold) {
+            console.error(`FACT_CHECK_GATE: topic ${topic.id}("${topic.name}") 발행 보류(held_for_review) — 사유: ${review.reason}`);
+            stats.heldForReview++;
+          } else {
+            stats.published++;
+          }
         } else {
           if (qa.pass && !qualitative.pass) {
             stats.qualitativeRejected++;
