@@ -85,9 +85,13 @@ exports.handler = async function (event) {
     if (retractTopic.name !== '제주 실종 장미란 관련 의혹') {
       throw new Error(`retract 대상 제목 불일치(안전장치 발동): "${retractTopic.name}"`);
     }
-    report.retract = { id: retractTopic.id, name: retractTopic.name, from_status: retractTopic.status, to_status: 'retracted' };
+    // topics.status는 CHECK (status IN ('active','dormant','closed')) 제약이 걸려 있다
+    // (supabase/topics_entities_schema.sql) — 'retracted'는 이 제약을 위반해 최초 시도가
+    // 400으로 실패했다(2026-08-21). 'dormant'는 resolve-topics-background.js가 여전히
+    // 재병합 후보로 취급하므로 이 사고엔 부적절 — 완전히 닫는 의미의 'closed'를 쓴다.
+    report.retract = { id: retractTopic.id, name: retractTopic.name, from_status: retractTopic.status, to_status: 'closed' };
     if (confirm) {
-      await supabasePatch('topics', `?id=eq.${RETRACT_TOPIC_ID}`, { status: 'retracted' });
+      await supabasePatch('topics', `?id=eq.${RETRACT_TOPIC_ID}`, { status: 'closed' });
     }
 
     // 2) 이름 오류 정정 3건
