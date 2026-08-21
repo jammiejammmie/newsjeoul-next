@@ -10,6 +10,12 @@ function client() {
 
 export type QuestionDetailData = {
   story: { id: string; title: string; createdAt: string }
+  // repTopic에 연결된 여러 story 중 canonical로 선언할 대표 story id.
+  // 같은 topic에 여러 story가 붙을 수 있는 건 설계 의도지만(증거 기사 누적), 이
+  // 페이지가 렌더링하는 내용은 story가 아니라 topic 단위라 story마다 canonical을
+  // 자기 자신으로 선언하면 topic당 N개의 완전 동일한 title/description 페이지가
+  // 생긴다 — GSC "중복 페이지, Google에서 다른 표준 선택"/"표준 없는 중복"의 원인.
+  canonicalStoryId: string
   articles: { id: string; title: string; url: string; publishedAt: string | null; outlet: string | null }[]
   topic: {
     id: string; slug: string; name: string; category: string | null
@@ -29,7 +35,12 @@ const MAX_NEXT_QUESTIONS = 12
 const MAX_GRAPH_NODES = 7
 const MAX_CONNECTED_TOPICS = 3
 
-// Story → 대표 Story 1건(topic_stories relevance_score 최댓값)을 topicId별로 골라준다.
+// Story → 대표 Story 1건을 topicId별로 골라준다.
+// relevance_score는 현재 모든 행이 100으로 고정 기록돼(집계 로직 미구현) 사실상
+// 동점 처리 로직이 됨 — DB가 반환하는 순서에 기대면 요청마다 다른 story가 대표로
+// 뽑힐 수 있어(비결정적) 매 요청 canonical이 흔들리는 원인이 된다. relevance_score가
+// 갈리면 그대로 쓰고, 동점이면 created_at이 가장 이른(=그 사안을 최초로 다룬) story로
+// 고정한다 — 대표가 항상 같은 story로 결정돼야 canonical/OG/JSON-LD가 안정된다.
 async function resolveRepresentativeStories(supabase: ReturnType<typeof client>, topicIds: string[]) {
   const map = new Map<string, string>()
   if (topicIds.length === 0) return map
@@ -37,9 +48,26 @@ async function resolveRepresentativeStories(supabase: ReturnType<typeof client>,
     .from('topic_stories')
     .select('topic_id, story_id, relevance_score')
     .in('topic_id', topicIds)
-    .order('relevance_score', { ascending: false })
-  for (const row of (data || []) as any[]) {
-    if (!map.has(row.topic_id)) map.set(row.topic_id, row.story_id)
+  const rows = (data || []) as any[]
+  if (rows.length === 0) return map
+
+  const storyIds = [...new Set(rows.map((r) => r.story_id))]
+  const { data: storyRows } = await supabase.from('stories').select('id, created_at').in('id', storyIds)
+  const createdAtById = new Map((storyRows || []).map((s: any) => [s.id, s.created_at as string]))
+
+  const byTopic = new Map<string, any[]>()
+  for (const row of rows) {
+    if (!byTopic.has(row.topic_id)) byTopic.set(row.topic_id, [])
+    byTopic.get(row.topic_id)!.push(row)
+  }
+  for (const [topicId, group] of byTopic) {
+    group.sort((a, b) => {
+      if (b.relevance_score !== a.relevance_score) return b.relevance_score - a.relevance_score
+      const aTime = new Date(createdAtById.get(a.story_id) || 0).getTime()
+      const bTime = new Date(createdAtById.get(b.story_id) || 0).getTime()
+      return aTime - bTime
+    })
+    map.set(topicId, group[0].story_id)
   }
   return map
 }
@@ -143,8 +171,12 @@ export async function getQuestionDetail(storyId: string): Promise<QuestionDetail
 
   const imageUrl = await getTopicImage(repTopic.id)
 
+  const repStoryForCurrentTopic = await resolveRepresentativeStories(supabase, [repTopic.id])
+  const canonicalStoryId = repStoryForCurrentTopic.get(repTopic.id) || story.id
+
   return {
     story: { id: story.id, title: story.title, createdAt: story.created_at },
+    canonicalStoryId,
     articles,
     topic: {
       id: repTopic.id, slug: repTopic.slug, name: repTopic.name, category: repTopic.category,

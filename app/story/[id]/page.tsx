@@ -30,14 +30,19 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 
   const { topic } = data
   const desc = topic.summary || topic.description || `${topic.name}에 대한 근거와 맥락을 정리했습니다.`
+  // 이 페이지는 story가 아니라 topic 단위 콘텐츠를 렌더링하므로(topic.name/summary가
+  // title/description), 같은 topic에 연결된 모든 story가 canonical=자기 자신을 선언하면
+  // 완전히 동일한 페이지가 story 개수만큼 생긴다. topic당 대표 story 1건(canonicalStoryId)
+  // 으로만 canonical/OG를 고정한다.
+  const canonicalUrl = `${BASE}/story/${data.canonicalStoryId}`
 
   return {
     title: `${topic.name} — 뉴스저울`,
     description: desc,
-    alternates: { canonical: `${BASE}/story/${data.story.id}` },
+    alternates: { canonical: canonicalUrl },
     openGraph: {
       title: topic.name, description: desc,
-      url: `${BASE}/story/${data.story.id}`,
+      url: canonicalUrl,
       images: [{ url: `${BASE}/og?type=topic&title=${encodeURIComponent(topic.name)}`, width: 1200, height: 630 }],
     },
     twitter: { card: 'summary_large_image', title: topic.name, description: desc },
@@ -51,18 +56,19 @@ export default async function QuestionDetailPage({ params }: { params: Promise<{
 
   const { topic, articles, connectedTopics, nextQuestions, graphNodes } = data
   const aiContext = topic.aiContext || {}
+  const canonicalUrl = `${BASE}/story/${data.canonicalStoryId}`
 
   const jsonLd = generateArticleSchema({
     headline: topic.name,
     description: topic.summary || topic.description,
     dateModified: topic.updatedAt || data.story.createdAt,
     datePublished: data.story.createdAt,
-    url: `${BASE}/story/${data.story.id}`,
+    url: canonicalUrl,
   })
   const breadcrumbLd = generateBreadcrumbSchema([
     { name: '뉴스저울', url: BASE },
     ...(topic.category ? [{ name: topic.category, url: `${BASE}/category/${encodeURIComponent(topic.category)}` }] : []),
-    { name: topic.name, url: `${BASE}/story/${data.story.id}` },
+    { name: topic.name, url: canonicalUrl },
   ])
   // 실제 topic_relations에서 나온 항목(explanation 있는 것)만 FAQ 스키마에 포함 — 패딩된 항목은 제외
   const faqLd = generateFaqSchema(

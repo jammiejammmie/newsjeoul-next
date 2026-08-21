@@ -14,11 +14,21 @@ const nextConfig: NextConfig = {
    * 처리하므로 색인 이전에 차이가 없다.
    */
   async redirects() {
-    return DOC_SLUG_RENAMES.map((r) => ({
-      source: `/hub/${r.hub}/${r.from}`,
-      destination: `/hub/${r.hub}/${r.to}`,
-      permanent: true,
-    }));
+    return [
+      ...DOC_SLUG_RENAMES.map((r) => ({
+        source: `/hub/${r.hub}/${r.from}`,
+        destination: `/hub/${r.hub}/${r.to}`,
+        permanent: true,
+      })),
+      // GSC 404 1건(2026-08-21) — 구 정적 사이트 시절 백링크가 여전히 .html
+      // 확장자로 들어옴. app/media101/page.tsx가 이미 /media101(확장자 없음)을
+      // 홈으로 permanentRedirect 처리 중이므로 같은 목적지로 맞춘다.
+      {
+        source: "/media101.html",
+        destination: "/",
+        permanent: true,
+      },
+    ];
   },
 };
 
