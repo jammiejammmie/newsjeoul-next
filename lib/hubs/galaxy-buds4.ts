@@ -154,7 +154,7 @@ export const galaxyBuds4: HubConfig = {
 
   schema: {
     brand: 'Samsung',
-    price: 254840,
+    price: 254670,
     currency: 'KRW',
   },
 }
