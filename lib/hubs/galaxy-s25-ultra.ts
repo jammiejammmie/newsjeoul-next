@@ -143,7 +143,7 @@ export const galaxyS25Ultra: HubConfig = {
 
   schema: {
     brand: 'Samsung',
-    price: 1200000,
+    price: 1190000,
     currency: 'KRW',
   },
 }
