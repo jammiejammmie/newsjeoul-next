@@ -188,10 +188,10 @@ export const galaxyZFold8: HubConfig = {
   affiliate: {
     allowed: true,
     slots: [
-      { slot: 'fold8-body', label: '갤럭시 Z 폴드8 자급제', network: 'coupang', kind: 'device', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=9640170508&itemId=28803754031&vendorItemId=95739034503&traceid=V0-153-cc91bad335e9984e&requestid=20260810170212442322761167&token=31850C%7CGM' },
-      { slot: 'fold8-case', label: '폴드8 힌지보호 케이스', network: 'coupang', kind: 'accessory', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=9653270703&itemId=28854114236&vendorItemId=95787789872&traceid=V0-153-3f65e15dbbddc14b&clickBeacon=ac0e8960-a0b3-11f1-9769-44d29e1220bb%7E3&requestid=20260826033457061008761340&token=31850C%7CMIXED' },
-      { slot: 'fold8-charger', label: '45W 고속 충전기', network: 'coupang', kind: 'accessory', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=8135291576&itemId=23108354476&vendorItemId=95463844105&traceid=V0-153-b4b0914c9b819b2a&clickBeacon=919598e0-9fea-11f1-ba48-8db154286460%7E3&requestid=20260825033523771252781316&token=31850C%7CMIXED' },
-      { slot: 'fold8-film', label: '폴드8 보호필름', network: 'coupang', kind: 'accessory', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=9659060088&itemId=28874283641&vendorItemId=95807502904&traceid=V0-153-78736ebec4a15145&clickBeacon=ada35a30-a0b3-11f1-9c23-283dde35c95b%7E3&requestid=20260826033459698159464869&token=31850C%7CMIXED' },
+      { slot: 'fold8-body', label: '갤럭시 Z 폴드8 자급제', network: 'coupang', kind: 'device', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=9640170508&itemId=28803754033&vendorItemId=95739034498&traceid=V0-153-cc91bad335e9984e&requestid=20260827044415891160561776&token=31850C%7CMIXED' },
+      { slot: 'fold8-case', label: '폴드8 힌지보호 케이스', network: 'coupang', kind: 'accessory', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=9692446725&itemId=28989248015&vendorItemId=95918062981&traceid=V0-153-22b90bc93f4b3e44&requestid=20260827044416746000090061&token=31850C%7CMIXED' },
+      { slot: 'fold8-charger', label: '45W 고속 충전기', network: 'coupang', kind: 'accessory', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=1338899768&itemId=1050898978&vendorItemId=95463829806&traceid=V0-153-0f56aefd819e041a&clickBeacon=86545780-a186-11f1-99c1-48566be2dfc8%7E3&requestid=20260827044417541244991410&token=31850C%7CMIXED' },
+      { slot: 'fold8-film', label: '폴드8 보호필름', network: 'coupang', kind: 'accessory', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=9651315124&itemId=28847170420&vendorItemId=95781243177&traceid=V0-153-572e32342187357b&clickBeacon=86cd5810-a186-11f1-bb03-7417e5a9e7d5%7E3&requestid=20260827044418337086179781&token=31850C%7CMIXED' },
     ],
   },
 
