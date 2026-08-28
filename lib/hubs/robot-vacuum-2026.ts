@@ -151,7 +151,7 @@ export const robotVacuum2026: HubConfig = {
   tags: ['로봇청소기추천', '로보락', '드리미', '물걸레로봇청소기', '클린스테이션', '소모품'],
 
   schema: {
-    price: 1687800,
+    price: 1690000,
     currency: 'KRW',
   },
 }
