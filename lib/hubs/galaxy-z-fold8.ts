@@ -191,7 +191,7 @@ export const galaxyZFold8: HubConfig = {
       { slot: 'fold8-body', label: '갤럭시 Z 폴드8 자급제', network: 'coupang', kind: 'device', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=9640170508&itemId=28803754033&vendorItemId=95739034498&traceid=V0-153-cc91bad335e9984e&requestid=20260827044415891160561776&token=31850C%7CMIXED' },
       { slot: 'fold8-case', label: '폴드8 힌지보호 케이스', network: 'coupang', kind: 'accessory', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=9637191727&itemId=28792525304&vendorItemId=95752432855&traceid=V0-153-e66bf11605b886d5&requestid=20260904052740002148921758&token=31850C%7CMIXED&pt=0&slot=10' },
       { slot: 'fold8-charger', label: '45W 고속 충전기', network: 'coupang', kind: 'accessory', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=1338899768&itemId=2365459893&vendorItemId=95463829809&traceid=V0-153-0f56aefd819e041a&clickBeacon=30a38270-a89d-11f1-8652-dd1acbddb1d2%7E3&requestid=20260905051410307042009110&token=31850C%7CMIXED&pt=1&slot=1' },
-      { slot: 'fold8-film', label: '폴드8 보호필름', network: 'coupang', kind: 'accessory', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=8309398022&itemId=28729874244&vendorItemId=95670021907&traceid=V0-153-864ded0bb2d85844&requestid=20260906045348309091460409&token=31850C%7CMIXED&pt=0&slot=3' },
+      { slot: 'fold8-film', label: '폴드8 보호필름', network: 'coupang', kind: 'accessory', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=9707016381&itemId=29041078696&vendorItemId=95968239051&traceid=V0-153-8adbdb66c1424340&requestid=20260907045750272035086950&token=31850C%7CMIXED&pt=0&slot=8' },
     ],
   },
 
