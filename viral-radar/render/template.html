@@ -1,0 +1,333 @@
+<title>Viral Radar Prototype</title>
+<style>
+  :root {
+    --ink: #14171C;
+    --paper: #FBFAF7;
+    --paper-raised: #F3F1EA;
+    --red: #C8102E;
+    --blue: #3F5BD9;
+    --teal: #2E8B7F;
+    --stone: #7B7568;
+    --violet: #7A4FD6;
+    --line: rgba(20,23,28,0.10);
+    --shadow: 0 24px 60px -20px rgba(20,23,28,0.35);
+    --font-display: 'Instrument Serif', 'Noto Serif KR', serif;
+    --font-sans: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, 'Malgun Gothic', sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ink: #F3F1EA;
+      --paper: #14171C;
+      --paper-raised: #1D2129;
+      --line: rgba(243,241,234,0.12);
+      --shadow: 0 24px 60px -20px rgba(0,0,0,0.6);
+    }
+  }
+  :root[data-theme="dark"] {
+    --ink: #F3F1EA;
+    --paper: #14171C;
+    --paper-raised: #1D2129;
+    --line: rgba(243,241,234,0.12);
+    --shadow: 0 24px 60px -20px rgba(0,0,0,0.6);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    padding: 28px 16px 64px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 22px;
+  }
+
+  .masthead { max-width: 640px; width: 100%; text-align: left; }
+  .eyebrow {
+    font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--red); margin: 0 0 8px;
+  }
+  h1 {
+    font-family: var(--font-display); font-style: italic; font-weight: 400;
+    font-size: clamp(26px, 5vw, 38px); line-height: 1.15; margin: 0 0 10px;
+    text-wrap: balance; letter-spacing: -0.01em;
+  }
+  .sub { font-size: 13.5px; line-height: 1.6; color: var(--stone); margin: 0; max-width: 58ch; }
+  .methodology {
+    font-size: 11.5px; color: var(--stone); border-top: 1px solid var(--line);
+    margin-top: 14px; padding-top: 10px; line-height: 1.7;
+  }
+  .methodology b { color: var(--ink); }
+
+  .controls {
+    display: flex; gap: 8px; flex-wrap: wrap; max-width: 640px; width: 100%;
+  }
+  .seg {
+    display: flex; background: var(--paper-raised); border: 1px solid var(--line);
+    border-radius: 999px; padding: 3px; gap: 2px;
+  }
+  .seg button {
+    appearance: none; border: none; background: transparent; color: var(--stone);
+    font-family: var(--font-sans); font-size: 12.5px; font-weight: 700; padding: 8px 16px;
+    border-radius: 999px; cursor: pointer; letter-spacing: 0.01em; transition: background .15s, color .15s;
+  }
+  .seg button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+  .seg button:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+
+  .genre-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
+  .g-FUNNY { background: #E0A02E; }
+  .g-TOUCHING { background: var(--teal); }
+
+  /* ── phone frame ─────────────────────────────────────────────────── */
+  .stage { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+  .phone {
+    width: min(88vw, 340px);
+    aspect-ratio: 375 / 812;
+    background: #05060A;
+    border-radius: 42px;
+    padding: 12px;
+    box-shadow: var(--shadow);
+    position: relative;
+  }
+  .phone::before {
+    content: ""; position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+    width: 34%; height: 22px; background: #05060A; border-radius: 14px; z-index: 5;
+  }
+  .screen {
+    width: 100%; height: 100%; border-radius: 30px; overflow: hidden; position: relative;
+    background: var(--ink);
+  }
+
+  /* ── carousel view ───────────────────────────────────────────────── */
+  .carousel-track {
+    width: 100%; height: 100%; display: flex; overflow-x: auto; scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch; scrollbar-width: none;
+  }
+  .carousel-track::-webkit-scrollbar { display: none; }
+  .card {
+    flex: 0 0 100%; width: 100%; height: 100%; scroll-snap-align: center;
+    position: relative; display: flex; flex-direction: column; justify-content: flex-end;
+    color: #FBFAF7; overflow: hidden;
+  }
+  .card-cover { background: linear-gradient(160deg, #1D2129 0%, #14171C 60%, #C8102E 165%); justify-content: center; align-items: center; text-align: center; padding: 32px; }
+  .cover-emoji { font-size: 52px; margin-bottom: 14px; }
+  .cover-kicker { font-family: var(--font-sans); font-size: 11px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: #E0A02E; margin-bottom: 10px; }
+  .cover-title { font-family: var(--font-display); font-style: italic; font-size: 34px; line-height: 1.1; margin: 0 0 16px; }
+  .cover-meta { font-size: 11.5px; color: rgba(251,250,247,0.65); letter-spacing: 0.04em; }
+  .cover-brand { position: absolute; bottom: 20px; left: 0; right: 0; text-align: center; font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: rgba(251,250,247,0.5); }
+
+  .card-thumb { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; filter: saturate(1.05); }
+  .card-scrim { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(5,6,10,0.05) 0%, rgba(5,6,10,0.15) 45%, rgba(5,6,10,0.92) 100%); }
+  .card-body { position: relative; padding: 20px 18px 24px; display: flex; flex-direction: column; gap: 8px; }
+  .rank-row { display: flex; align-items: baseline; gap: 10px; }
+  .rank-num { font-family: var(--font-display); font-style: italic; font-size: 40px; line-height: 1; color: #E0A02E; }
+  .views-num { font-family: var(--font-sans); font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .views-label { font-size: 10.5px; letter-spacing: 0.1em; opacity: 0.75; text-transform: uppercase; }
+  .card-title { font-size: 13.5px; line-height: 1.5; font-weight: 600; margin: 0; }
+  .card-desc { font-size: 12px; line-height: 1.5; color: rgba(251,250,247,0.82); margin: 0; }
+  .card-source { display: flex; align-items: center; gap: 6px; font-size: 11px; color: rgba(251,250,247,0.65); margin-top: 2px; }
+  .platform-pill { background: rgba(251,250,247,0.14); border: 1px solid rgba(251,250,247,0.25); border-radius: 999px; padding: 2px 9px; font-size: 10px; font-weight: 700; letter-spacing: 0.04em; }
+
+  .dots { display: flex; gap: 5px; justify-content: center; }
+  .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--line); }
+  .dot.active { background: var(--red); width: 14px; border-radius: 3px; transition: width .2s; }
+
+  /* ── reel view ───────────────────────────────────────────────────── */
+  .reel-frame { position: relative; width: 100%; height: 100%; }
+  .reel-slide { position: absolute; inset: 0; opacity: 0; transition: opacity .35s ease; }
+  .reel-slide.active { opacity: 1; }
+  .reel-progress { position: absolute; top: 10px; left: 10px; right: 10px; display: flex; gap: 4px; z-index: 4; }
+  .reel-progress .seg-bar { flex: 1; height: 2.5px; background: rgba(251,250,247,0.28); border-radius: 2px; overflow: hidden; }
+  .reel-progress .seg-fill { height: 100%; width: 0%; background: #FBFAF7; }
+  .reel-progress .seg-fill.done { width: 100%; }
+  .reel-progress .seg-fill.run { animation: fillbar linear forwards; }
+  @keyframes fillbar { from { width: 0%; } to { width: 100%; } }
+  .reel-rankbig { font-family: var(--font-display); font-style: italic; font-size: 128px; line-height: 0.85; color: rgba(251,250,247,0.94); text-shadow: 0 8px 30px rgba(0,0,0,0.5); }
+  .reel-countdown-wrap { position: absolute; top: 46px; left: 0; right: 0; text-align: center; z-index: 3; }
+  .reel-tapzone { position: absolute; inset: 0; z-index: 4; cursor: pointer; }
+
+  .controls-row { display: flex; gap: 10px; align-items: center; }
+  .iconbtn {
+    width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--line); background: var(--paper-raised);
+    color: var(--ink); display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 13px;
+  }
+  .iconbtn:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+  .hint { font-size: 11px; color: var(--stone); }
+
+  .foot-note { max-width: 640px; font-size: 11px; color: var(--stone); line-height: 1.7; border-top: 1px solid var(--line); padding-top: 14px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .reel-slide { transition: none; }
+    .seg-fill.run { animation: none; width: 100%; }
+  }
+</style>
+
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Noto+Sans+KR:wght@500;700;800&display=swap">
+
+<main class="masthead">
+  <p class="eyebrow">NEWSJEOUL VIRAL RADAR · Instagram 프로토타입</p>
+  <h1>같은 데이터, 두 개의 발행 형태</h1>
+  <p class="sub">오늘(2026.09.09) YouTube Shorts에서 실제로 포착한 웃긴 영상·감동 영상 TOP10을 캐러셀과 릴스 두 형태로 각각 렌더링했다. 어느 쪽이 모바일에서 더 잘 읽히는지 직접 넘겨보고 비교할 것.</p>
+  <p class="methodology"><b>Methodology</b> — NEWSJEOUL Viral Radar가 오늘 포착한 YouTube Shorts 영상의 공개 조회수 기준 내림차순 집계. 외부 discovery는 배제하고 조회수만으로 순위를 매겼다(가공된 바이럴 점수 미사용).</p>
+</main>
+
+<div class="controls">
+  <div class="seg" role="tablist" aria-label="발행 형태">
+    <button id="tab-carousel" role="tab" aria-pressed="true" onclick="setFormat('carousel')">캐러셀</button>
+    <button id="tab-reel" role="tab" aria-pressed="false" onclick="setFormat('reel')">릴스</button>
+  </div>
+  <div class="seg" role="tablist" aria-label="장르">
+    <button id="genre-FUNNY" role="tab" aria-pressed="true" onclick="setGenre('FUNNY')"><span class="genre-dot g-FUNNY"></span>웃긴 영상</button>
+    <button id="genre-TOUCHING" role="tab" aria-pressed="false" onclick="setGenre('TOUCHING')"><span class="genre-dot g-TOUCHING"></span>감동 영상</button>
+  </div>
+</div>
+
+<div class="stage">
+  <div class="phone"><div class="screen" id="screen"></div></div>
+  <div class="controls-row" id="reel-controls" hidden>
+    <button class="iconbtn" id="play-pause" onclick="toggleReel()" aria-label="재생/일시정지">⏸</button>
+    <span class="hint">10위→1위 순으로 자동 재생 · 탭하면 다음 순위</span>
+  </div>
+  <div class="dots" id="dots" hidden></div>
+</div>
+
+<p class="foot-note">실제 원본 영상으로 재업로드하지 않는다 — 카드 안 이미지는 오늘 수집된 후보의 대표 프레임(썸네일)이며, 순위·조회수·타이포그래피가 NEWSJEOUL 자체 디자인이다. 각 카드는 원본 크리에이터·플랫폼을 표기하고 "원본 보기"는 프로필 링크(추후 /viral 아카이브)로 연결한다.</p>
+
+<script>
+const DATA = __VIRAL_RADAR_DATA__;
+
+const GENRE_META = {
+  FUNNY: { emoji: '😂', label: '오늘의 웃긴 영상', kicker: 'FUNNY · TOP 10' },
+  TOUCHING: { emoji: '🥹', label: '오늘의 감동 영상', kicker: 'TOUCHING · TOP 10' },
+};
+
+let state = { format: 'carousel', genre: 'FUNNY', reelIndex: 0, reelPlaying: true, reelTimer: null };
+
+function fmtViews(n) {
+  if (n >= 1e6) return (n / 1e6).toFixed(1).replace(/\.0$/, '') + 'M';
+  if (n >= 1e3) return (n / 1e3).toFixed(1).replace(/\.0$/, '') + 'K';
+  return String(n);
+}
+
+function coverHtml(genre) {
+  const meta = GENRE_META[genre];
+  return '<div class="card card-cover">'
+    + '<div class="cover-emoji">' + meta.emoji + '</div>'
+    + '<div class="cover-kicker">' + meta.kicker + '</div>'
+    + '<div class="cover-title">' + meta.label + '</div>'
+    + '<div class="cover-meta">' + DATA.date.replaceAll('-', '.') + ' · YouTube Shorts 공개 조회수 기준</div>'
+    + '<div class="cover-brand">NEWSJEOUL VIRAL RADAR</div>'
+    + '</div>';
+}
+
+function rankCardHtml(item) {
+  return '<div class="card">'
+    + (item.thumbnail_data_uri ? '<img class="card-thumb" src="' + item.thumbnail_data_uri + '" alt="">' : '')
+    + '<div class="card-scrim"></div>'
+    + '<div class="card-body">'
+    + '<div class="rank-row"><span class="rank-num">#' + item.rank + '</span></div>'
+    + '<div class="views-row"><span class="views-num">' + fmtViews(item.view_count) + '</span> <span class="views-label">VIEWS</span></div>'
+    + '<p class="card-title">' + escapeHtml(item.summary_ko || item.title) + '</p>'
+    + '<div class="card-source"><span class="platform-pill">YouTube Shorts</span><span>@' + escapeHtml(item.creator_name || '') + '</span></div>'
+    + '</div></div>';
+}
+
+function escapeHtml(s) { return String(s).replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+function renderCarousel() {
+  const items = DATA.genres[state.genre];
+  const html = coverHtml(state.genre) + items.map(rankCardHtml).join('');
+  const screen = document.getElementById('screen');
+  screen.innerHTML = '<div class="carousel-track" id="track">' + html + '</div>';
+  const track = document.getElementById('track');
+  const dotsEl = document.getElementById('dots');
+  dotsEl.hidden = false;
+  document.getElementById('reel-controls').hidden = true;
+  const total = items.length + 1;
+  dotsEl.innerHTML = Array.from({length: total}).map((_, i) => '<span class="dot' + (i === 0 ? ' active' : '') + '"></span>').join('');
+  track.addEventListener('scroll', () => {
+    const idx = Math.round(track.scrollLeft / track.clientWidth);
+    [...dotsEl.children].forEach((d, i) => d.classList.toggle('active', i === idx));
+  });
+}
+
+function stopReelTimer() { if (state.reelTimer) { clearTimeout(state.reelTimer); state.reelTimer = null; } }
+
+function renderReel() {
+  document.getElementById('dots').hidden = true;
+  document.getElementById('reel-controls').hidden = false;
+  const items = [...DATA.genres[state.genre]].sort((a, b) => b.rank - a.rank); // 10위 -> 1위
+  const screen = document.getElementById('screen');
+  const DUR = 1900;
+  screen.innerHTML =
+    '<div class="reel-frame">'
+    + '<div class="reel-progress">' + items.map((_, i) => '<div class="seg-bar"><div class="seg-fill" data-i="' + i + '"></div></div>').join('') + '</div>'
+    + items.map((item, i) => (
+      '<div class="reel-slide' + (i === 0 ? ' active' : '') + '" data-i="' + i + '">'
+      + (item.thumbnail_data_uri ? '<img class="card-thumb" src="' + item.thumbnail_data_uri + '" alt="">' : '')
+      + '<div class="card-scrim"></div>'
+      + '<div class="reel-countdown-wrap"><div class="reel-rankbig">' + item.rank + '</div></div>'
+      + '<div class="card-body" style="position:absolute;bottom:0;left:0;right:0;">'
+      + '<div class="views-row"><span class="views-num">' + fmtViews(item.view_count) + '</span> <span class="views-label">VIEWS</span></div>'
+      + '<p class="card-title">' + escapeHtml(item.summary_ko || item.title) + '</p>'
+      + '<div class="card-source"><span class="platform-pill">YouTube Shorts</span><span>@' + escapeHtml(item.creator_name || '') + '</span></div>'
+      + '</div></div>'
+    )).join('')
+    + '<div class="reel-tapzone" onclick="reelNext()"></div>'
+    + '</div>';
+  state.reelIndex = 0;
+  runReelStep(DUR);
+}
+
+function runReelStep(dur) {
+  stopReelTimer();
+  const slides = document.querySelectorAll('.reel-slide');
+  const bars = document.querySelectorAll('.seg-fill');
+  slides.forEach((s, i) => s.classList.toggle('active', i === state.reelIndex));
+  bars.forEach((b, i) => {
+    b.classList.remove('run', 'done');
+    if (i < state.reelIndex) b.classList.add('done');
+    if (i === state.reelIndex && state.reelPlaying) { b.style.animationDuration = dur + 'ms'; b.classList.add('run'); }
+  });
+  if (state.reelPlaying) {
+    state.reelTimer = setTimeout(() => {
+      if (state.reelIndex < slides.length - 1) { state.reelIndex++; runReelStep(dur); }
+      else { state.reelPlaying = false; document.getElementById('play-pause').textContent = '▶'; }
+    }, dur);
+  }
+}
+
+function reelNext() {
+  const slides = document.querySelectorAll('.reel-slide');
+  if (!slides.length) return;
+  state.reelIndex = (state.reelIndex + 1) % slides.length;
+  runReelStep(1900);
+}
+
+function toggleReel() {
+  state.reelPlaying = !state.reelPlaying;
+  document.getElementById('play-pause').textContent = state.reelPlaying ? '⏸' : '▶';
+  if (state.reelPlaying) runReelStep(1900); else stopReelTimer();
+}
+
+function render() {
+  stopReelTimer();
+  if (state.format === 'carousel') renderCarousel(); else renderReel();
+}
+
+function setFormat(f) {
+  state.format = f;
+  document.getElementById('tab-carousel').setAttribute('aria-pressed', String(f === 'carousel'));
+  document.getElementById('tab-reel').setAttribute('aria-pressed', String(f === 'reel'));
+  render();
+}
+function setGenre(g) {
+  state.genre = g;
+  document.getElementById('genre-FUNNY').setAttribute('aria-pressed', String(g === 'FUNNY'));
+  document.getElementById('genre-TOUCHING').setAttribute('aria-pressed', String(g === 'TOUCHING'));
+  render();
+}
+
+render();
+</script>

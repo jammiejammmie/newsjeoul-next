@@ -1,0 +1,59 @@
+# 배치 위치 안내: 이 파일은 실제로는 저장소 루트의 .github/workflows/viral-radar-daily.yml 이어야
+# GitHub Actions가 인식한다. viral-radar/ 를 독립 모듈로 유지하려고 일단 모듈 폴더 안에 초안으로
+# 두었다 — 실행하려면 `git mv viral-radar/.github-workflow-viral-radar-daily.yml
+# .github/workflows/viral-radar-daily.yml` 로 옮기고, 아래 필요한 GitHub Secrets를 등록한 뒤
+# 커밋해야 한다(이 세션은 그 승인을 받지 않았으므로 옮기지 않았다 — §27 기존 파이프라인 보호,
+# §29 실제 자동화 활성화 전 승인 원칙).
+#
+# 필요한 GitHub Secrets (전부 선택 — 없어도 파이프라인은 죽지 않고 provider가 스스로 "비활성"을
+# 보고한다, §32 요구사항):
+#   ANTHROPIC_API_KEY      — 있으면 AI 자동분류, 없으면 needsManualClassification으로 표시만 되고
+#                             스크립트는 계속 진행됨(§classify.js)
+#   YOUTUBE_API_KEY        — 있으면 공식 Data API 사용(스크래핑보다 정확), 없으면 스크래핑 provider만 사용
+#   VIRAL_OUTLIERS_API_KEY / ENSEMBLEDATA_TOKEN / DOUYIN_PROVIDER_TOKEN — 각 유료 공급자 계약 후
+
+name: NEWSJEOUL Viral Radar — Daily Pipeline
+
+on:
+  workflow_dispatch: {}
+  schedule:
+    # 20:00 KST 마감(PRODUCT.md §5) → UTC 11:00. 수집 자체는 하루 여러 번이 이상적이지만
+    # (PRODUCT.md §13 "2~4시간마다"), 이 워크플로우는 현재 로컬 JSON DB를 매 실행마다 git에
+    # 커밋하는 방식이라(Supabase 서비스키 확보 전까지의 임시 구조) 너무 잦은 실행은 커밋 스팸이
+    # 된다. 우선 1일 1회로 시작하고, Supabase 전환 후 §13 주기로 늘린다.
+    - cron: '0 11 * * *'
+
+jobs:
+  daily:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run daily pipeline (collect → classify → rank)
+        working-directory: viral-radar
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+          VIRAL_OUTLIERS_API_KEY: ${{ secrets.VIRAL_OUTLIERS_API_KEY }}
+          ENSEMBLEDATA_TOKEN: ${{ secrets.ENSEMBLEDATA_TOKEN }}
+          DOUYIN_PROVIDER_TOKEN: ${{ secrets.DOUYIN_PROVIDER_TOKEN }}
+          DRY_RUN: 'true' # §29 — Instagram 실게시 코드가 아직 없어 이 값은 현재 아무 효과도 없지만, 발행 단계가 붙을 때를 대비해 항상 명시한다
+        run: node scripts/daily-pipeline.js
+
+      - name: Build Instagram prototype assets
+        working-directory: viral-radar
+        run: |
+          node scripts/prep-render-data.js || echo "썸네일 다운로드 일부 실패 — 파이프라인은 계속 진행(비치명적)"
+          node scripts/build-prototype.js
+
+      - name: Commit updated data (임시 — Supabase 전환 전까지의 저장 방식)
+        run: |
+          git config user.name "viral-radar-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add viral-radar/data viral-radar/render/carousel-reel-data.json viral-radar/render/carousel-reel-prototype.html
+          git diff --cached --quiet || git commit -m "chore(viral-radar): daily data $(date -u +%F)"
+          git push

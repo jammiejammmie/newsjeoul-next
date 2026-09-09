@@ -34,6 +34,12 @@ yarn-error.log*
 .env*
 # 템플릿은 값이 비어 있으므로 커밋한다 — 새 머신에서 무엇을 채워야 하는지가 저장소에 있어야 한다.
 !.env.local.example
+!viral-radar/.env.example
+
+# viral-radar: GitHub에서 clone한 제3자 OSS 평가용 사본(RESEARCH.md 참고) — 각자 로컬에서
+# README 안내대로 다시 clone한다. 일부는 AGPL 등 라이선스가 있어 벤더링하지 않고,
+# nested .git이 있어 서브모듈처럼 꼬이는 것도 방지한다.
+/viral-radar/research/oss-tools/
 
 # vercel
 .vercel
