@@ -124,8 +124,8 @@ export const lgGram2026: HubConfig = {
   affiliate: {
     allowed: true,
     slots: [
-      { slot: 'gram26-body', label: 'LG 그램 2026', network: 'coupang', kind: 'device', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=9286800681&itemId=27500556744&vendorItemId=94558687966&traceid=V0-153-30ea8e65837bffba&clickBeacon=ef1cae90-a643-11f1-a777-e488d17fd39e%7E3&requestid=20260902053012902273492300&token=31850C%7CMIXED' },
-      { slot: 'gram26-hub', label: 'USB-C 멀티허브', network: 'coupang', kind: 'accessory', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=8717769363&itemId=25321005277&vendorItemId=82386732554&traceid=V0-153-95e924198631f388&clickBeacon=cc0a3930-ae1e-11f1-b6e7-761341efcf1d%7E3&requestid=20260912052431957319282495&token=31850C%7CMIXED&pt=1&slot=1' },
+      { slot: 'gram26-body', label: 'LG 그램 2026', network: 'coupang', kind: 'device', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=9587163832&itemId=28618637847&vendorItemId=95561904122&traceid=V0-153-6304b732f5efc10a&clickBeacon=e36ec300-b082-11f1-bde8-80258da2e750%7E3&requestid=20260915062603239211742955&token=31850C%7CMIXED&pt=1&slot=2' },
+      { slot: 'gram26-hub', label: 'USB-C 멀티허브', network: 'coupang', kind: 'accessory', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=9310204855&itemId=27586665214&vendorItemId=94550237282&traceid=V0-153-f75d368fcd0fef2a&clickBeacon=e3f4bbe0-b082-11f1-90b9-e59e6192f741%7E3&requestid=20260915062604125120161303&token=31850C%7CMIXED&pt=1&slot=1' },
       { slot: 'gram26-skin', label: '그램 키스킨', network: 'coupang', kind: 'accessory', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=9338585641&itemId=27671067574&vendorItemId=94633223776&traceid=V0-153-2f490e9e2844347b&clickBeacon=89a0b4f0-98d6-11f1-9807-b620df69b785%7E3&requestid=20260816032422395171166290&token=31850C%7CMIXED' },
     ],
   },
@@ -146,7 +146,7 @@ export const lgGram2026: HubConfig = {
 
   schema: {
     brand: 'LG',
-    price: 2699000,
+    price: 2450000,
     currency: 'KRW',
   },
 }
