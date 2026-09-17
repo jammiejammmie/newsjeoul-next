@@ -218,7 +218,7 @@ export const galaxyZFold8: HubConfig = {
 
   schema: {
     brand: 'Samsung',
-    price: 2303300,
+    price: 2379200,
     currency: 'KRW',
     releaseDate: '2026-08-07',
   },

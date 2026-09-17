@@ -136,7 +136,7 @@ export const galaxyZFlip8: HubConfig = {
     allowed: true,
     slots: [
       { slot: 'flip8-body', label: '갤럭시 Z 플립8 자급제', network: 'coupang', kind: 'device', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=9640170465&itemId=28803753685&vendorItemId=95739034399&traceid=V0-153-4c2c221c4459f682&requestid=20260810170215842083220599&token=31850C%7CGM' },
-      { slot: 'flip8-case', label: '플립8 전용 케이스', network: 'coupang', kind: 'accessory', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=8205117683&itemId=28878286619&vendorItemId=95811334524&traceid=V0-153-0dc0f06fda257034&clickBeacon=13d72fe0-b147-11f1-8da4-865ea604fa1b%7E3&requestid=20260916055025730169086510&token=31850C%7CMIXED&pt=1&slot=5' },
+      { slot: 'flip8-case', label: '플립8 전용 케이스', network: 'coupang', kind: 'accessory', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=9653233439&itemId=28853983263&vendorItemId=95787718723&traceid=V0-153-f7f4d1137d65f93e&clickBeacon=1cc08630-b2da-11f1-add4-62e1350405e8%7E3&requestid=20260918055527884228137358&token=31850C%7CMIXED&pt=1&slot=1' },
       { slot: 'flip8-film', label: '플립8 보호필름', network: 'coupang', kind: 'accessory', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=8309398022&itemId=28729874242&vendorItemId=95670021908&traceid=V0-153-864ded0bb2d85844&requestid=20260912052425250101986270&token=31850C%7CMIXED&pt=0&slot=9' },
     ],
   },
