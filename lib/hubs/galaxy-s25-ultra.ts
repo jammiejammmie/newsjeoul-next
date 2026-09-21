@@ -119,8 +119,8 @@ export const galaxyS25Ultra: HubConfig = {
   affiliate: {
     allowed: true,
     slots: [
-      { slot: 's25u-body', label: 'S25 울트라 자급제', network: 'coupang', kind: 'device', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=9707464240&itemId=29042725148&vendorItemId=95969799361&traceid=V0-153-398a3aeb4327fb07&requestid=20260914051622098161562193&token=31850C%7CMIXED&pt=0&slot=6' },
-      { slot: 's25u-spen', label: 'S25 울트라 호환 S펜', network: 'coupang', kind: 'accessory', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=8591417691&itemId=24910467565&vendorItemId=92055522289&traceid=V0-153-461e2dc210908a0b&clickBeacon=7d1ddad0-ad55-11f1-a19e-fe675abee212%7E3&requestid=20260911052330716211414831&token=31850C%7CMIXED&pt=1&slot=1' },
+      { slot: 's25u-body', label: 'S25 울트라 자급제', network: 'coupang', kind: 'device', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=9187805942&itemId=27106552110&vendorItemId=95985067873&traceid=V0-153-ac00f0153f24ef6d&requestid=20260922064142549313518502&token=31850C%7CMIXED&pt=0&slot=5' },
+      { slot: 's25u-spen', label: 'S25 울트라 호환 S펜', network: 'coupang', kind: 'accessory', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=9317727393&itemId=27613870305&vendorItemId=94576973977&traceid=V0-153-bf480e720e205163&clickBeacon=3cafc540-b605-11f1-9af8-099a5326cd1c%7E3&requestid=20260922064143323222646079&token=31850C%7CMIXED&pt=1&slot=4' },
       { slot: 's25u-film', label: 'S25 울트라 보호필름', network: 'coupang', kind: 'accessory', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=8709735623&itemId=25295825491&vendorItemId=92291143984&traceid=V0-153-4a7d2f9433f8df88&clickBeacon=b2afbb90-94ec-11f1-a87b-269eee1ffae1%7E3&requestid=20260811035255499073372513&token=31850C%7CMIXED' },
     ],
   },
@@ -143,7 +143,7 @@ export const galaxyS25Ultra: HubConfig = {
 
   schema: {
     brand: 'Samsung',
-    price: 1140850,
+    price: 989000,
     currency: 'KRW',
   },
 }

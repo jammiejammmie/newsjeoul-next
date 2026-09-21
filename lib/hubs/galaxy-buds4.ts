@@ -132,7 +132,7 @@ export const galaxyBuds4: HubConfig = {
     allowed: true,
     slots: [
       { slot: 'buds4-body', label: '갤럭시 버즈4', network: 'coupang', kind: 'device', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=9309807813&itemId=27585107825&vendorItemId=94548723294&traceid=V0-153-2e7cd668ebe88b03&requestid=20260810170229466062620058&token=31850C%7CGM' },
-      { slot: 'buds4-case', label: '버즈4 케이스', network: 'coupang', kind: 'accessory', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=8141214014&itemId=27614948323&vendorItemId=95769028087&traceid=V0-153-9e19acc9681f1976&clickBeacon=0f71d080-9749-11f1-be88-d189b0db0fd2%7E3&requestid=20260814035907177150758235&token=31850C%7CMIXED' },
+      { slot: 'buds4-case', label: '버즈4 케이스', network: 'coupang', kind: 'accessory', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=8141214014&itemId=27614948320&vendorItemId=94578018115&traceid=V0-153-9e19acc9681f1976&clickBeacon=429f3da0-b605-11f1-b575-0aa8ab57c21c%7E3&requestid=20260922064153293108693221&token=31850C%7CMIXED&pt=1&slot=1' },
       { slot: 'buds4-tips', label: '버즈4 이어팁', network: 'coupang', kind: 'accessory', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=9409824061&itemId=27958528997&vendorItemId=91427461138&traceid=V0-153-430ea1b89d1e19d7&requestid=20260905051425383123371119&token=31850C%7CMIXED&pt=0&slot=2' },
     ],
   },
@@ -154,7 +154,7 @@ export const galaxyBuds4: HubConfig = {
 
   schema: {
     brand: 'Samsung',
-    price: 229840,
+    price: 233100,
     currency: 'KRW',
   },
 }
