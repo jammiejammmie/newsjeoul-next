@@ -116,7 +116,7 @@ export const galaxyBook5Pro: HubConfig = {
   affiliate: {
     allowed: true,
     slots: [
-      { slot: 'book5-body', label: '갤럭시북5 프로', network: 'coupang', kind: 'device', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=8524610232&itemId=24680912476&vendorItemId=93725434663&traceid=V0-153-59873d5649e2e5c4&clickBeacon=3ddf4490-b605-11f1-b6c5-9166c47abcb1%7E3&requestid=20260922064145322235418741&token=31850C%7CMIXED&pt=1&slot=1' },
+      { slot: 'book5-body', label: '갤럭시북5 프로', network: 'coupang', kind: 'device', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=8524610232&itemId=24680912478&vendorItemId=93725434664&traceid=V0-153-59873d5649e2e5c4&requestid=20260926060356766172563934&token=31850C%7CGM&pt=0&slot=2' },
       { slot: 'book5-hub', label: 'USB-C 멀티허브', network: 'coupang', kind: 'accessory', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=8223019655&itemId=23640678087&vendorItemId=90680537967&traceid=V0-153-fdac903e3a3e117f&clickBeacon=eddf8f00-a7d5-11f1-92be-627069561053%7E3&requestid=20260904052748522101950501&token=31850C%7CMIXED&pt=1&slot=1' },
       { slot: 'book5-pouch', label: '노트북 파우치', network: 'coupang', kind: 'accessory', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=8700463499&itemId=25264874689&vendorItemId=92260713015&traceid=V0-153-136b42e21c46f041&clickBeacon=5d865d70-b6c7-11f1-82dd-e83de8cb92a9%7E3&requestid=20260923055120840289285469&token=31850C%7CMIXED&pt=1&slot=1' },
     ],
@@ -139,7 +139,7 @@ export const galaxyBook5Pro: HubConfig = {
 
   schema: {
     brand: 'Samsung',
-    price: 2599000,
+    price: 2299000,
     currency: 'KRW',
   },
 }
