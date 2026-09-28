@@ -119,8 +119,8 @@ export const galaxyS25Ultra: HubConfig = {
   affiliate: {
     allowed: true,
     slots: [
-      { slot: 's25u-body', label: 'S25 울트라 자급제', network: 'coupang', kind: 'device', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=9430476712&itemId=28038327289&vendorItemId=96032560927&traceid=V0-153-3a0201b18f91bace&clickBeacon=04adc520-bab5-11f1-acae-66992d552960%7E3&requestid=20260928055005479194517232&token=31850C%7CMIXED&pt=1&slot=1' },
-      { slot: 's25u-spen', label: 'S25 울트라 호환 S펜', network: 'coupang', kind: 'accessory', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=8631414198&itemId=25627538588&vendorItemId=92617743318&traceid=V0-153-9062c1d63e591488&clickBeacon=0db27100-b9ea-11f1-bf29-59390a36c481%7E3&requestid=20260927053712768172567430&token=31850C%7CMIXED&pt=1&slot=2' },
+      { slot: 's25u-body', label: 'S25 울트라 자급제', network: 'coupang', kind: 'device', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=9187805942&itemId=27106552110&vendorItemId=95985067873&traceid=V0-153-ac00f0153f24ef6d&requestid=20260929075443196127707689&token=31850C%7CMIXED&pt=0&slot=5' },
+      { slot: 's25u-spen', label: 'S25 울트라 호환 S펜', network: 'coupang', kind: 'accessory', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=9317727393&itemId=27613870305&vendorItemId=94576973977&traceid=V0-153-bf480e720e205163&clickBeacon=989e3aa0-bb8f-11f1-a0b8-3032f2a14ddd%7E3&requestid=20260929075443925221520474&token=31850C%7CMIXED&pt=1&slot=2' },
       { slot: 's25u-film', label: 'S25 울트라 보호필름', network: 'coupang', kind: 'accessory', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=8709735623&itemId=25295825491&vendorItemId=92291143984&traceid=V0-153-4a7d2f9433f8df88&clickBeacon=b2afbb90-94ec-11f1-a87b-269eee1ffae1%7E3&requestid=20260811035255499073372513&token=31850C%7CMIXED' },
     ],
   },
@@ -143,7 +143,7 @@ export const galaxyS25Ultra: HubConfig = {
 
   schema: {
     brand: 'Samsung',
-    price: 986800,
+    price: 959000,
     currency: 'KRW',
   },
 }
