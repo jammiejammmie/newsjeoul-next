@@ -130,9 +130,9 @@ export const robotVacuum2026: HubConfig = {
   affiliate: {
     allowed: true,
     slots: [
-      { slot: 'rv26-roborock', label: '로보락 S10 MaxV Slim', network: 'coupang', kind: 'device', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=8591381045&itemId=24910353380&vendorItemId=91916784946&traceid=V0-153-31553e9c97639aca&requestid=20260901072409529323937867&token=31850C%7CMIXED' },
-      { slot: 'rv26-dreame', label: '드리미 매트릭스10 울트라', network: 'coupang', kind: 'device', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=9194703078&itemId=27138592690&vendorItemId=95665090922&traceid=V0-153-3380ad30841d8318&clickBeacon=7ae06030-c5ba-11f1-bb7e-0d30d53c3a8f%7E3&requestid=20261012062654065180471735&token=31850C%7CMIXED&pt=1&slot=1' },
-      { slot: 'rv26-parts', label: '로봇청소기 소모품', network: 'coupang', kind: 'accessory', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=9720256782&itemId=29088638820&vendorItemId=93082214737&traceid=V0-153-0bdf946b882fe8d0&requestid=20261004053418788198029793&token=31850C%7CGM&pt=0&slot=1' },
+      { slot: 'rv26-roborock', label: '로보락 S10 MaxV Slim', network: 'coupang', kind: 'device', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=9360875400&itemId=27775039726&vendorItemId=94735440608&traceid=V0-153-0e576ee32b6beae5&requestid=20261013090633210123081959&token=31850C%7CMIXED&pt=0&slot=1' },
+      { slot: 'rv26-dreame', label: '드리미 매트릭스10 울트라', network: 'coupang', kind: 'device', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=9765446325&itemId=29227517942&vendorItemId=96117162391&traceid=V0-153-ab7a9f6be39f7a53&requestid=20261013090633840135792007&token=31850C%7CGM&pt=0&slot=4' },
+      { slot: 'rv26-parts', label: '로봇청소기 소모품', network: 'coupang', kind: 'accessory', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=8723585824&itemId=25341441325&vendorItemId=92095944602&traceid=V0-153-e84e3cb73ed565c8&clickBeacon=f3bcab00-c699-11f1-8a5f-5fae3b32d138%7E3&requestid=20261013090634609079245264&token=31850C%7CMIXED&pt=1&slot=1' },
     ],
   },
 
@@ -151,7 +151,7 @@ export const robotVacuum2026: HubConfig = {
   tags: ['로봇청소기추천', '로보락', '드리미', '물걸레로봇청소기', '클린스테이션', '소모품'],
 
   schema: {
-    price: 1360000,
+    price: 1490000,
     currency: 'KRW',
   },
 }
