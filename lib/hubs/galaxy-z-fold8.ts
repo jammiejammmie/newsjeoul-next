@@ -189,9 +189,9 @@ export const galaxyZFold8: HubConfig = {
     allowed: true,
     slots: [
       { slot: 'fold8-body', label: '갤럭시 Z 폴드8 자급제', network: 'coupang', kind: 'device', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=9640170508&itemId=28803754028&vendorItemId=95739034494&traceid=V0-153-cc91bad335e9984e&requestid=20261011060703658119627464&token=31850C%7CGM&pt=0&slot=1' },
-      { slot: 'fold8-case', label: '폴드8 힌지보호 케이스', network: 'coupang', kind: 'accessory', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=9769720750&itemId=29242456307&vendorItemId=96160909616&traceid=V0-153-68768d3119ee8da0&requestid=20261022061305368185529349&token=31850C%7CMIXED&pt=0&slot=6' },
+      { slot: 'fold8-case', label: '폴드8 힌지보호 케이스', network: 'coupang', kind: 'accessory', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=9769720750&itemId=29242456307&vendorItemId=96160909615&traceid=V0-153-68768d3119ee8da0&requestid=20261024055645131289863799&token=31850C%7CMIXED&pt=0&slot=6' },
       { slot: 'fold8-charger', label: '45W 고속 충전기', network: 'coupang', kind: 'accessory', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=9737724080&itemId=29143045740&vendorItemId=96066519972&traceid=V0-153-35023b27e5c92ef3&requestid=20260930064911866098850320&token=31850C%7CMIXED&pt=0&slot=6' },
-      { slot: 'fold8-film', label: '폴드8 보호필름', network: 'coupang', kind: 'accessory', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=8763687766&itemId=28730151646&vendorItemId=95670276177&traceid=V0-153-35ee0177a5161e04&clickBeacon=36170c10-cd94-11f1-b6f1-58f4b8564df8%7E3&requestid=20261022061307027250165380&token=31850C%7CMIXED&pt=1&slot=3' },
+      { slot: 'fold8-film', label: '폴드8 보호필름', network: 'coupang', kind: 'accessory', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=8437443158&itemId=28729914219&vendorItemId=95670059135&traceid=V0-153-4864cae5df0207a0&clickBeacon=4293f0c0-cf24-11f1-aca0-493c1aaafa0e%7E3&requestid=20261024055646684026020009&token=31850C%7CMIXED&pt=1&slot=3' },
     ],
   },
 
