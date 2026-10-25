@@ -25,12 +25,12 @@ export default function AffiliatePanel({ placement, fallback = [], title = '쿠�
       {placement?.context && <p className="affiliate-context">{placement.context}</p>}
       <div className="affiliate-products">
         {slots.map(slot => {
-          const product=affiliateProduct(slot), image=productImage(product), [eyebrow,reason]=productPrompt(slot.slot)
+          const product=affiliateProduct(slot), image=productImage(product), [eyebrow,reason,cta]=productPrompt(slot.slot)
           return (
           <a key={slot.slot} href={`/go/${slot.slot}`} rel="sponsored nofollow noopener noreferrer" target="_blank" className="affiliate-product">
             {image && <div className="affiliate-product-photo"><Image src={image} alt={product?.name || slot.label} width={400} height={400} unoptimized loading="lazy" referrerPolicy="no-referrer" /></div>}
             <span className="affiliate-product-copy"><span className="affiliate-product-eyebrow">{eyebrow}</span><span className="affiliate-product-name">{product?.name || slot.label}</span><span className="affiliate-product-reason">{reason}</span></span>
-            <span className="affiliate-cta">현재 가격과 구성 확인 <span aria-hidden="true">↗</span></span>
+            <span className="affiliate-cta">{cta} <span aria-hidden="true">↗</span></span>
           </a>
         )})}
       </div>
