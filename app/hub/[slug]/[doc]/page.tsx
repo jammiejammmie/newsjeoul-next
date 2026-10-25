@@ -1,3 +1,4 @@
+import ArticleVisual, { ArticleDecisionVisual } from '@/components/editorial/ArticleVisual'
 import AffiliatePanel from '@/components/editorial/AffiliatePanel'
 import AffiliateFrame from '@/components/editorial/AffiliateFrame'
 import ArticleText from '@/components/editorial/ArticleText'
@@ -176,6 +177,7 @@ export default async function HubDocPage(
           {' · '}{new Date(document.updatedAt).toLocaleDateString('ko-KR')} 갱신
         </div>
 
+        <ArticleVisual path={`/hub/${slug}/${document.slug}`} />
         <article style={{ display: 'flex', flexDirection: 'column', gap: 26 }}>
           {bodyBlocks.map((b, i) => (
             <section key={i}>
@@ -199,6 +201,7 @@ export default async function HubDocPage(
                   <p key={j} style={{ margin: '0 0 11px', font: '500 14.5px/1.8 Pretendard', color: 'var(--body)' }}><ArticleText text={para} /></p>
                 )
               })}
+              {i === 2 && <ArticleDecisionVisual path={`/hub/${slug}/${document.slug}`} />}
               {i === 1 && bodyBlocks.length >= 4 && <AffiliatePanel placement={searchEntryPlacement(`/hub/${slug}/${document.slug}`)} fallback={affiliateSlots} title="관련 상품 가격·옵션 비교" position="middle" />}
             </section>
           ))}

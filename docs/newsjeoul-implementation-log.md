@@ -163,3 +163,12 @@ DEC-014 로컬 최종 검증: 17편 모두 Chromium에서 제목·canonical·광
 - 상세는 1280px, 홈은 1600px 이상에서만 양옆 표시. 320/375/1440/1920px 화면에서 본문 겹침·가로 넘침 검사 및 홈/상세 이미지 육안 확인. 외부 Google 폰트 요청만 로컬 QA에서 차단하고 자체 폰트 사용.
 - 기존 제휴 레지스트리 AF3904190, sponsored/nofollow, 링크 앞 수수료 고지 유지. 품절·최저가 등 미확인 주장이나 외부 광고 SDK 추가 없음.
 - production build, 원고/검색/제휴 회귀 검증 통과. 로컬에 운영 DB가 없어 정책 문서 URL 화면검사는 제외하고 기존 정책 고지는 컴포넌트 테스트로 확인. 운영 배포 후 홈/상세 공개 응답 확인 예정.
+
+## DEC-016 — Deployed / Verified (2026-10-26)
+PR #4 병합 6bd09220423f6dadf7f240f7649947c6c3cd2369. Netlify 6ade6f2c8dd6d6ae01967e5c Published 확인. 공개 홈의 left/home-top/home-bottom/right, 그램 RAM 글의 left/middle/bottom/right 배치 확인.
+
+## DEC-017 — Implemented (2026-10-26)
+그림 4종을 11개 URL에 명시 매핑. 홈 대표 이미지·썸네일과 본문 대표 이미지, 4개 글의 판단 카드 구현. 출처/제작 경위는 docs/editorial-visual-benchmark-20261026.md. 배포 검증은 후속 기록.
+
+## DEC-017 — Local verification (2026-10-26)
+Production build PASS. Playwright: 320/375/1440/1920px × 홈·그램·로보락·버즈·폴드 5경로, 이미지 로딩·본문 판단 카드·오버플로 없음·광고 위치/rel·페이지 JS 오류 없음 PASS. 375px 본문과 1920px 홈 스크린샷 육안 검수. WebP 4개 합계 약 224KB. 승인된 기존 GitHub→Netlify 배포 진행.
