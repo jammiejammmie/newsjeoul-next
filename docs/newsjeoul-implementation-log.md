@@ -205,3 +205,8 @@ Latest user instruction adopted in docs/subscription-editorial.md v2.3 and exist
 ## 2026-10-26 08시 — USB-C 허브 선택 기존 URL 개선
 기존 `/hub/galaxy-book5-pro/buying-ak231s` 제목·slug·canonical·허브 연결 유지. 단순 포트 수에서 영상/충전/데이터 역할, 공식 Anker 특정 모델의 100W 입력과 85W 전달 예시, 분리 진단, 총비용, 구매 불필요 조건까지 보강. 별도 광고 모델과 예시 모델 구분. 자체 SVG 설명도 2장(600×880, 모바일 본문 글자 크기 고려), alt/caption/dimensions/lazy 적용. 새 이미지 컴포넌트는 해당 URL의 1·2번 문단 뒤만 적용. 기존 제휴 URL/AF3904190 보존. 실제 광고 목적지는 열지 않음. 신규 마우스 링크 미확보.
 원고·검색·사이트맵 회귀 검사와 제휴 검사 PASS. 기존 제휴 테스트 로더 JSON default 처리 누락을 수정해 실제 스냅샷으로 검사. TypeScript 및 production build PASS. 로컬 Chromium 설치 다운로드 손상으로 모바일 브라우저 검수 미완료. 공개 확인은 후속 기록. 조사 및 Search Advisor 집계 범위: research-20261026-0803.json. SNS/소라/유료 API 작업 없음.
+
+
+### USB-C 허브 — Deployed / 공개 검증 및 후속 보완
+PR #8, master f138bb3e40036527499d576cb64220c0ff9d8e60. Netlify 6ade8c0ce3c423f4f5a9a909 Published(36초) 확인. 공개 브라우저에서 7개 섹션·도식 2개·내부링크·광고 고지 확인. 공개 검수에서 /go 문법이 평문으로 남는 문제와 한국 날짜가 서버 UTC로 표시되는 문제를 발견해 등록 슬롯에 한정한 본문 제휴 링크/rel과 Asia/Seoul 날짜 보완. 모바일 실기 렌더는 아직 미확인.
+사용자 후속 지시 “네이보쇼핑커넥터에도 써보게”에 따라 테크쉽Get 쇼핑 커넥트 로그인과 상품 찾기 확인. 벨킨 공식몰 AVC009 7in1 USB-C 허브의 정식 링크 https://naver.me/FVF5vHqI 발급 완료(발급 완료 UI/클립보드 확인). 당시 표시 수수료 5%, 가격 49,900원은 관측값이며 변경 가능. 블로그/클립 게시·쿠팡 교체·외부 사이트 사용 가능 정책 확인은 아직 안 함. 정산/지급 정보 미등록 안내 관측, 입력/약관 동의/결제 없음. 이 링크는 현재 뉴스저울 웹에 삽입하지 않음.

@@ -180,7 +180,7 @@ export default async function HubDocPage(
         {/* 자동 생성물임을 숨기지 않는다. 독자가 어느 정도로 신뢰할지 스스로 판단할 근거를 준다. */}
         <div style={{ font: '500 11.5px/1.6 Pretendard', color: 'var(--mute)', margin: '0 0 22px', paddingBottom: 14, borderBottom: '1px solid var(--line)' }}>
           {document.generatedBy === 'ai-source-checked' ? 'AI 작성 · 공식 자료 대조' : document.generatedBy === 'ai' ? 'AI 편집국 자동 작성' : `${hub.editor.name} 에디터`}
-          {' · '}{new Date(document.updatedAt).toLocaleDateString('ko-KR')} 갱신
+          {' · '}{new Date(document.updatedAt).toLocaleDateString('ko-KR', {timeZone:'Asia/Seoul'})} 갱신
         </div>
 
         {choices && <QuickChoice guide={choices} />}
