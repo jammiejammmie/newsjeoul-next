@@ -193,3 +193,10 @@ Netlify 6ade775afc9fba3129c138db, master 58dda4d Published 확인. 공개 https:
 
 ## DEC-020 — Implemented (2026-10-26)
 QuickChoice 서버 컴포넌트와 8개 URL의 조건별 선택 데이터 추가. 상단은 선택 이유/감수할 점/행동, 하단은 최종 요약으로 구성. 상품 사진 중복 추가 없음. 플립 비교 글에 기존 폴드 슬롯을 함께 연결. 그램 16형↔14형, Slim↔Ultra, Matrix10↔L30s Plus를 상단과 중간·측면 광고에서 구분. Matrix10 원고의 잘못된 링크 설명 수정. 기존 URL·canonical·추적 태그·공식 출처 보존. 로보락/Dreame 공식 페이지 재확인. 직접 시험/최저가/추천 순위/수익 주장은 추가하지 않음.
+
+
+### DEC-020 Verified / Published
+
+PR #7 merged as 455c0c146df041e9af1a78aea0c556817a9491b6. Production build passed. Local production browser QA: eight routes at 375px and 1440px, HTTP200, choices, affiliate disclosure/rel, model distinction, no horizontal overflow or JS errors. Both layout screenshots inspected. Live newsjeoul.co.kr returned HTTP200 with 30초 빠른 선택, partner disclosure and canonical URL on all eight mapped routes. Existing URL and AF3904190 destinations preserved. No affiliate self-click or paid API use. This is a comparison/navigation enhancement, not a claim that all eight articles have been fully rewritten or that revenue improved.
+
+Latest user instruction adopted in docs/subscription-editorial.md v2.3 and existing web editorial automation 6ade5e6d09448191bc46f3d08aff4407: each article must solve a concrete reader problem in one place by independently verifying and connecting scattered facts, conditions, costs, exceptions and next actions. Avoid moving essential answers behind internal links; do not invent novelty. Existing automation schedule and paused social channels unchanged.
