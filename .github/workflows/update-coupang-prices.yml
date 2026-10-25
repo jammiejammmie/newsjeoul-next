@@ -17,6 +17,9 @@ name: 쿠팡 제휴 슬롯 가격 갱신 (매일 03:00 KST)
 on:
   schedule:
     - cron: '0 18 * * *' # 18:00 UTC = 03:00 KST
+  push:
+    branches: [master]
+    paths: ['scripts/update-coupang-slots.js']
   workflow_dispatch:
 
 # push 권한이 필요하다(변동분 커밋).
@@ -44,7 +47,11 @@ jobs:
           COUPANG_SECRET_KEY: ${{ secrets.COUPANG_SECRET_KEY }}
         run: |
           set -o pipefail
-          node scripts/update-coupang-slots.js 2>&1 | tee run.log
+          if [ "${{ github.event_name }}" = "push" ]; then
+            node scripts/update-coupang-slots.js --media-only 2>&1 | tee run.log
+          else
+            node scripts/update-coupang-slots.js 2>&1 | tee run.log
+          fi
           # 요약을 잡 요약 페이지에 남긴다 — 무엇이 왜 바뀌었는지 나중에 추적할 수 있게.
           {
             echo '### 쿠팡 슬롯 갱신 결과'

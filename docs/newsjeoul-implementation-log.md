@@ -176,3 +176,6 @@ Production build PASS. Playwright: 320/375/1440/1920px × 홈·그램·로보락
 
 ## DEC-017 — Deployed / Verified (2026-10-26)
 PR #5 merge 3b4f3806324e1caae26c7c1ed8a41fa1eef0328b. Netlify production 6ade726128ddadf77cfe246c reported Site is live. Public HTTP checks: all 11 mapped article URLs returned 200 and article-visual markup. Public browser home confirmed 29 guides, new image thumbnails and affiliate panels. Existing URLs unchanged. Production build and responsive local image-loading QA passed.
+
+## DEC-018 — Implemented (2026-10-26)
+홈 대표 그림을 포함한 동일 일러스트 중복 제거. 같은 상품을 좌우에 반복하던 배치 제거. 상품명은 링크 식별키와 일치하는 쿠팡 스냅샷 기준. 실제 API 상품 이미지/확인 시각을 보존하도록 기존 갱신 경로 보완; push 실행에서는 기존 상품 URL 교체 금지. 사진·선택 포인트·CTA 카드 구현, 미확인 가격/할인/재고 수치 표시하지 않음. Production build PASS. 실제 API 이미지 수집·공개 렌더 확인은 배포 후 별도 기록.

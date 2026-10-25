@@ -1,3 +1,5 @@
+import Image from 'next/image'
+import { affiliateProduct, productImage, productPrompt } from '@/lib/affiliate-products'
 import { findAffiliateSlot } from '@/lib/hubs'
 import type { HubAffiliateSlot } from '@/lib/hubs'
 import type { AffiliatePlacement } from '@/lib/affiliate-placements'
@@ -22,12 +24,15 @@ export default function AffiliatePanel({ placement, fallback = [], title = '쿠�
       <p className="affiliate-disclosure">이 포스팅은 쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다.</p>
       {placement?.context && <p className="affiliate-context">{placement.context}</p>}
       <div className="affiliate-products">
-        {slots.map(slot => (
+        {slots.map(slot => {
+          const product=affiliateProduct(slot), image=productImage(product), [eyebrow,reason]=productPrompt(slot.slot)
+          return (
           <a key={slot.slot} href={`/go/${slot.slot}`} rel="sponsored nofollow noopener noreferrer" target="_blank" className="affiliate-product">
-            <span className="affiliate-product-name">{slot.label}</span>
-            <span className="affiliate-cta">쿠팡 가격·옵션 보기 <span aria-hidden="true">↗</span></span>
+            {image && <div className="affiliate-product-photo"><Image src={image} alt={product?.name || slot.label} width={400} height={400} unoptimized loading="lazy" referrerPolicy="no-referrer" /></div>}
+            <span className="affiliate-product-copy"><span className="affiliate-product-eyebrow">{eyebrow}</span><span className="affiliate-product-name">{product?.name || slot.label}</span><span className="affiliate-product-reason">{reason}</span></span>
+            <span className="affiliate-cta">현재 가격과 구성 확인 <span aria-hidden="true">↗</span></span>
           </a>
-        ))}
+        )})}
       </div>
     </aside>
   )
