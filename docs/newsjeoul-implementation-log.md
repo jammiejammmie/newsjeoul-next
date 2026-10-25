@@ -183,3 +183,7 @@ PR #5 merge 3b4f3806324e1caae26c7c1ed8a41fa1eef0328b. Netlify production 6ade726
 
 ## DEC-018 — Deployed / Verified (2026-10-26)
 PR #6 merged (7cf538f). Official Coupang API image refresh run 40235869443 succeeded: 20 exact-matched slots now preserve product images. API images use ads-partners.coupang.com/image1; allowlist corrected without changing affiliate targets. Snapshot 88d9d7a deployed; Netlify 6ade753b2c5e1eeeae4118bf Published confirmed. Public home browser confirmed top three product photos loaded with exact product names, selection text and CTA. Editorial image sources on home are buds/robot/fold/gram, each once. Production build PASS; earlier 320/375/1440/1920 responsive layout QA PASS. Additional local external-photo decode check did not complete (EncodingError); public browser verified actual top photos loaded, not claimed as full external-image QA. No paid AI API, affiliate destination clicks, purchases or connection changes.
+
+
+## DEC-019 — Implemented (2026-10-26)
+상품별 질문·확인 이유·전용 CTA 적용. 기존 사진·상품 식별키·제휴 링크·수수료 고지 유지. Production build 및 git diff --check PASS. 배포 코드 commit 58dda4d2f316f382f3ce1009bd321c3d43674f7f. 기존 자동화 6ade5e6d09448191bc46f3d08aff4407에 포털/뉴스/제조사/Reddit 탐색, 시점별 근거 기록, 공식 검증, 롱테일 신규 글/기존 글 최신화, 제휴 카드와 배포 절차를 추가. 기존 Asia/Seoul 08/13/19 일정과 활성 상태 유지. SNS/소라 중단 유지.
