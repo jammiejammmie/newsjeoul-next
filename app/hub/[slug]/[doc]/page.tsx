@@ -1,4 +1,5 @@
 import AffiliatePanel from '@/components/editorial/AffiliatePanel'
+import AffiliateFrame from '@/components/editorial/AffiliateFrame'
 import ArticleText from '@/components/editorial/ArticleText'
 import { searchEntryPlacement } from '@/lib/affiliate-placements'
 import SourceNote from '@/components/editorial/SourceNote'
@@ -153,6 +154,7 @@ export default async function HubDocPage(
     <div className="nj-hub">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }} />
 
+      <AffiliateFrame placement={searchEntryPlacement(`/hub/${slug}/${document.slug}`)} fallback={affiliateSlots}>
       <div style={{ maxWidth: 780, margin: '0 auto', padding: '26px 32px 80px' }}>
         <nav style={{ font: '500 11.5px/1.5 Pretendard', color: 'var(--mute)', marginBottom: 14 }}>
           <Link href="/">홈</Link> <span style={{ opacity: .5 }}>›</span>{' '}
@@ -197,6 +199,7 @@ export default async function HubDocPage(
                   <p key={j} style={{ margin: '0 0 11px', font: '500 14.5px/1.8 Pretendard', color: 'var(--body)' }}><ArticleText text={para} /></p>
                 )
               })}
+              {i === 1 && bodyBlocks.length >= 4 && <AffiliatePanel placement={searchEntryPlacement(`/hub/${slug}/${document.slug}`)} fallback={affiliateSlots} title="관련 상품 가격·옵션 비교" position="middle" />}
             </section>
           ))}
         </article>
@@ -253,6 +256,7 @@ export default async function HubDocPage(
           </section>
         )}
       </div>
+      </AffiliateFrame>
     </div>
   )
 }

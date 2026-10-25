@@ -11,7 +11,7 @@ function load(file) {
  if(cache.has(file))return cache.get(file)
  const exports={};cache.set(file,exports)
  const code=ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020,jsx:ts.JsxEmit.ReactJSX}}).outputText
- vm.runInNewContext(code,{exports,process,require:id=>id.startsWith('@/')?load(id.slice(2)):id.startsWith('.')?load(path.resolve(path.dirname(file),id)):require(id)},{filename:file})
+ vm.runInNewContext(code,{exports,process,require:id=>id.endsWith('.css')?{}:id.startsWith('@/')?load(id.slice(2)):id.startsWith('.')?load(path.resolve(path.dirname(file),id)):require(id)},{filename:file})
  return exports
 }
 const {searchEntryPlacement}=load('lib/affiliate-placements.ts')

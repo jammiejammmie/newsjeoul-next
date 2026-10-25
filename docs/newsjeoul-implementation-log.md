@@ -156,3 +156,10 @@ DEC-014 로컬 최종 검증: 17편 모두 Chromium에서 제목·canonical·광
 - Netlify 운영 deploy 6ade6d3385e55c7f2fdfe8e3 Published 및 전체 단계 Complete 확인. https://app.netlify.com/projects/jazzy-truffle-7b8784/deploys/6ade6d3385e55c7f2fdfe8e3
 - hot-electronics-20261026.json의 8개 공개 URL 전부 HTTP 200, 작성 제목 일치, canonical, 등록 제휴 링크 및 수수료 고지, 본문 내부링크 각 3개 확인. 신규 그램 프리도스 글은 실제 브라우저 본문/링크도 확인.
 - 신규 3편·기존 URL 개정 5편 공개 완료. 본문 링크 24개, 로컬 검증의 고유 연결 목적지 18개. 기존 반복작업 변경 없음. 검색 상위노출 및 수익 발생 여부는 아직 관측하지 않았다.
+
+### DEC-016 — Implemented / Local verification (2026-10-26)
+
+- 메인 상품 영역 2곳, 허브 상세의 4개 이상 본문 블록 중 두 번째 블록 뒤 광고, 기존 하단 광고, 넓은 PC 양옆 sticky 영역 추가.
+- 상세는 1280px, 홈은 1600px 이상에서만 양옆 표시. 320/375/1440/1920px 화면에서 본문 겹침·가로 넘침 검사 및 홈/상세 이미지 육안 확인. 외부 Google 폰트 요청만 로컬 QA에서 차단하고 자체 폰트 사용.
+- 기존 제휴 레지스트리 AF3904190, sponsored/nofollow, 링크 앞 수수료 고지 유지. 품절·최저가 등 미확인 주장이나 외부 광고 SDK 추가 없음.
+- production build, 원고/검색/제휴 회귀 검증 통과. 로컬에 운영 DB가 없어 정책 문서 URL 화면검사는 제외하고 기존 정책 고지는 컴포넌트 테스트로 확인. 운영 배포 후 홈/상세 공개 응답 확인 예정.

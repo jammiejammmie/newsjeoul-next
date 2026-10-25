@@ -39,7 +39,7 @@ const server = spawn(process.execPath,['node_modules/next/dist/bin/next','start'
   await page.goto('http://127.0.0.1:3110/search?q='+encodeURIComponent('액체'),{waitUntil:'networkidle'})
   assert.equal(await page.locator('a[href="/hub/iphone-17-pro/liquid-detected-before-buying-cable"]').count(),1)
   await page.goto('http://127.0.0.1:3110/hub/galaxy-buds4/single-bud-replacement',{waitUntil:'networkidle'})
-  assert.equal(await page.locator('a[href="/go/buds4-body"]').count(),1)
+  assert.equal(await page.locator('[data-affiliate-position="bottom"] a[href="/go/buds4-body"]').count(),1)
   assert.equal(await page.locator('a[href="https://www.samsungsvc.co.kr/solution/25084"]').count(),1)
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'Article overflow at 320px')
   await page.screenshot({path:'docs/previews/guide-v2-mobile.png',fullPage:true})
@@ -48,8 +48,8 @@ const server = spawn(process.execPath,['node_modules/next/dist/bin/next','start'
    await page.goto(entry.url.replace('https://newsjeoul.co.kr','http://127.0.0.1:3110'),{waitUntil:'networkidle'})
    assert.equal(await page.locator('h1').innerText(),entry.title)
    assert.equal(await page.locator('link[rel="canonical"]').getAttribute('href'),entry.url)
-   assert.equal(await page.locator('[data-affiliate-panel]').count(),1)
-   assert.ok(await page.locator('[data-affiliate-panel]').innerText().then(t=>t.includes('수수료')))
+   assert.equal(await page.locator('[data-affiliate-position="bottom"]').count(),1)
+   assert.ok(await page.locator('[data-affiliate-position="bottom"]').innerText().then(t=>t.includes('수수료')))
    assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),entry.url)
   }
   for(const hub of ['iphone-17-pro','galaxy-buds4']){
