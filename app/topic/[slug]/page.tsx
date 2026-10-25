@@ -1,3 +1,5 @@
+import AffiliatePanel from '@/components/editorial/AffiliatePanel'
+import { searchEntryPlacement } from '@/lib/affiliate-placements'
 import { createClient } from '@supabase/supabase-js'
 import type { Metadata } from 'next'
 import Link from 'next/link'
@@ -339,6 +341,8 @@ export default async function TopicPage({ params }: { params: Promise<{ slug: st
           )}
         </>
       )}
+
+      <AffiliatePanel placement={searchEntryPlacement(`/topic/${topic.slug}`)} />
 
       {/* 근거 기사 — 항상 노출, 기본 접힘 */}
       {stories.length > 0 && (

@@ -1,0 +1,5 @@
+/* Existing Pretendard assets, locally compressed. SIL OFL: /fonts/Pretendard-LICENSE.txt */
+@font-face{font-family:'Pretendard';src:url('/fonts/Pretendard-Medium.woff2') format('woff2');font-weight:100 500;font-style:normal;font-display:swap}
+@font-face{font-family:'Pretendard';src:url('/fonts/Pretendard-SemiBold.woff2') format('woff2');font-weight:501 650;font-style:normal;font-display:swap}
+@font-face{font-family:'Pretendard';src:url('/fonts/Pretendard-Bold.woff2') format('woff2');font-weight:651 750;font-style:normal;font-display:swap}
+@font-face{font-family:'Pretendard';src:url('/fonts/Pretendard-ExtraBold.woff2') format('woff2');font-weight:751 900;font-style:normal;font-display:swap}

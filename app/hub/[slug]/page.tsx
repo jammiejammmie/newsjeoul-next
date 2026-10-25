@@ -1,3 +1,5 @@
+import AffiliatePanel from '@/components/editorial/AffiliatePanel'
+import { searchEntryPlacement } from '@/lib/affiliate-placements'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
@@ -455,7 +457,9 @@ export default async function HubPage({ params }: { params: Promise<{ slug: stri
           {/* 지금 사기 — 쿠팡 파트너스 (/go/{slot}).
               링크 금지 카테고리(§8.3 신차·정책)는 슬롯 자체가 없고, 대신 왜 없는지를 밝힌다.
               설계서 §6.3-2와 같은 원리다: "링크 없는 섹션의 존재가 신뢰의 증거"다. */}
-          {hub.affiliate.allowed ? (
+          {searchEntryPlacement(`/hub/${slug}`) ? (
+            <AffiliatePanel placement={searchEntryPlacement(`/hub/${slug}`)} />
+          ) : hub.affiliate.allowed ? (
             <div>
               <div className="nj-hub-rail-h" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
                 <span>지금 사기</span>
@@ -467,7 +471,7 @@ export default async function HubPage({ params }: { params: Promise<{ slug: stri
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                       <span style={{ font: '600 12px/1.3 Pretendard' }}>{a.label}</span>
                       <b style={{ font: '800 12px/1 Pretendard', color: a.targetUrl ? 'var(--hot)' : 'var(--mute2)' }}>
-                        {a.targetUrl ? '최저가 확인 →' : '링크 준비 중'}
+                        {a.targetUrl ? '판매가·구성 확인 →' : '링크 준비 중'}
                       </b>
                     </div>
                   )

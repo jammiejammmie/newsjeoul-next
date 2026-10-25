@@ -1,3 +1,7 @@
+import AffiliatePanel from '@/components/editorial/AffiliatePanel'
+import { searchEntryPlacement } from '@/lib/affiliate-placements'
+import SourceNote from '@/components/editorial/SourceNote'
+import { editorialSlots } from '@/lib/hubs/editorial'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
@@ -103,7 +107,7 @@ export default async function HubDocPage(
     .slice(0, 6)
 
   // 링크 금지 허브(§8.3 신차·정책)는 슬롯 자체가 없으므로 섹션이 통째로 빠진다.
-  const affiliateSlots = hub.affiliate.allowed ? pickSlots(document.format, hub.affiliate.slots) : []
+  const affiliateSlots = hub.affiliate.allowed ? (document.affiliateSlotIds ? editorialSlots(document, hub.affiliate.slots) : pickSlots(document.format, hub.affiliate.slots)) : []
 
   const { body: bodyBlocks, faq } = splitFaq(document.blocks)
 
@@ -165,7 +169,7 @@ export default async function HubDocPage(
 
         {/* 자동 생성물임을 숨기지 않는다. 독자가 어느 정도로 신뢰할지 스스로 판단할 근거를 준다. */}
         <div style={{ font: '500 11.5px/1.6 Pretendard', color: 'var(--mute)', margin: '0 0 22px', paddingBottom: 14, borderBottom: '1px solid var(--line)' }}>
-          {document.generatedBy === 'ai' ? 'AI 편집국 자동 작성' : `${hub.editor.name} 에디터`}
+          {document.generatedBy === 'ai-source-checked' ? 'AI 작성 · 공식 자료 대조' : document.generatedBy === 'ai' ? 'AI 편집국 자동 작성' : `${hub.editor.name} 에디터`}
           {' · '}{new Date(document.updatedAt).toLocaleDateString('ko-KR')} 갱신
         </div>
 
@@ -217,34 +221,11 @@ export default async function HubDocPage(
         {document.sourceNote && (
           <div style={{ marginTop: 28, borderLeft: '3px solid var(--hot)', background: 'var(--paper2)', padding: '12px 15px' }}>
             <div style={{ font: '700 11px/1 Pretendard', color: 'var(--hot)', marginBottom: 6 }}>근거와 확인처</div>
-            <p style={{ margin: 0, font: '500 12.5px/1.7 Pretendard', color: 'var(--body2)' }}>{document.sourceNote}</p>
+            <SourceNote text={document.sourceNote} />
           </div>
         )}
 
-        {/* 함께 찾는 제품 — 쿠팡 파트너스 (/go/{slot}).
-            본문을 다 읽은 자리에 둔다. 읽기 전에 끼워 넣으면 문서를 링크 미끼로 만드는 것이고,
-            그건 이 허브 구조가 쌓으려는 신뢰와 정반대다. */}
-        {affiliateSlots.length > 0 && (
-          <section style={{ marginTop: 30 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', borderBottom: '2px solid var(--ink)', paddingBottom: 7, marginBottom: 10 }}>
-              <span style={{ font: '800 15px/1.4 Pretendard' }}>함께 찾는 제품</span>
-              <span style={{ font: '500 10px/1 Pretendard', color: 'var(--mute)' }}>광고</span>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 8 }}>
-              {affiliateSlots.map((a) => (
-                // 제휴 링크는 rel="sponsored nofollow" 필수(§8.1 — 누락 시 페널티 사유).
-                <a key={a.slot} href={`/go/${a.slot}`} rel="sponsored nofollow" target="_blank"
-                  className="nj-hub-card" style={{ padding: '10px 11px', display: 'flex', flexDirection: 'column', gap: 3 }}>
-                  <span style={{ font: '600 12.5px/1.35 Pretendard' }}>{a.label}</span>
-                  <b style={{ font: '800 12px/1 Pretendard', color: 'var(--hot)' }}>최저가 확인 →</b>
-                </a>
-              ))}
-            </div>
-            <span style={{ display: 'block', font: '500 10.5px/1.55 Pretendard', color: 'var(--mute2)', marginTop: 8 }}>
-              이 페이지는 쿠팡 파트너스 활동의 일환으로, 구매 시 일정액의 수수료를 제공받습니다.
-            </span>
-          </section>
-        )}
+        <AffiliatePanel placement={searchEntryPlacement(`/hub/${slug}/${document.slug}`)} fallback={affiliateSlots} />
 
         <div style={{ marginTop: 32, paddingTop: 18, borderTop: '1px solid var(--line)' }}>
           <Link href={`/hub/${slug}`} style={{ font: '700 13.5px/1.4 Pretendard' }}>

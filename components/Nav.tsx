@@ -3,6 +3,8 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
 const navLinks = [
+  { href: '/#guides', label: '가이드' },
+  { href: '/#compare', label: '비용 비교' },
   { href: '/topic', label: '이슈' },
   { href: '/search', label: '검색' },
 ]
@@ -11,11 +13,11 @@ export default function Nav() {
   const pathname = usePathname()
 
   return (
-    <nav style={{
+    <nav className="nj-site-nav" style={{
       position: 'sticky',
       top: 0,
       zIndex: 100,
-      background: 'rgba(11,11,13,0.72)',
+      background: 'rgba(251,250,247,0.96)',
       backdropFilter: 'blur(12px)',
       borderBottom: '1px solid var(--border)',
     }}>
@@ -43,7 +45,7 @@ export default function Nav() {
           <span style={{
             width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)', display: 'inline-block', flexShrink: 0,
           }} />
-          오늘 세상의 무게가 실시간으로 기울고 있습니다
+          알고 고르면, 달라집니다.
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
@@ -56,7 +58,7 @@ export default function Nav() {
                 textDecoration: 'none',
                 fontSize: 12,
                 fontWeight: pathname === href ? 700 : 600,
-                padding: '6px 12px',
+                padding: '6px 7px',
                 borderRadius: 8,
                 background: pathname === href ? 'var(--card)' : 'transparent',
                 border: pathname === href ? '1px solid var(--border2)' : '1px solid transparent',

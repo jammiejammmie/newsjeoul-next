@@ -1,3 +1,4 @@
+import { mergeEditorialSitemap } from '@/lib/hubs/editorial'
 import type { MetadataRoute } from 'next'
 import { createClient } from '@supabase/supabase-js'
 import { ROUTABLE_CONTENT_TYPES } from '@/lib/content-types'
@@ -136,8 +137,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       )
     ).flat()
 
-    return [...staticRoutes, ...hubRoutes, ...topicRoutes, ...expansionRoutes, ...categoryRoutes, ...entityRoutes, ...genericContentRoutes]
+    return [...staticRoutes, ...mergeEditorialSitemap(hubRoutes), ...topicRoutes, ...expansionRoutes, ...categoryRoutes, ...entityRoutes, ...genericContentRoutes]
   } catch {
-    return [...staticRoutes, ...hubRoutes]
+    return [...staticRoutes, ...mergeEditorialSitemap(hubRoutes)]
   }
 }
