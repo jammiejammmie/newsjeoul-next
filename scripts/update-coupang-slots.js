@@ -88,11 +88,6 @@ async function search(keyword) {
   })
   if (!res.ok) return []
   const j = await res.json()
-  const sample = j?.data?.productData?.[0]
-  if (sample && !search.loggedImageSchema) {
-    console.log('[이미지 응답 구조]', JSON.stringify({ fields: Object.keys(sample), media: Object.fromEntries(Object.entries(sample).filter(([k]) => /image|thumb/i.test(k))) }))
-    search.loggedImageSchema = true
-  }
   return (j?.data?.productData || []).map((p) => ({ name: p.productName, price: p.productPrice, url: p.productUrl, image: p.productImage }))
 }
 
@@ -186,7 +181,7 @@ function loadSnapshot() {
       const key = productKey(hit.url)
       const hasUrl = new RegExp(`slot:\\s*'${slot}'[^}]*targetUrl:`).test(source)
       const priceChanged = prev && prev.price !== hit.price
-      const image = typeof hit.image === 'string' && /^https?:\/\/[^/]*\.coupangcdn\.com\//.test(hit.image) ? hit.image.replace(/^http:/, 'https:') : undefined
+      const image = typeof hit.image === 'string' && /^https?:\/\/(?:[^/]*\.coupangcdn\.com\/|ads-partners\.coupang\.com\/image1\/)/.test(hit.image) ? hit.image.replace(/^http:/, 'https:') : undefined
       const mediaChanged = prev?.image !== image || prev?.name !== hit.name
       const checkedAt = new Date().toISOString()
       if (MEDIA_ONLY) {
