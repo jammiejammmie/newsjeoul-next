@@ -10,7 +10,9 @@ const practical = {}
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/hubs/editorial/practical-guides.ts', 'utf8'), {compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText, {exports:practical})
 const refresh = {}
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/hubs/editorial/refresh-20261026.ts', 'utf8'), {compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText, {exports:refresh})
-vm.runInNewContext(compiled, { exports: moduleExports, require: id => id.includes('refresh-') ? refresh : practical })
+const hot = {}
+vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/hubs/editorial/hot-electronics-20261026.ts', 'utf8'), {compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText, {exports:hot})
+vm.runInNewContext(compiled, { exports: moduleExports, require: id => id.includes('hot-electronics') ? hot : id.includes('refresh-') ? refresh : practical })
 const { EDITORIAL_DOCUMENTS, mergeEditorialDocuments, mergeEditorialSitemap, editorialSlots } = moduleExports
 const total = Object.values(EDITORIAL_DOCUMENTS).flat().length
 const budsTotal = EDITORIAL_DOCUMENTS['galaxy-buds4'].length

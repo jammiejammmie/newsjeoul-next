@@ -42,3 +42,15 @@ assert.equal(searchEntryPlacement('/hub/melon-streaming-other/article'),null)
 assert.equal(searchEntryPlacement('/topic/unrelated'),null)
 assert.equal(renderToStaticMarkup(Panel({placement:null})), '')
 console.log('PASS: search-entry coverage, real registered tracking targets, server-rendered disclosure, unrelated paths excluded; no affiliate destinations requested')
+
+const Hot=load('lib/hubs/editorial/hot-electronics-20261026.ts').HOT_ELECTRONICS_20261026
+for(const docs of Object.values(Hot))for(const doc of docs)for(const slot of doc.affiliateSlotIds){
+ const u=new URL(findAffiliateSlot(slot).entry.targetUrl)
+ assert.equal(u.hostname,'link.coupang.com');assert.equal(u.searchParams.get('lptag'),'AF3904190')
+}
+const Text=load('components/editorial/ArticleText.tsx').default
+const safe=renderToStaticMarkup(Text({text:'읽기 [램 비교](/hub/lg-gram-2026/ram-ssd-1sey4q)'}))
+assert.ok(safe.includes('href="/hub/lg-gram-2026/ram-ssd-1sey4q"'))
+const unsafe=renderToStaticMarkup(Text({text:'[x](javascript:alert(1)) <script>bad()</script>'}))
+assert.ok(!unsafe.includes('<a'));assert.ok(!unsafe.includes('<script>'))
+console.log('PASS: hot-product affiliate ownership, internal link rendering, unsafe markup remains plain escaped text')

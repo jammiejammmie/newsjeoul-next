@@ -1,4 +1,5 @@
 import AffiliatePanel from '@/components/editorial/AffiliatePanel'
+import ArticleText from '@/components/editorial/ArticleText'
 import { searchEntryPlacement } from '@/lib/affiliate-placements'
 import SourceNote from '@/components/editorial/SourceNote'
 import { editorialSlots } from '@/lib/hubs/editorial'
@@ -186,14 +187,14 @@ export default async function HubDocPage(
                     <ul key={j} style={{ margin: '0 0 11px', paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 5 }}>
                       {lines.filter((l) => l.trim()).map((l, k) => (
                         <li key={k} style={{ font: '500 14.5px/1.75 Pretendard', color: 'var(--body)' }}>
-                          {l.replace(/^\s*-\s*/, '')}
+                          <ArticleText text={l.replace(/^\s*-\s*/, '')} />
                         </li>
                       ))}
                     </ul>
                   )
                 }
                 return (
-                  <p key={j} style={{ margin: '0 0 11px', font: '500 14.5px/1.8 Pretendard', color: 'var(--body)' }}>{para}</p>
+                  <p key={j} style={{ margin: '0 0 11px', font: '500 14.5px/1.8 Pretendard', color: 'var(--body)' }}><ArticleText text={para} /></p>
                 )
               })}
             </section>
