@@ -148,3 +148,11 @@ DEC-014 로컬 최종 검증: 17편 모두 Chromium에서 제목·canonical·광
 - 8편 모두 기존 AF3904190 등록 제휴 슬롯·수수료 고지 검증. 제휴 링크 자기 클릭 없음.
 - 프로덕션 빌드, 원고·검색·제휴 회귀 검사 통과. Chromium 375px에서 8편 제목·canonical·광고 1개·가로 넘침 없음·브라우저 오류 없음 확인. 모바일 그램 글 화면 육안 검수 완료.
 - 운영 배포는 후속 확인 예정. 기존 자동화·API·환경 변수·DB 변경 없음.
+
+
+### DEC-015 — Deployed / Verified (2026-10-26 KST)
+
+- PR https://github.com/jammiejammmie/newsjeoul-next/pull/3 병합. 운영 commit 47802cfb99045776e733855646b60641a899872f.
+- Netlify 운영 deploy 6ade6d3385e55c7f2fdfe8e3 Published 및 전체 단계 Complete 확인. https://app.netlify.com/projects/jazzy-truffle-7b8784/deploys/6ade6d3385e55c7f2fdfe8e3
+- hot-electronics-20261026.json의 8개 공개 URL 전부 HTTP 200, 작성 제목 일치, canonical, 등록 제휴 링크 및 수수료 고지, 본문 내부링크 각 3개 확인. 신규 그램 프리도스 글은 실제 브라우저 본문/링크도 확인.
+- 신규 3편·기존 URL 개정 5편 공개 완료. 본문 링크 24개, 로컬 검증의 고유 연결 목적지 18개. 기존 반복작업 변경 없음. 검색 상위노출 및 수익 발생 여부는 아직 관측하지 않았다.
