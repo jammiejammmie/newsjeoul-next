@@ -1,3 +1,5 @@
+import QuickChoice from '@/components/editorial/QuickChoice'
+import { QUICK_CHOICES } from '@/lib/hubs/editorial/quick-choices'
 import ArticleVisual, { ArticleDecisionVisual } from '@/components/editorial/ArticleVisual'
 import AffiliatePanel from '@/components/editorial/AffiliatePanel'
 import AffiliateFrame from '@/components/editorial/AffiliateFrame'
@@ -112,6 +114,9 @@ export default async function HubDocPage(
   // 링크 금지 허브(§8.3 신차·정책)는 슬롯 자체가 없으므로 섹션이 통째로 빠진다.
   const affiliateSlots = hub.affiliate.allowed ? (document.affiliateSlotIds ? editorialSlots(document, hub.affiliate.slots) : pickSlots(document.format, hub.affiliate.slots)) : []
 
+  const choices = QUICK_CHOICES[`/hub/${slug}/${document.slug}`]
+  const placement = choices ? { slots: choices.slots ?? affiliateSlots.map(s => s.slot), context: choices.adContext ?? '선택한 조건에 맞춰 상품명·옵션·구성품을 확인하세요.' } : searchEntryPlacement(`/hub/${slug}/${document.slug}`)
+
   const { body: bodyBlocks, faq } = splitFaq(document.blocks)
 
   const schema = {
@@ -155,7 +160,7 @@ export default async function HubDocPage(
     <div className="nj-hub">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }} />
 
-      <AffiliateFrame placement={searchEntryPlacement(`/hub/${slug}/${document.slug}`)} fallback={affiliateSlots}>
+      <AffiliateFrame placement={placement} fallback={affiliateSlots}>
       <div style={{ maxWidth: 780, margin: '0 auto', padding: '26px 32px 80px' }}>
         <nav style={{ font: '500 11.5px/1.5 Pretendard', color: 'var(--mute)', marginBottom: 14 }}>
           <Link href="/">홈</Link> <span style={{ opacity: .5 }}>›</span>{' '}
@@ -177,8 +182,9 @@ export default async function HubDocPage(
           {' · '}{new Date(document.updatedAt).toLocaleDateString('ko-KR')} 갱신
         </div>
 
+        {choices && <QuickChoice guide={choices} />}
         <ArticleVisual path={`/hub/${slug}/${document.slug}`} />
-        <article style={{ display: 'flex', flexDirection: 'column', gap: 26 }}>
+        <article id="article-details" style={{ display: 'flex', flexDirection: 'column', gap: 26 }}>
           {bodyBlocks.map((b, i) => (
             <section key={i}>
               <h2 style={{ margin: '0 0 9px', font: '800 17px/1.4 Pretendard' }}>{b.heading}</h2>
@@ -202,7 +208,7 @@ export default async function HubDocPage(
                 )
               })}
               {i === 2 && <ArticleDecisionVisual path={`/hub/${slug}/${document.slug}`} />}
-              {i === 1 && bodyBlocks.length >= 4 && <AffiliatePanel placement={searchEntryPlacement(`/hub/${slug}/${document.slug}`)} fallback={affiliateSlots} title="관련 상품 가격·옵션 비교" position="middle" />}
+              {i === 1 && bodyBlocks.length >= 4 && <AffiliatePanel placement={placement} fallback={affiliateSlots} title="관련 상품 가격·옵션 비교" position="middle" />}
             </section>
           ))}
         </article>
@@ -232,7 +238,7 @@ export default async function HubDocPage(
           </div>
         )}
 
-        <AffiliatePanel placement={searchEntryPlacement(`/hub/${slug}/${document.slug}`)} fallback={affiliateSlots} />
+        {choices ? <QuickChoice guide={choices} summary /> : <AffiliatePanel placement={placement} fallback={affiliateSlots} />}
 
         <div style={{ marginTop: 32, paddingTop: 18, borderTop: '1px solid var(--line)' }}>
           <Link href={`/hub/${slug}`} style={{ font: '700 13.5px/1.4 Pretendard' }}>
