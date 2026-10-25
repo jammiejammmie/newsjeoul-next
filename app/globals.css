@@ -717,3 +717,9 @@ body {
 
 .nj-discovery-card { transition: transform .25s ease; display: flex; }
 .nj-discovery-card:hover { transform: translateY(-3px); }
+
+/* Narrow screens retain all editorial navigation actions. */
+@media (max-width: 420px) {
+  .nj-site-nav > div { flex-wrap: wrap; row-gap: 10px !important; }
+  .nj-site-nav > div > div:last-child { width: 100%; justify-content: space-between; }
+}

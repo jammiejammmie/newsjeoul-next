@@ -65,3 +65,50 @@ DEC-006(Publish Gate) 작업 종료. 다음 우선순위는 100명 Editorial Per
   근본원인 3가지 확인: (1) `post-threads.js` 자체 주석에 "발행 빈도는 하루 1회로 유지, 매시간 발행은 별도 승인 전까지 보류"라고 이미 명시돼 있었음 — "하루 여러 차례"는 애초에 구현된 적 없음(회귀 아님, 미완료 상태). (2) `.github/workflows/news-pipeline.yml`이 2026-07-14 함수 개명(`process-stories`→`-background`, `resolve-topics`→`-background`) 이후 옛 경로를 그대로 호출해 매일 2단계에서 404로 실패, 3~5단계 전부 skip — GitHub Actions 실행 이력(API로 직접 확인)에서 07-14 이전엔 성공, 07-15/07-16 연속 실패로 정확히 일치. (3) `post-threads.js`의 `fetchTopSilenceStory()`가 "오늘 생성된 story 없음"을 정상 Skip이 아니라 `throw`로 처리해 500 하드 실패 유발 — 파이프라인이 막혀있던 기간엔 이게 거의 매일 발생했을 것으로 추정.
   수정: `news-pipeline.yml`의 개명된 경로 수정(202도 정상 처리하도록 조건 추가) + 완료 대기 sleep 추가. `post-threads.js`를 전면 재설계 — 후보를 raw stories 대신 published Topics 풀(importance_score 순, 최근 24시간 내 게시 제외)에서 선정해 후보 없음을 500이 아닌 200/skipped로 처리, 정적 템플릿 A~O를 Claude 기반 Hook 카피 생성(강한 첫문장/놓친지점/정보격차/유도, 저품질 상투어 금지)으로 교체, UTM에 `utm_content={topic_id}_{hook_type}` 추가, 게시 건마다 topic_id/hook_type/editors/status/failure_reason/source_url을 기록하도록 `threads_posts` 확장(`supabase/threads_posts_extend_migration.sql`, 미적용). Mock 테스트 8/8 통과(후보 있음/없음/스케줄 인증통과/무단 401/로그 필드/UTM 전부 검증). 실제 수동 호출로도 실제 Threads 게시 1건 성공 확인(post-threads.js 구버전 기준, 재설계판은 아직 실서버 미배포).
   미결: netlify.toml 전환 배포, `.github/workflows/post-threads.yml` 스케줄을 하루 4회(KST 08:30/12:30/18:30/22:30)로 변경(별도 승인 필요), Threads Token 재발급 여부 판단.
+
+## 2026-10-26 — DEC-010 구독 기반 편집 경로
+
+- Designed: 기존 허브/URL 유지, 저장소 원고 우선 병합, 글별 기존 제휴 슬롯 선택, sitemap 중복 제거.
+- Implemented (local): 첫 버즈4 단품 구매 원고, API 호출 없는 조회 경로, 공식자료 대조 표기, 최저가 단정 제거.
+- Verified (local): 순수 로직 회귀 검사 통과; TypeScript 검사 통과. 빌드 결과는 최종 작업 보고 참고.
+- Deployed: 아님. git push/운영 배포 승인 전이며 DB·환경변수·cron을 변경하지 않았다.
+- 추가 검증 결과: production 컴파일/타입 검사는 통과했으나 전체 빌드는 기존 홈 prerender의 `supabaseUrl is required`로 중단. 로컬 HTTP 확인은 dev 서버 접근 실패로 미완료이며 화면 검수 완료로 보고하지 않는다. 운영 자격정보를 임의로 사용하지 않았다.
+
+## 2026-10-26 — DEC-011 반영과 GitHub 쓰기 결과
+
+- 사용자 운영 위임을 AGENTS.md와 DEC-011에 기록했다. 반복 배포 승인 대기는 해소했다.
+- origin/master를 재조회해 3af873dcd85dda924ee1ec525c7abd90a9a8e6b6에서 변경 없음을 확인했다.
+- 기존 workflow의 유료 모델 생성 경로는 대부분 workflow_dispatch만 남아 있고, 변경 대상 파일의 push가 생성기를 호출하지 않음을 확인했다. 작업 중 유료 모델 API를 호출하지 않았다.
+- 로컬 콘텐츠 검사, TypeScript, git diff --check 통과.
+- GitHub 브랜치 생성 요청이 403 `Resource not accessible by integration`을 반환했다. 브랜치 생성/원격 커밋/PR/배포 모두 미완료. 이는 GitHub 통합 접근 권한 응답이며 사용자 승인 부족이나 유료 플랜 문제로 단정하지 않는다. 동일 쓰기 요청은 반복하지 않았다.
+
+## 2026-10-26 — DEC-012 실용 가이드 홈 v2
+
+- Implemented (local): 신규 편집형 홈, 검색/분야 필터, 견적 비교 계산기, 모바일 내비게이션, 클릭 가능한 원자료 링크. 원고 총4편(기존2개정+신규2), 옛 홈 legacy 보관.
+- Verified: production 전체 빌드 통과, TypeScript 통과, 로컬 production HTTP200(홈/4가이드/sitemap), 제휴링크 범위와 sitemap 중복 검사 통과.
+- 시각 검수: Playwright 브라우저 다운로드가 ZIP 손상 오류로 실패. 실제 데스크톱/모바일 스크린샷 및 브라우저 상호작용 검수는 미완료다. 코드의 반응형 분기와 실제 서버 HTML 검증을 시각 검수로 보고하지 않는다.
+- Deployed: 아님. GitHub 브랜치 생성403 때문에 로컬 커밋까지 보존. 유료 호출/추가 결제/cron 변경 없음.
+
+## 2026-10-26 — v2.1 검색 통합과 실제 브라우저 검수
+
+- 발견: 기존 /search는 topic/entity만 검색했고 DB 클라이언트 생성이 try 밖이라 환경변수 부재 시 실패했다.
+- 수정: 원고 검색을 통합하고 DB 연결 오류 때도 원고 검색 결과를 유지한다. 빈 검색·복수 한국어 검색·Unicode 정규화·limit을 회귀 검사한다.
+- 권한 재확인: 저장소 metadata에서 사용자 push 권한은 true지만 통합 브랜치 생성403은 별개다. 관리 가능한 설치 목록은 빈 배열이었다. 도구로 앱의 Contents 쓰기 권한을 변경하는 경로는 확인되지 않았다. 연결이 읽기 전용이라고 확정하거나 사용자 승인 부족으로 설명하지 않는다.
+- 브라우저: 다운로드 ZIP 실패와 별개로 QA 전용 Chromium 패키지를 확보했다. 실제 브라우저에서 필터/검색/계산기(양쪽 비용 우위)/320·375px overflow/원자료 링크/JS 오류 없음 검증을 진행했다.
+- 실제 스크린샷에서 외부 한글 폰트 로딩 실패를 발견. 기존 저장소의 Pretendard OTF를 WOFF2로 압축하고 로컬 폰트 제공으로 전환 중. 기존 폰트는 삭제하지 않는다.
+
+### v2.1 검수 완료 업데이트
+
+- 기존 Pretendard 4개 OTF를 WOFF2로 압축해 제공한다. 해당 라이선스를 포함했고 기존 OTF/카드 렌더 경로는 보존했다. 새 유료 자산 없음.
+- 최종 전체 빌드 성공. 실제 Chromium에서 홈 검색/분야 선택/결과 없음, 계산기 양방향 비용 비교, 사이트 검색→가이드 연결, 제휴 링크 범위와 원자료 링크, JS 오류 없음 검사를 통과했다.
+- 320px·375px 모바일 가로 넘침 없음 확인. 실제 desktop/mobile 스크린샷을 직접 열어 한글 표시·여백·계산기와 카드 가독성을 검수했다. 이전 시각 검수 미완료 기록을 해소한다.
+- docs/previews/home-v2-desktop.png, home-v2-mobile-375.png, home-v2-mobile-320.png, guide-v2-mobile.png는 실제 검수 결과다.
+- 원격 GitHub/운영 배포는 여전히 미완료. 연결 권한의 해결 없이 공개 반영했다고 주장하지 않는다.
+
+### DEC-013 — Implemented / 로컬 검증 (2026-10-26)
+
+- 기존 유입 URL 및 canonical/본문을 보존하고 허브 문서·허브·토픽의 서버 렌더에 광고 패널 연결.
+- 멜론 허브와 모든 하위 글, 청년도약계좌 job-change, 유재석 토픽, 플립 위젯, 버즈 단품, S25 기존 유입 글에 등록 슬롯 연결. 멜론 무제한/음질 글은 slug 변경 없이 전체 하위 경로 규칙으로 포함.
+- 실제 레지스트리 목적지 호스트와 AF3904190 태그, 링크 앞 수수료 고지, sponsored/nofollow, 광고 중복 없음 검증. 제휴 목적지를 직접 열거나 자기 클릭을 만들지 않음.
+- 기존 원고/검색 테스트 및 Next 프로덕션 빌드 통과. Supabase 운영 데이터 접근 없이 문서 보존: 운영 DB 기반 모든 페이지의 현재 응답까지 재확인한 것은 아님.
+- 운영 배포 미완료: 앞서 GitHub 앱 쓰기 요청에서 403 Resource not accessible by integration 반환. 로컬 구현 완료와 공개 적용을 구분한다.

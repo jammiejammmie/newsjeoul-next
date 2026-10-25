@@ -1,10 +1,11 @@
 import type { Metadata } from 'next'
 import './globals.css'
+import './local-font.css'
 import Nav from '@/components/Nav'
 import Footer from '@/components/Footer'
 
-const TAGLINE = '뉴스저울 — 3분이면 오늘 세상을 이해합니다'
-const DESC = '오늘 세상이 가장 궁금해하는 것들. 뉴스를 정렬하지 않습니다. 세상을 배치합니다.'
+const TAGLINE = '뉴스저울 — 알고 고르면, 달라집니다'
+const DESC = '고장 해결부터 수리·교체 비교까지. 공식 자료로 확인하고 필요한 선택을 돕는 생활·디지털 가이드.'
 
 export const metadata: Metadata = {
   title: TAGLINE,
@@ -54,7 +55,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
-        <link rel="stylesheet" as="style" crossOrigin="anonymous" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
+        <link rel="preload" href="/fonts/Pretendard-Medium.woff2" as="font" type="font/woff2" crossOrigin="anonymous" />
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(ORGANIZATION_SCHEMA) }} />
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(WEBSITE_SCHEMA) }} />
       </head>

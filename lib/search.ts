@@ -1,3 +1,4 @@
+import { searchEditorialDocuments } from '@/lib/hubs/editorial/search'
 import { createClient } from '@supabase/supabase-js'
 import { isBriefTopic } from '@/lib/topics'
 
@@ -9,7 +10,7 @@ function client() {
 }
 
 export type SearchResult = {
-  type: 'topic' | 'entity'
+  type: 'topic' | 'entity' | 'guide'
   slug: string
   name: string
   summary: string | null
@@ -28,8 +29,9 @@ export async function searchContent(rawQuery: string, limit = 20): Promise<Searc
   const q = sanitizeQuery(rawQuery)
   if (!q) return []
 
-  const supabase = client()
+  const guides = searchEditorialDocuments(q, limit)
   try {
+    const supabase = client()
     const [{ data: topics }, { data: entities }] = await Promise.all([
       supabase
         .from('topics')
@@ -53,8 +55,8 @@ export async function searchContent(rawQuery: string, limit = 20): Promise<Searc
     const entityResults: SearchResult[] = (entities || []).map((e: any) => ({
       type: 'entity', slug: e.slug, name: e.name, summary: e.description, brief: false,
     }))
-    return [...topicResults, ...entityResults].slice(0, limit)
+    return [...guides, ...topicResults, ...entityResults].slice(0, limit)
   } catch {
-    return []
+    return guides
   }
 }

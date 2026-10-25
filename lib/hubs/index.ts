@@ -1,3 +1,4 @@
+import { mergeEditorialDocuments } from './editorial'
 import { createClient } from '@supabase/supabase-js'
 import type { HubAffiliateSlot, HubConfig } from './types'
 import { galaxyZFold8 } from './galaxy-z-fold8'
@@ -87,6 +88,7 @@ export async function getDbHubSlugs(): Promise<string[]> {
 }
 
 export type HubDocument = {
+  affiliateSlotIds?: string[]
   slug: string
   format: string
   title: string
@@ -108,14 +110,14 @@ export async function getHubDocuments(hubSlug: string): Promise<HubDocument[]> {
       .select('slug, format, title, lead, blocks, source_note, generated_by, updated_at')
       .eq('hub_slug', hubSlug)
       .eq('status', 'published')
-    if (error || !data) return []
-    return data.map((d: any) => ({
+    if (error || !data) return mergeEditorialDocuments(hubSlug, [])
+    return mergeEditorialDocuments(hubSlug, data.map((d: any) => ({
       slug: d.slug, format: d.format, title: d.title, lead: d.lead,
       blocks: Array.isArray(d.blocks) ? d.blocks : [],
       sourceNote: d.source_note, generatedBy: d.generated_by, updatedAt: d.updated_at,
-    }))
+    })))
   } catch {
-    return []
+    return mergeEditorialDocuments(hubSlug, [])
   }
 }
 

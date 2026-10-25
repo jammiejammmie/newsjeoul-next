@@ -24,7 +24,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
           type="text"
           name="q"
           defaultValue={q || ''}
-          placeholder="검색어를 입력하세요"
+          aria-label="사이트 검색" placeholder="충전, 케이블, 뉴스…"
           style={{
             flex: 1, background: 'var(--card)', border: '1px solid var(--border2)', borderRadius: 12,
             padding: '12px 16px', color: 'var(--text)', fontSize: 14,
@@ -43,12 +43,12 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
         {results.map((r) => (
           <Link
             key={`${r.type}-${r.slug}`}
-            href={r.type === 'topic' ? `/topic/${r.slug}` : `/entity/${r.slug}`}
+            href={r.type === 'guide' ? `/hub/${r.slug}` : r.type === 'topic' ? `/topic/${r.slug}` : `/entity/${r.slug}`}
             style={{ textDecoration: 'none' }}
           >
             <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 14, padding: '16px' }}>
               <p style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
-                {r.type === 'topic' ? '이슈' : '엔티티'}
+                {r.type === 'guide' ? '생활 가이드' : r.type === 'topic' ? '이슈' : '인물·주제'}
                 {r.brief && <BriefBadge size="sm" />}
               </p>
               <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>{r.name}</p>
