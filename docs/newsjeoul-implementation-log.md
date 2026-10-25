@@ -210,3 +210,7 @@ Latest user instruction adopted in docs/subscription-editorial.md v2.3 and exist
 ### USB-C 허브 — Deployed / 공개 검증 및 후속 보완
 PR #8, master f138bb3e40036527499d576cb64220c0ff9d8e60. Netlify 6ade8c0ce3c423f4f5a9a909 Published(36초) 확인. 공개 브라우저에서 7개 섹션·도식 2개·내부링크·광고 고지 확인. 공개 검수에서 /go 문법이 평문으로 남는 문제와 한국 날짜가 서버 UTC로 표시되는 문제를 발견해 등록 슬롯에 한정한 본문 제휴 링크/rel과 Asia/Seoul 날짜 보완. 모바일 실기 렌더는 아직 미확인.
 사용자 후속 지시 “네이보쇼핑커넥터에도 써보게”에 따라 테크쉽Get 쇼핑 커넥트 로그인과 상품 찾기 확인. 벨킨 공식몰 AVC009 7in1 USB-C 허브의 정식 링크 https://naver.me/FVF5vHqI 발급 완료(발급 완료 UI/클립보드 확인). 당시 표시 수수료 5%, 가격 49,900원은 관측값이며 변경 가능. 블로그/클립 게시·쿠팡 교체·외부 사이트 사용 가능 정책 확인은 아직 안 함. 정산/지급 정보 미등록 안내 관측, 입력/약관 동의/결제 없음. 이 링크는 현재 뉴스저울 웹에 삽입하지 않음.
+
+
+### 2026-10-26 최종 공개 확인
+PR #9 merged 36a7e20a743f4cbfe647ca55d8bfcc3c18c7e1b1. Netlify 목록에서 해당 master Published 확인. 운영 브라우저에서 canonical 보존, 2026.10.26 갱신 표시, 등록 /go/book5-hub 본문 링크 및 rel=sponsored nofollow 확인. 도식 두 장과 실제 제휴 사진 모두 loaded/naturalWidth>0 확인. 데스크톱 가로 넘침 없음 및 도식 한글 육안 확인. 모바일 실기 렌더는 Chromium 다운로드 실패로 미확인 상태 유지. 공개 기존 글 개선 1편, 신규 원고 공개 0편. 추가 유료 API·제휴 자기클릭 없음. ‘신박한 발견’은 docs/novel-product-discovery-plan.md에 기획 기록했으며 실제 사이트/블로그 메뉴나 클립을 생성한 것은 아님.
