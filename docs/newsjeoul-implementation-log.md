@@ -130,3 +130,12 @@ DEC-006(Publish Gate) 작업 종료. 다음 우선순위는 100명 Editorial Per
 기존 가이드 15편 개정, 신규 2편 작성. 기존 slug/title/canonical 보존. 새 문서를 허브에서 발견할 수 있도록 자동 연결하고 홈 분야를 확장했다. 17편 모두 등록된 쿠팡 제휴 슬롯과 고지를 사용하며 자기 제휴 클릭 없이 검증한다. 버즈 일반형/프로 사양 혼동과 아이폰 8배 광학 퀄리티 표현을 수정했다. 오래된 가격·재고 Offer 마크업을 제거하고 과거 참고가로 구분. 원고 병합/검색/사이트맵/제휴 슬롯 검사 및 production build 통과. 운영 배포는 후속 확인 필요.
 
 DEC-014 로컬 최종 검증: 17편 모두 Chromium에서 제목·canonical·광고 1개·수수료 고지·320px 가로 넘침 없음 확인. 홈 분야 필터/검색/계산기 통과. 버즈·아이폰 허브 JSON-LD에 과거 가격 Offer 없음 확인. 전체 빌드 및 원고·제휴 회귀 테스트 통과. 참조용 기존 PNG는 보존하고 이번 검증은 재실행 가능한 scripts/check-editorial-browser.cjs에 포함했다.
+
+
+### DEC-014 — Deployed / Verified (2026-10-26 KST)
+
+- PR https://github.com/jammiejammmie/newsjeoul-next/pull/2 병합 완료. 운영 코드 commit 035ca24ea5b824be22d7232befe5e3161cdb4e5a.
+- Netlify 운영 deploy 6ade644327e92092ed4b561b Published 확인. 빌드/배포 40초 완료. https://app.netlify.com/projects/jazzy-truffle-7b8784/deploys/6ade644327e92092ed4b561b
+- 운영 홈페이지 21개 가이드 및 신규 2편 링크 확인. content-batch-20261026.json의 17개 URL 모두 HTTP 200, 기존/신규 제목 일치, 2026-10-26 확인 출처, 등록된 /go/ 제휴 링크와 수수료 고지 확인.
+- 신규 USB-C 충전 및 로봇청소기 호환 소모품 글은 실제 브라우저에서도 본문·canonical·광고 링크 확인. affiliate registry의 AF3904190 및 sponsored/nofollow 검증을 통과했으며 자기 제휴 클릭은 만들지 않았다.
+- 기존 반복 발행 설정 변경 없음. 유료 AI API·추가 결제 사용 없음. 108개 글을 비교해 선정한 15편 개정+2편 신규이며 전체 3351개 URL의 개별 사실 검증 완료를 의미하지 않는다.
