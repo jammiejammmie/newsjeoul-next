@@ -6,7 +6,7 @@ export function affiliateProduct(slot:HubAffiliateSlot): Product | undefined {
  const p=products[slot.slot]; if(!p || !slot.targetUrl)return
  try {const q=new URL(slot.targetUrl).searchParams;const key=['pageKey','itemId','vendorItemId'].map(k=>q.get(k)||'').join('/');if(key!==p.key)return;return p}catch{return}
 }
-export function productImage(p?:Product) { return p?.image && /^https:\/\/[^/]*\.coupangcdn\.com\//.test(p.image) ? p.image : undefined }
+export function productImage(p?:Product) { return p?.image && /^https:\/\/(?:[^/]*\.coupangcdn\.com\/|ads-partners\.coupang\.com\/image1\/)/.test(p.image) ? p.image : undefined }
 export function productPrompt(slot:string) {
  const prompts:Record<string,[string,string]>={
  'buds4-body':['새 세트와 비용 비교','색상·구성과 현재 판매가를 한 번에 확인하세요.'],
