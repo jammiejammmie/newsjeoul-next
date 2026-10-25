@@ -1,0 +1,16 @@
+{
+  "observedAt": "2026-10-26T08:03:28+09:00",
+  "base": "fa8c372",
+  "selected": {"question":"모니터·충전 동시 사용 허브를 살 때 어떤 조건을 대조해야 하나?", "url":"/hub/galaxy-book5-pro/buying-ak231s", "decision":"동일 검색 의도의 기존 URL 보강. 신규 URL 없음", "gap":"기존 4개 짧은 문단에 포트 역할·제품별 PD 전달 출력·연결 확인 순서·총비용을 함께 판단할 정보 부족", "value":"HOST/PD IN/DATA 구분, 공식 특정 모델 전력 예시, 분리 진단, 미포함 부품 총비용, 안 사도 되는 조건, 본문 도식 2개", "affiliate":"book5-hub 기존 등록 목적지 및 AF3904190 유지. Anker 예시와 광고 상품이 다름을 명시. 마우스 신규 정식 링크 미확보로 추가 안 함"},
+  "sources": [
+    {"url":"https://www.notebookcheck.net/New-compact-Baseus-10-in-1-dock-arrives-with-a-smart-display-and-more-USB-C-ports-than-Anker-s.1427870.0.html", "date":"검색 결과 6일 전; 정확한 게시시각 미확인", "decision":"72시간 이내 신제품/급상승 근거로 채택 안 함"},
+    {"url":"https://www.baseus.com/products/spacemate-rd1-mini-10-in-1-win-docking-station", "date":"페이지 게시일 미표시", "decision":"공식 판매 모델 존재 확인. 국내 출시/가격/호환 보장 없어 독립 추천 글 보류"},
+    {"url":"https://www.reddit.com/r/UsbCHardware/comments/1rxn6mv/usb_c_hub_wont_connect_to_monitor/", "date":"화면 상대 시점 5mo ago", "likes":null,"comments":null, "decision":"오래된 질문 참고만. 최신/급상승 주장 안 함"},
+    {"url":"https://support.microsoft.com/ko-kr/windows/hardware/fix-usb-c-problems-in-windows", "date":"문서 게시일 미확인", "decision":"충전·영상 기능 조건의 원자료"},
+    {"url":"https://service.anker.com/article-description/Anker-USB-C-Hub-10-in-1-Dual-Display-FAQs", "date":"문서 게시일 미확인", "decision":"100W 입력/85W 출력 특정 제품 예시 및 데이터 USB-C 비영상 근거"}
+  ],
+  "searchDemand":"정량 검색량·CPC·급상승 지표 미확인. 검색 결과 수로 경쟁도 판정하지 않음",
+  "searchAdvisor":{"mode":"현재 인증 화면 읽기 전용", "range":"최근 30일 PC+Mobile", "reportUpdated":"2026-10-24", "displayedClicks":"3.1천", "displayedImpressions":"37.9만", "displayedCTR":"0.8%", "note":"검색 지표이며 쿠팡 클릭/전환 아님. 이전 관측과 동일 집계 범위라 개선 성과로 해석 안 함"},
+  "checks":{"editorial":"PASS", "affiliate":"PASS; 기존 테스트 로더의 JSON default 처리 보완", "typecheck":"PASS", "build":"PASS", "browser":"로컬 Chromium 다운로드가 빈/손상 압축 파일로 실패. 운영 배포 후 실제 브라우저 확인 예정", "paidAPI":false, "affiliateSelfClick":false},
+  "publication":"검증 후 PR 병합/운영 확인 결과는 implementation log 후속 기록 참조"
+}

@@ -1,3 +1,4 @@
+import ArticleInlineVisual from '@/components/editorial/ArticleInlineVisual'
 import QuickChoice from '@/components/editorial/QuickChoice'
 import { QUICK_CHOICES } from '@/lib/hubs/editorial/quick-choices'
 import ArticleVisual, { ArticleDecisionVisual } from '@/components/editorial/ArticleVisual'
@@ -207,6 +208,7 @@ export default async function HubDocPage(
                   <p key={j} style={{ margin: '0 0 11px', font: '500 14.5px/1.8 Pretendard', color: 'var(--body)' }}><ArticleText text={para} /></p>
                 )
               })}
+              <ArticleInlineVisual path={`/hub/${slug}/${document.slug}`} index={i} />
               {i === 2 && <ArticleDecisionVisual path={`/hub/${slug}/${document.slug}`} />}
               {i === 1 && bodyBlocks.length >= 4 && <AffiliatePanel placement={placement} fallback={affiliateSlots} title="관련 상품 가격·옵션 비교" position="middle" />}
             </section>
