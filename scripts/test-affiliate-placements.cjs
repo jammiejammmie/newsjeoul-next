@@ -9,6 +9,7 @@ function load(file) {
  if (!fs.existsSync(file)) file = fs.existsSync(file+'.ts') ? file+'.ts' : path.join(file,'index.ts')
  if(fs.statSync(file).isDirectory())file=path.join(file,'index.ts')
  if(cache.has(file))return cache.get(file)
+ if(file.endsWith('.json'))return {default:JSON.parse(fs.readFileSync(file,'utf8'))}
  const exports={};cache.set(file,exports)
  const code=ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020,jsx:ts.JsxEmit.ReactJSX}}).outputText
  vm.runInNewContext(code,{exports,process,require:id=>id.endsWith('.css')?{}:id.startsWith('@/')?load(id.slice(2)):id.startsWith('.')?load(path.resolve(path.dirname(file),id)):require(id)},{filename:file})

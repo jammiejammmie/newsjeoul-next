@@ -200,3 +200,8 @@ QuickChoice 서버 컴포넌트와 8개 URL의 조건별 선택 데이터 추가
 PR #7 merged as 455c0c146df041e9af1a78aea0c556817a9491b6. Production build passed. Local production browser QA: eight routes at 375px and 1440px, HTTP200, choices, affiliate disclosure/rel, model distinction, no horizontal overflow or JS errors. Both layout screenshots inspected. Live newsjeoul.co.kr returned HTTP200 with 30초 빠른 선택, partner disclosure and canonical URL on all eight mapped routes. Existing URL and AF3904190 destinations preserved. No affiliate self-click or paid API use. This is a comparison/navigation enhancement, not a claim that all eight articles have been fully rewritten or that revenue improved.
 
 Latest user instruction adopted in docs/subscription-editorial.md v2.3 and existing web editorial automation 6ade5e6d09448191bc46f3d08aff4407: each article must solve a concrete reader problem in one place by independently verifying and connecting scattered facts, conditions, costs, exceptions and next actions. Avoid moving essential answers behind internal links; do not invent novelty. Existing automation schedule and paused social channels unchanged.
+
+
+## 2026-10-26 08시 — USB-C 허브 선택 기존 URL 개선
+기존 `/hub/galaxy-book5-pro/buying-ak231s` 제목·slug·canonical·허브 연결 유지. 단순 포트 수에서 영상/충전/데이터 역할, 공식 Anker 특정 모델의 100W 입력과 85W 전달 예시, 분리 진단, 총비용, 구매 불필요 조건까지 보강. 별도 광고 모델과 예시 모델 구분. 자체 SVG 설명도 2장(600×880, 모바일 본문 글자 크기 고려), alt/caption/dimensions/lazy 적용. 새 이미지 컴포넌트는 해당 URL의 1·2번 문단 뒤만 적용. 기존 제휴 URL/AF3904190 보존. 실제 광고 목적지는 열지 않음. 신규 마우스 링크 미확보.
+원고·검색·사이트맵 회귀 검사와 제휴 검사 PASS. 기존 제휴 테스트 로더 JSON default 처리 누락을 수정해 실제 스냅샷으로 검사. TypeScript 및 production build PASS. 로컬 Chromium 설치 다운로드 손상으로 모바일 브라우저 검수 미완료. 공개 확인은 후속 기록. 조사 및 Search Advisor 집계 범위: research-20261026-0803.json. SNS/소라/유료 API 작업 없음.
