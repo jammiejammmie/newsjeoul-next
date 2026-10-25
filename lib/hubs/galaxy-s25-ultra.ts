@@ -12,12 +12,12 @@ export const galaxyS25Ultra: HubConfig = {
   title: '갤럭시 S25 울트라',
   breadcrumb: ['신제품·가전', '모바일'],
   category: '모바일',
-  trackingNote: '추적 중인 제품 · 값이 바뀌면 갱신됩니다',
+  trackingNote: '제품 선택 가이드 · 과거 가격과 현재 판매 조건은 다를 수 있습니다',
   definition:
     'S펜을 계속 쓰는 사람에게 사실상 유일한 선택지로 남은 모델입니다. 출시 후 시간이 지나며 가격이 내려온 지금, 무엇을 기준으로 사고 어떻게 쓰는지를 이 페이지에 모았습니다.',
 
   stats: [
-    { label: '자급제 최저가', value: '114만원', note: '쿠팡 기준 · 08.10', emphasis: true },
+    { label: '과거 참고가', value: '114만원', note: '쿠팡 기준 · 08.10', emphasis: true },
     { label: '무게', value: '218g', note: '티타늄 프레임' },
     { label: '메인 카메라', value: '2억 화소', note: '초광각 5천만' },
     { label: '배터리', value: '4,855mAh', note: '정격 용량' },
@@ -113,7 +113,7 @@ export const galaxyS25Ultra: HubConfig = {
 
   timelineTitle: '이 제품이 지나온 일',
   timeline: [
-    { date: '2026-08-10', text: '자급제 최저가 114만원대 — 출시가 대비 하락' },
+    { date: '2026-08-10', text: '당시 자급제 참고가 114만원대 — 출시가 대비 하락' },
   ],
 
   affiliate: {

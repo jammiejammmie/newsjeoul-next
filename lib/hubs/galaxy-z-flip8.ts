@@ -20,12 +20,12 @@ export const galaxyZFlip8: HubConfig = {
   title: '갤럭시 Z 플립8',
   breadcrumb: ['신제품·가전', '모바일'],
   category: '모바일',
-  trackingNote: '추적 중인 제품 · 값이 바뀌면 갱신됩니다',
+  trackingNote: '제품 선택 가이드 · 과거 가격과 현재 판매 조건은 다를 수 있습니다',
   definition:
     '커버 화면이 4.1인치로 커지면서 폴더블을 접은 채로 쓰는 시간이 길어졌습니다. 가격·물량 조건부터 실제 사용 설정과 자주 나는 오류까지, 플립8에 관해 검색되는 것을 이 페이지에 모았습니다.',
 
   stats: [
-    { label: '자급제 최저가', value: '158만원', note: '쿠팡 기준 · 08.10' },
+    { label: '과거 참고가', value: '158만원', note: '쿠팡 기준 · 08.10' },
     { label: '국내 출시', value: '8월 7일', note: '언팩 7월 22일' },
     { label: '커버 화면', value: '4.1형', note: '전작 대비 확대', emphasis: true },
     { label: '배터리', value: '4,300mAh', note: '25W 유선 충전' },

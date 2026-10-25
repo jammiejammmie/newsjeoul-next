@@ -1,3 +1,4 @@
+import { REFRESH_20261026 } from './refresh-20261026'
 import { PRACTICAL_GUIDES } from './practical-guides'
 import type { MetadataRoute } from 'next'
 import type { HubDocument } from '../index'
@@ -26,6 +27,12 @@ export const EDITORIAL_DOCUMENTS: Record<string, HubDocument[]> = {
 
 for (const [hub, docs] of Object.entries(PRACTICAL_GUIDES)) {
   EDITORIAL_DOCUMENTS[hub] = [...(EDITORIAL_DOCUMENTS[hub] ?? []), ...docs]
+}
+
+for (const [hub, docs] of Object.entries(REFRESH_20261026)) {
+  const merged = new Map((EDITORIAL_DOCUMENTS[hub] ?? []).map(doc => [doc.slug, doc]))
+  for (const doc of docs) merged.set(doc.slug, doc)
+  EDITORIAL_DOCUMENTS[hub] = [...merged.values()]
 }
 
 export function mergeEditorialDocuments(hubSlug: string, database: HubDocument[]): HubDocument[] {

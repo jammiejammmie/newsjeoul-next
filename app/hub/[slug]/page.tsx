@@ -154,41 +154,9 @@ export default async function HubPage({ params }: { params: Promise<{ slug: stri
     ...(hub.schema.provider ? { provider: { '@type': 'GovernmentOrganization', name: hub.schema.provider } } : {}),
     ...(hub.schema.applicationCategory ? { applicationCategory: hub.schema.applicationCategory } : {}),
     ...(hub.schema.operatingSystem ? { operatingSystem: hub.schema.operatingSystem } : {}),
-    // ── Offer ── 2026-08-08 Search Console "제품 스니펫" 오류 대응.
-    //
-    // 경위: 08-07에 Offer를 뗐다(커밋 d8674a5). Offer가 있으면 Google이 이 페이지를
-    // "판매자 목록(merchant listing)" 후보로 보고 hasMerchantReturnPolicy·shippingDetails를
-    // 요구했기 때문이다. 그런데 그 조치가 경고를 오류로 바꿔놨다 —
-    // Product는 offers·review·aggregateRating 중 하나가 없으면 항목 자체가 '유효하지 않음'이 되어
-    // 리치 결과에서 완전히 빠진다(08-08 확인, 영향 URL: /hub/galaxy-z-fold8 1건).
-    // 판매자 목록의 두 필드는 '권장'이라 경고에 그쳤다. 경고를 지우려다 색인 자격을 잃은 셈이라 되돌린다.
-    //
-    // review·aggregateRating은 대안이 아니다. 평점 데이터가 실제로 없고,
-    // 없는 평점을 지어내는 것은 Google 정책상 수동 조치 대상이다. 남는 선택지는 Offer뿐이다.
-    //
-    // 판매자 오인을 다시 부르지 않기 위해 seller를 명시한다 — 파는 쪽은 쿠팡이고 뉴스저울이 아니다.
-    // 그래서 반품·배송 조건을 우리가 선언할 이유가 없다는 사실이 마크업에 그대로 드러난다.
-    // 여전히 "추정치를 선언하지 않는다"는 원칙은 유지한다: price가 확정된 허브에만 Offer가 붙는다
-    // (가격 미공시 신차 등은 그대로 Offer 없음).
-    ...(typeof hub.schema.price === 'number'
-      ? {
-          offers: {
-            '@type': 'Offer',
-            price: hub.schema.price,
-            priceCurrency: hub.schema.currency ?? 'KRW',
-            availability: 'https://schema.org/InStock',
-            // 실제 구매 경로가 연결돼 있으면 그곳을, 아직이면 이 허브 페이지를 가리킨다.
-            // 목적지가 비어 있는 /go/{slot}은 404를 반환하므로(app/go/[slot]/route.ts)
-            // 링크가 붙기 전에 그 주소를 Offer에 선언하면 죽은 URL을 구조화 데이터로 내보내게 된다.
-            url: primaryAffiliate
-              ? `${BASE}/go/${primaryAffiliate.slot}`
-              : `${BASE}/hub/${hub.slug}`,
-            ...(primaryAffiliate
-              ? { seller: { '@type': 'Organization', name: '쿠팡' } }
-              : {}),
-          },
-        }
-      : {}),
+    // Historical reference prices do not establish a current offer or stock status.
+    // No Offer is emitted until a dated, verified seller feed is available.
+
   }
   const faqSchema = {
     '@context': 'https://schema.org',
@@ -373,9 +341,13 @@ export default async function HubPage({ params }: { params: Promise<{ slug: stri
                   key={key}
                   label={hub.evergreen[key].label}
                   // 설정의 href가 있으면 그대로, 없으면 생성된 문서가 있을 때만 링크가 붙는다.
-                  items={hub.evergreen[key].items.map((i) => ({
-                    ...i, href: i.href ?? hubDocHref(hub.slug, docs, i.title),
-                  }))}
+                  items={[
+                    ...hub.evergreen[key].items.map((i) => ({
+                      ...i, href: i.href ?? (i.slug && docs.some(d => d.slug === i.slug) ? `${BASE}/hub/${hub.slug}/${i.slug}` : hubDocHref(hub.slug, docs, i.title)),
+                    })),
+                    ...docs.filter(d => d.format === key && !hub.evergreen[key].items.some(i => i.slug === d.slug || i.title === d.title))
+                      .map(d => ({title:d.title,href:`${BASE}/hub/${hub.slug}/${d.slug}`,updatedAt:d.updatedAt.slice(0,10)})),
+                  ]}
                 />
               ))}
             </div>

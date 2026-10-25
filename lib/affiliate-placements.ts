@@ -18,7 +18,7 @@ export function searchEntryPlacement(path: string): AffiliatePlacement | null {
       slots: ['buds4-body'], context: '새 제품과 수리 비용을 비교할 때 참고하세요. 한쪽 유닛 판매 링크가 아닙니다.',
     },
     '/hub/galaxy-s25-ultra/s-1xzjlx': {
-      slots: ['s25u-body'], context: '관련 제품 광고입니다. 현재 판매가·구성·호환 여부는 판매 페이지에서 확인하세요.',
+      slots: ['s25u-spen'], context: '교체용 펜 비교 광고입니다. 자석 간섭·기능 미지원 여부를 먼저 확인하고, 정확한 지원 모델과 정품·호환품 구분을 판매 페이지에서 확인하세요.',
     },
   }
   return placements[path] ?? null
