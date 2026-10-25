@@ -112,3 +112,21 @@ DEC-006(Publish Gate) 작업 종료. 다음 우선순위는 100명 Editorial Per
 - 실제 레지스트리 목적지 호스트와 AF3904190 태그, 링크 앞 수수료 고지, sponsored/nofollow, 광고 중복 없음 검증. 제휴 목적지를 직접 열거나 자기 클릭을 만들지 않음.
 - 기존 원고/검색 테스트 및 Next 프로덕션 빌드 통과. Supabase 운영 데이터 접근 없이 문서 보존: 운영 DB 기반 모든 페이지의 현재 응답까지 재확인한 것은 아님.
 - 운영 배포 미완료: 앞서 GitHub 앱 쓰기 요청에서 403 Resource not accessible by integration 반환. 로컬 구현 완료와 공개 적용을 구분한다.
+
+### DEC-010~013 — Deployed / Verified (2026-10-26 04:32 KST)
+
+- 사용자가 GitHub 로그인 및 ChatGPT Codex Connector 설치를 완료했다. 설치 ID 175228954를 브라우저와 연결 API에서 확인했다. 이전 403 병목 해소.
+- 41개 변경 파일의 Git blob SHA 및 전체 tree SHA f4332e0e93eff7aeefe07a6f54576e9fe3e0f3ed가 로컬 검증본과 원격에서 일치.
+- PR https://github.com/jammiejammmie/newsjeoul-next/pull/1 병합 완료. master 223b99f609ac2388bfe5643ef2f4c2522f5dcca0.
+- Netlify preview 완료, 운영 deploy 6ade58dec90fd88ecfaa9fa2 로그에서 Site is live 확인. https://app.netlify.com/projects/jazzy-truffle-7b8784/deploys/6ade58dec90fd88ecfaa9fa2
+- https://newsjeoul.co.kr/ 에서 새 홈, 가이드 4개, 비용 비교 표시 확인.
+- 주요 유입 10개 경로를 실제 브라우저에서 검증: melon-streaming 허브 및 family-account, streaming-light-vs-regular, unlimited-plans, sound-quality; youth-savings-account/job-change; topic/yoo-jaesuk-son-jiho-update; galaxy-z-flip8/cover-widget-missing; galaxy-buds4/single-bud-replacement; galaxy-s25-ultra/s-1xzjlx.
+- 기존 URL·페이지 제목 및 상세 페이지 canonical 유지, 각 페이지 광고 패널 1개 확인. 링크 sponsored/nofollow/noopener/noreferrer 확인. 제휴 목적지 클릭은 하지 않았다.
+- 유료 AI API·GitHub workflow·운영 데이터 변경 없이 기존 Netlify 자동 배포 경로로 반영.
+
+
+### DEC-014 — Implemented / 검증 중 (2026-10-26)
+
+기존 가이드 15편 개정, 신규 2편 작성. 기존 slug/title/canonical 보존. 새 문서를 허브에서 발견할 수 있도록 자동 연결하고 홈 분야를 확장했다. 17편 모두 등록된 쿠팡 제휴 슬롯과 고지를 사용하며 자기 제휴 클릭 없이 검증한다. 버즈 일반형/프로 사양 혼동과 아이폰 8배 광학 퀄리티 표현을 수정했다. 오래된 가격·재고 Offer 마크업을 제거하고 과거 참고가로 구분. 원고 병합/검색/사이트맵/제휴 슬롯 검사 및 production build 통과. 운영 배포는 후속 확인 필요.
+
+DEC-014 로컬 최종 검증: 17편 모두 Chromium에서 제목·canonical·광고 1개·수수료 고지·320px 가로 넘침 없음 확인. 홈 분야 필터/검색/계산기 통과. 버즈·아이폰 허브 JSON-LD에 과거 가격 Offer 없음 확인. 전체 빌드 및 원고·제휴 회귀 테스트 통과. 참조용 기존 PNG는 보존하고 이번 검증은 재실행 가능한 scripts/check-editorial-browser.cjs에 포함했다.

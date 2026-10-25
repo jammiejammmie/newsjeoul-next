@@ -11,9 +11,9 @@ const server = spawn(process.execPath,['node_modules/next/dist/bin/next','start'
   const page=await browser.newPage({viewport:{width:1440,height:1000}})
   const errors=[];page.on('pageerror',e=>errors.push(e.message))
   await page.goto('http://127.0.0.1:3110/',{waitUntil:'networkidle'})
-  assert.equal(await page.locator('.guide-card').count(),4)
+  const totalCards=await page.locator('.guide-card').count(); assert.ok(totalCards>=4)
   await page.getByRole('button',{name:'스마트폰',exact:true}).click()
-  assert.equal(await page.locator('.guide-card').count(),2)
+  assert.ok(await page.locator('.guide-card').count()>0); assert.ok(await page.locator('.guide-card').count()<totalCards)
   await page.getByRole('searchbox',{name:'가이드 검색'}).fill('액체')
   assert.equal(await page.locator('.guide-card').count(),1)
   await page.getByRole('searchbox',{name:'가이드 검색'}).fill('없는검색어')
@@ -43,6 +43,21 @@ const server = spawn(process.execPath,['node_modules/next/dist/bin/next','start'
   assert.equal(await page.locator('a[href="https://www.samsungsvc.co.kr/solution/25084"]').count(),1)
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'Article overflow at 320px')
   await page.screenshot({path:'docs/previews/guide-v2-mobile.png',fullPage:true})
+  const batch=require('../docs/content-batch-20261026.json')
+  for(const entry of batch.entries){
+   await page.goto(entry.url.replace('https://newsjeoul.co.kr','http://127.0.0.1:3110'),{waitUntil:'networkidle'})
+   assert.equal(await page.locator('h1').innerText(),entry.title)
+   assert.equal(await page.locator('link[rel="canonical"]').getAttribute('href'),entry.url)
+   assert.equal(await page.locator('[data-affiliate-panel]').count(),1)
+   assert.ok(await page.locator('[data-affiliate-panel]').innerText().then(t=>t.includes('수수료')))
+   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),entry.url)
+  }
+  for(const hub of ['iphone-17-pro','galaxy-buds4']){
+   await page.goto('http://127.0.0.1:3110/hub/'+hub,{waitUntil:'networkidle'})
+   const schema=await page.locator('script[type="application/ld+json"]').allTextContents()
+   assert.ok(!schema.some(t=>t.includes('"@type":"Offer"')))
+  }
+  console.log('PASS: '+batch.entries.length+' article titles, canonicals, single disclosed ads, mobile width, no stale Offer schema')
   assert.deepEqual(errors,[])
   console.log('PASS: real-browser filters, search, both cost comparisons, 320/375px overflow, source links, no JS errors')
  }finally{if(browser)await browser.close();server.kill()}

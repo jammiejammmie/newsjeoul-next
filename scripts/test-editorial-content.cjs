@@ -8,12 +8,16 @@ const compiled = ts.transpileModule(fs.readFileSync('lib/hubs/editorial/index.ts
 const moduleExports = {}
 const practical = {}
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/hubs/editorial/practical-guides.ts', 'utf8'), {compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText, {exports:practical})
-vm.runInNewContext(compiled, { exports: moduleExports, require: () => practical })
+const refresh = {}
+vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/hubs/editorial/refresh-20261026.ts', 'utf8'), {compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText, {exports:refresh})
+vm.runInNewContext(compiled, { exports: moduleExports, require: id => id.includes('refresh-') ? refresh : practical })
 const { EDITORIAL_DOCUMENTS, mergeEditorialDocuments, mergeEditorialSitemap, editorialSlots } = moduleExports
+const total = Object.values(EDITORIAL_DOCUMENTS).flat().length
+const budsTotal = EDITORIAL_DOCUMENTS['galaxy-buds4'].length
 const doc = EDITORIAL_DOCUMENTS['galaxy-buds4'][0]
-assert.equal(mergeEditorialDocuments('galaxy-buds4', []).length, 2)
+assert.equal(mergeEditorialDocuments('galaxy-buds4', []).length, budsTotal)
 const merged = mergeEditorialDocuments('galaxy-buds4', [{ ...doc, title: 'stale DB' }, { ...doc, slug: 'other' }])
-assert.equal(merged.length, 3)
+assert.equal(merged.length, budsTotal + 1)
 assert.equal(merged[0].title, doc.title)
 assert.equal(mergeEditorialDocuments('unrelated', []).length, 0)
 assert.equal(editorialSlots(doc, [
@@ -24,9 +28,9 @@ assert.equal(editorialSlots(doc, [
 assert.equal(editorialSlots({ ...doc, affiliateSlotIds: [] }, [{ slot: 'buds4-body', targetUrl: 'https://example.com' }]).length, 0)
 const url = 'https://newsjeoul.co.kr/hub/galaxy-buds4/single-bud-replacement'
 const sitemap = mergeEditorialSitemap([{ url, lastModified: '2020-01-01' }, { url: 'https://newsjeoul.co.kr/' }])
-assert.equal(sitemap.length, 5)
+assert.equal(sitemap.length, total + 1)
 assert.equal(sitemap[0].lastModified, doc.updatedAt)
-assert.equal(mergeEditorialSitemap([]).length, 4)
+assert.equal(mergeEditorialSitemap([]).length, total)
 assert.ok(doc.sourceNote.includes('https://www.samsungsvc.co.kr/solution/25084'))
 console.log('PASS: offline availability, DB override, unrelated documents, affiliate scope, sitemap dedup/date')
 const searchExports = {}

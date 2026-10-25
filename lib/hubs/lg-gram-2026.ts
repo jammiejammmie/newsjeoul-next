@@ -17,7 +17,7 @@ export const lgGram2026: HubConfig = {
     '16형에서 1,199g이라는 무게가 이 제품의 이유입니다. 2026년형은 소재와 온디바이스 AI가 바뀌었는데, 그 변화가 실사용에서 무엇을 바꾸는지를 기준으로 정리했습니다.',
 
   stats: [
-    { label: '16형 최저가', value: '225만원', note: 'Ryzen AI 400 · 08.10' },
+    { label: '과거 참고가', value: '225만원', note: 'Ryzen AI 400 · 08.10' },
     { label: '무게', value: '1,199g', note: '16형 프로 기준', emphasis: true },
     { label: '배터리', value: '77Wh', note: '최대 27시간' },
     { label: '고속충전', value: '30분', note: '9시간 이상 사용' },

@@ -1,0 +1,164 @@
+{
+  "version": "1.0",
+  "checkedAt": "2026-10-26",
+  "sitemapUrls": 3351,
+  "hubUrls": 278,
+  "readArticleCount": 108,
+  "scope": "Six commercial/service hubs; all other URLs retained, not represented as individually source-verified.",
+  "entries": [
+    {
+      "url": "https://newsjeoul.co.kr/hub/galaxy-buds4/buds4-vs-buds4-pro",
+      "title": "버즈4와 버즈4 프로, 무엇이 다른가",
+      "kind": "refresh",
+      "sources": "2026-10-26 확인. Samsung 제품 안내 https://www.samsung.com/sec/buds/galaxy-buds4/buy/?modelCode=SM-R540NZWAKOO 및 https://www.samsung.com/sec/buds/galaxy-buds4-pro-r640/SM-R640NZKAKOO/ . 공식 자료를 바탕으로 AI가 작성했습니다. 직접 사용하거나 성능을 측정한 후기가 아닙니다. 구매 판단과 비용 계산 예시는 편집 기준입니다.",
+      "slots": [
+        "buds4-body"
+      ]
+    },
+    {
+      "url": "https://newsjeoul.co.kr/hub/galaxy-buds4/eartip-fit",
+      "title": "귀 모양에 맞는 이어팁 고르는 법",
+      "kind": "refresh",
+      "sources": "2026-10-26 확인. Samsung 제품 안내 https://www.samsung.com/sec/buds/galaxy-buds4/buy/?modelCode=SM-R540NZWAKOO 및 https://www.samsung.com/sec/buds/galaxy-buds4-pro-r640/SM-R640NZKAKOO/ . 공식 자료를 바탕으로 AI가 작성했습니다. 직접 사용하거나 성능을 측정한 후기가 아닙니다. 구매 판단과 비용 계산 예시는 편집 기준입니다.",
+      "slots": [
+        "buds4-tips"
+      ]
+    },
+    {
+      "url": "https://newsjeoul.co.kr/hub/galaxy-buds4/with-iphone",
+      "title": "아이폰과 함께 쓸 때의 제약",
+      "kind": "refresh",
+      "sources": "2026-10-26 확인. Samsung 연결 안내 https://www.samsung.com/us/support/answer/ANS10001319/ 및 기기별 기능표 https://image-us.samsung.com/SamsungUS/home/mobile/audio-sound/galaxy-buds4/Buds4F-Available-Features-by-Device-As-of-2026-03-03.pdf . 공식 자료를 바탕으로 AI가 작성했습니다. 직접 사용하거나 성능을 측정한 후기가 아닙니다. 구매 판단과 비용 계산 예시는 편집 기준입니다.",
+      "slots": [
+        "buds4-body"
+      ]
+    },
+    {
+      "url": "https://newsjeoul.co.kr/hub/galaxy-buds4/case-and-eartip-picks",
+      "title": "케이스·이어팁 실제로 쓸 만한 것만",
+      "kind": "refresh",
+      "sources": "2026-10-26 확인. Samsung 제품 안내 https://www.samsung.com/sec/buds/galaxy-buds4/buy/?modelCode=SM-R540NZWAKOO 및 https://www.samsung.com/sec/buds/galaxy-buds4-pro-r640/SM-R640NZKAKOO/ . 공식 자료를 바탕으로 AI가 작성했습니다. 직접 사용하거나 성능을 측정한 후기가 아닙니다. 구매 판단과 비용 계산 예시는 편집 기준입니다.",
+      "slots": [
+        "buds4-case",
+        "buds4-tips"
+      ]
+    },
+    {
+      "url": "https://newsjeoul.co.kr/hub/galaxy-s25-ultra/s-1xzjlx",
+      "title": "S펜이 인식되지 않을 때 확인 순서",
+      "kind": "refresh",
+      "sources": "2026-10-26 확인. Samsung https://www.samsung.com/us/support/troubleshoot/TSG10003505/ 및 https://www.samsung.com/us/support/answer/ANS10003218/ . 공식 자료를 바탕으로 AI가 작성했습니다. 직접 사용하거나 성능을 측정한 후기가 아닙니다. 구매 판단과 비용 계산 예시는 편집 기준입니다.",
+      "slots": [
+        "s25u-spen"
+      ]
+    },
+    {
+      "url": "https://newsjeoul.co.kr/hub/iphone-17-pro/troubleshoot-4nofa0",
+      "title": "맥세이프 충전이 안 붙을 때",
+      "kind": "refresh",
+      "sources": "2026-10-26 확인. Apple MagSafe 충전기 안내 https://support.apple.com/ko-kr/105047 . 공식 자료를 바탕으로 AI가 작성했습니다. 직접 사용하거나 성능을 측정한 후기가 아닙니다. 구매 판단과 비용 계산 예시는 편집 기준입니다.",
+      "slots": [
+        "ip17p-charger"
+      ]
+    },
+    {
+      "url": "https://newsjeoul.co.kr/hub/iphone-17-pro/buying-1wp58j",
+      "title": "맥세이프 액세서리 고를 때 확인할 것",
+      "kind": "refresh",
+      "sources": "2026-10-26 확인. Apple MagSafe 충전기 안내 https://support.apple.com/ko-kr/105047 . 공식 자료를 바탕으로 AI가 작성했습니다. 직접 사용하거나 성능을 측정한 후기가 아닙니다. 구매 판단과 비용 계산 예시는 편집 기준입니다.",
+      "slots": [
+        "ip17p-charger"
+      ]
+    },
+    {
+      "url": "https://newsjeoul.co.kr/hub/iphone-17-pro/8-133fls",
+      "title": "8배 줌을 실제로 쓸 만하게 찍는 법",
+      "kind": "refresh",
+      "sources": "2026-10-26 확인. Apple iPhone 17 Pro 기술 사양 https://support.apple.com/ko-kr/125090 . 공식 자료를 바탕으로 AI가 작성했습니다. 직접 사용하거나 성능을 측정한 후기가 아닙니다. 구매 판단과 비용 계산 예시는 편집 기준입니다.",
+      "slots": [
+        "ip17p-body"
+      ]
+    },
+    {
+      "url": "https://newsjeoul.co.kr/hub/iphone-17-pro/buying-y2x3q4",
+      "title": "저장용량, 어느 구성이 맞나",
+      "kind": "refresh",
+      "sources": "2026-10-26 확인. Apple 저장 공간 안내 https://support.apple.com/ko-kr/102598 및 https://support.apple.com/ko-kr/guide/iphone/welcome/ios . Apple iPhone 17 Pro 기술 사양 https://support.apple.com/ko-kr/125090 . 공식 자료를 바탕으로 AI가 작성했습니다. 직접 사용하거나 성능을 측정한 후기가 아닙니다. 구매 판단과 비용 계산 예시는 편집 기준입니다.",
+      "slots": [
+        "ip17p-body"
+      ]
+    },
+    {
+      "url": "https://newsjeoul.co.kr/hub/galaxy-book5-pro/buying-ak231s",
+      "title": "멀티허브가 필요한 포트 구성인지 확인하기",
+      "kind": "refresh",
+      "sources": "2026-10-26 확인. Microsoft Windows USB-C 문제 해결 https://support.microsoft.com/ko-kr/windows/hardware/fix-usb-c-problems-in-windows . 공식 자료를 바탕으로 AI가 작성했습니다. 직접 사용하거나 성능을 측정한 후기가 아닙니다. 구매 판단과 비용 계산 예시는 편집 기준입니다.",
+      "slots": [
+        "book5-hub"
+      ]
+    },
+    {
+      "url": "https://newsjeoul.co.kr/hub/galaxy-book5-pro/troubleshoot-7cg5ri",
+      "title": "외부 모니터가 인식되지 않을 때",
+      "kind": "refresh",
+      "sources": "2026-10-26 확인. Microsoft Windows USB-C 문제 해결 https://support.microsoft.com/ko-kr/windows/hardware/fix-usb-c-problems-in-windows . Microsoft 외부 모니터 문제 해결 https://support.microsoft.com/en-us/windows/hardware/display-graphics/troubleshoot-external-monitor-connections-in-windows . 공식 자료를 바탕으로 AI가 작성했습니다. 직접 사용하거나 성능을 측정한 후기가 아닙니다. 구매 판단과 비용 계산 예시는 편집 기준입니다.",
+      "slots": [
+        "book5-hub"
+      ]
+    },
+    {
+      "url": "https://newsjeoul.co.kr/hub/galaxy-book5-pro/usb-c-charger-phone-vs-laptop",
+      "title": "휴대폰 USB-C 충전기로 노트북도 충전할 수 있을까?",
+      "kind": "new",
+      "sources": "2026-10-26 확인. Microsoft Windows USB-C 문제 해결 https://support.microsoft.com/ko-kr/windows/hardware/fix-usb-c-problems-in-windows . 공식 자료를 바탕으로 AI가 작성했습니다. 직접 사용하거나 성능을 측정한 후기가 아닙니다. 구매 판단과 비용 계산 예시는 편집 기준입니다.",
+      "slots": [
+        "book5-hub"
+      ]
+    },
+    {
+      "url": "https://newsjeoul.co.kr/hub/robot-vacuum-2026/troubleshoot-1k17we",
+      "title": "충전 스테이션으로 복귀하지 못할 때",
+      "kind": "refresh",
+      "sources": "2026-10-26 확인. Roborock 복귀 문제 안내 https://support.roborock.com/hc/en-us/articles/360035732031-What-should-I-do-when-the-robot-cleaner-cannot-find-its-dock . 공식 자료를 바탕으로 AI가 작성했습니다. 직접 사용하거나 성능을 측정한 후기가 아닙니다. 구매 판단과 비용 계산 예시는 편집 기준입니다.",
+      "slots": [
+        "rv26-roborock"
+      ]
+    },
+    {
+      "url": "https://newsjeoul.co.kr/hub/robot-vacuum-2026/consumable-model-code-check",
+      "title": "로봇청소기 호환 소모품, 같은 모양이면 사도 될까?",
+      "kind": "new",
+      "sources": "2026-10-26 확인. Roborock 제품별 지원·설명서 https://support.roborock.com/ 및 오류 안내 https://help.roborock.com/us/product/s8-message?category=troubleshooting . 공식 자료를 바탕으로 AI가 작성했습니다. 직접 사용하거나 성능을 측정한 후기가 아닙니다. 구매 판단과 비용 계산 예시는 편집 기준입니다.",
+      "slots": [
+        "rv26-parts"
+      ]
+    },
+    {
+      "url": "https://newsjeoul.co.kr/hub/melon-streaming/unlimited-plans",
+      "title": "멜론 무제한 스트리밍 요금제 비교",
+      "kind": "refresh",
+      "sources": "2026-10-26 확인. 멜론 공식 전체 이용권 https://www.melon.com/buy/pamphlet/all.htm 및 스트리밍클럽 안내 https://faqs2.melon.com/web/faq/content.htm?faqId=QUES20140618000069 . 공식 자료를 바탕으로 AI가 작성했습니다. 직접 사용하거나 성능을 측정한 후기가 아닙니다. 구매 판단과 비용 계산 예시는 편집 기준입니다.",
+      "slots": [
+        "buds4-body"
+      ]
+    },
+    {
+      "url": "https://newsjeoul.co.kr/hub/melon-streaming/streaming-light-vs-regular",
+      "title": "멜론 스트리밍 라이트 vs 일반 차이",
+      "kind": "refresh",
+      "sources": "2026-10-26 확인. 멜론 공식 전체 이용권 https://www.melon.com/buy/pamphlet/all.htm 및 스트리밍클럽 안내 https://faqs2.melon.com/web/faq/content.htm?faqId=QUES20140618000069 . 공식 자료를 바탕으로 AI가 작성했습니다. 직접 사용하거나 성능을 측정한 후기가 아닙니다. 구매 판단과 비용 계산 예시는 편집 기준입니다.",
+      "slots": [
+        "buds4-body"
+      ]
+    },
+    {
+      "url": "https://newsjeoul.co.kr/hub/melon-streaming/sound-quality",
+      "title": "멜론 음질 설정법",
+      "kind": "refresh",
+      "sources": "2026-10-26 확인. 멜론 공식 음질 FAQ https://faqs2.melon.com/web/faq/content.htm?faqId=2812 및 음질 설명 https://faqs2.melon.com/web/faq/content.htm?faqId=2954 . 공식 자료를 바탕으로 AI가 작성했습니다. 직접 사용하거나 성능을 측정한 후기가 아닙니다. 구매 판단과 비용 계산 예시는 편집 기준입니다.",
+      "slots": [
+        "buds4-body"
+      ]
+    }
+  ]
+}

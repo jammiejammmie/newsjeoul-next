@@ -18,7 +18,7 @@ export const galaxyBook5Pro: HubConfig = {
     '아몰레드 화면과 가벼운 무게를 우선하는 사람에게 맞는 노트북입니다. 구성에 따라 값 차이가 큰 제품이라, 어떤 구성이 어떤 작업에 맞는지부터 정리했습니다.',
 
   stats: [
-    { label: '16형 최저가', value: '295만원', note: 'Ultra 7 구성 · 08.10' },
+    { label: '과거 참고가', value: '295만원', note: 'Ultra 7 구성 · 08.10' },
     { label: '무게', value: '1.23kg', note: '14형 기준' },
     { label: '배터리', value: '63.1Wh', note: '영상재생 최대 21시간' },
     { label: '화면', value: '2880×1800', note: 'AMOLED 2X 반사방지' },

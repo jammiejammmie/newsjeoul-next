@@ -70,3 +70,10 @@
 브라우저 검수 명령: QA_PLAYWRIGHT_MODULE과 QA_CHROMIUM_PATH에 QA 환경의 Playwright 모듈·Chromium 실행 경로를 지정하고 `node scripts/check-editorial-browser.cjs`를 실행한다. 검수용 브라우저는 운영 의존성에 추가하지 않는다. 출력 이미지는 docs/previews 아래 실제 렌더 결과다.
 
 최종 v2.1 상태: 폰트를 기존 Pretendard 로컬 파일로 제공하도록 변경했고 실제 한글 렌더 확인 완료. desktop/320px/375px 스크린샷과 실제 브라우저 동작 검사 통과. 운영 배포 상태와 로컬 검수 완료는 별개다.
+
+
+## v2.2 — 현재 상태 (2026-10-26)
+
+GitHub 연결 정상화 및 PR #1 운영 배포 완료. 과거 403/미배포 기록은 당시 이력이다. 별도 웹 발행 반복 작업이 활성화돼 있으며 이번 수동 콘텐츠 확장으로 일정을 바꾸지 않는다.
+
+현재 글 추가 경로는 editorial/refresh-20261026.ts에도 있다. 새 배치를 추가하면 index.ts에서 병합하고 테스트의 모듈 로더도 연결한다. 같은 검색 의도는 기존 slug에 반영한다. 최신 목록은 docs/content-batch-20261026.json 참고. 제품 과거 가격은 현재 Offer·재고 근거가 아니므로 허브에서 Offer 마크업을 제거했다.

@@ -26,7 +26,7 @@ export const galaxyZFold8: HubConfig = {
   title: '갤럭시 Z 폴드8',
   breadcrumb: ['신제품·가전', '모바일'],
   category: '모바일',
-  trackingNote: '추적 중인 제품 · 값이 바뀌면 갱신됩니다',
+  trackingNote: '제품 선택 가이드 · 과거 가격과 현재 판매 조건은 다를 수 있습니다',
   definition:
     '201g으로 폴드 시리즈 중 가장 가벼워졌습니다. 가격과 스펙부터 실제 사용 설정법과 자주 나는 오류까지, 폴드8에 관해 검색되는 것을 이 한 페이지에 모았습니다. 공식 자료와 사용자 리포트를 대조해 갱신합니다.',
 
@@ -36,7 +36,7 @@ export const galaxyZFold8: HubConfig = {
   // 확인된 것만 남긴다는 원칙이 화면에 보이는 수치에도 그대로 적용된다 —
   // 틀린 값을 채워두는 것보다 칸이 비는 편이 낫다.
   stats: [
-    { label: '자급제 최저가', value: '238만원', note: '쿠팡 기준 · 08.10' },
+    { label: '과거 참고가', value: '238만원', note: '쿠팡 기준 · 08.10' },
     { label: '국내 출시', value: '8월 7일', note: '언팩 7월 22일' },
     { label: '무게', value: '201g', note: '폴드 시리즈 최경량', emphasis: true },
     { label: '배터리', value: '4,800mAh' },
