@@ -27,6 +27,7 @@ const path = require('path')
 const ACCESS = process.env.COUPANG_ACCESS_KEY
 const SECRET = process.env.COUPANG_SECRET_KEY
 const DRY = process.argv.includes('--dry')
+const MEDIA_ONLY = process.argv.includes('--media-only')
 const HUB_DIR = path.join(__dirname, '..', 'lib', 'hubs')
 
 const DOMAIN = 'https://api-gateway.coupang.com'
@@ -87,7 +88,7 @@ async function search(keyword) {
   })
   if (!res.ok) return []
   const j = await res.json()
-  return (j?.data?.productData || []).map((p) => ({ name: p.productName, price: p.productPrice, url: p.productUrl }))
+  return (j?.data?.productData || []).map((p) => ({ name: p.productName, price: p.productPrice, url: p.productUrl, image: p.productImage }))
 }
 
 const norm = (s) => String(s).toLowerCase().replace(/\s+/g, '')
@@ -167,7 +168,7 @@ function loadSnapshot() {
       // 사라졌을 때(단종·품절)만 검증을 통과한 새 상품으로 교체한다.
       let hit = prev ? items.find((it) => productKey(it.url) === prev.key) : null
       const kept = Boolean(hit)
-      if (!hit) hit = pick(items, cfg.must, cfg.exclude)
+      if (!hit && !MEDIA_ONLY) hit = pick(items, cfg.must, cfg.exclude)
 
       if (!hit) {
         // 상품을 못 찾았다고 기존 링크를 지우지 않는다 — 일시적 검색 변동으로 살아 있는
@@ -180,9 +181,18 @@ function loadSnapshot() {
       const key = productKey(hit.url)
       const hasUrl = new RegExp(`slot:\\s*'${slot}'[^}]*targetUrl:`).test(source)
       const priceChanged = prev && prev.price !== hit.price
+      const image = typeof hit.image === 'string' && /^https:\/\/[^/]*\.coupangcdn\.com\//.test(hit.image) ? hit.image : undefined
+      const mediaChanged = prev?.image !== image || prev?.name !== hit.name
+      const checkedAt = new Date().toISOString()
+      if (MEDIA_ONLY) {
+        snapshot[slot] = { ...prev, key, price: hit.price, name: hit.name, image, checkedAt }
+        changed++
+        console.log(`  [이미지 확인] ${slot}: ${image ? '상품 이미지 확보' : '이미지 없음'}`)
+        continue
+      }
 
       // 같은 상품이고 가격도 그대로면 아무것도 건드리지 않는다.
-      if (kept && !priceChanged && hasUrl) { same++; continue }
+      if (kept && !priceChanged && !mediaChanged && hasUrl) { same++; continue }
 
       // 같은 상품인데 가격만 바뀐 경우 targetUrl은 그대로 둔다. URL의 traceid·requestid는
       // 호출마다 달라지는 추적 파라미터일 뿐이고, 기존 링크도 여전히 유효하다 —
@@ -207,7 +217,7 @@ function loadSnapshot() {
         const sp = writeSchemaPrice(source, hit.price)
         if (sp.changed) { source = sp.source; fileDirty = true; changeLog.push(`${file} schema.price → ${hit.price.toLocaleString('ko-KR')}`) }
       }
-      snapshot[slot] = { key, price: hit.price, name: hit.name }
+      snapshot[slot] = { key, price: hit.price, name: hit.name, image, checkedAt }
     }
 
     if (fileDirty && !DRY) fs.writeFileSync(full, source, 'utf8')
