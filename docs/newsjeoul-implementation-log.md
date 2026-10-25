@@ -187,3 +187,6 @@ PR #6 merged (7cf538f). Official Coupang API image refresh run 40235869443 succe
 
 ## DEC-019 — Implemented (2026-10-26)
 상품별 질문·확인 이유·전용 CTA 적용. 기존 사진·상품 식별키·제휴 링크·수수료 고지 유지. Production build 및 git diff --check PASS. 배포 코드 commit 58dda4d2f316f382f3ce1009bd321c3d43674f7f. 기존 자동화 6ade5e6d09448191bc46f3d08aff4407에 포털/뉴스/제조사/Reddit 탐색, 시점별 근거 기록, 공식 검증, 롱테일 신규 글/기존 글 최신화, 제휴 카드와 배포 절차를 추가. 기존 Asia/Seoul 08/13/19 일정과 활성 상태 유지. SNS/소라 중단 유지.
+
+## DEC-019 — Deployed / Verified (2026-10-26)
+Netlify 6ade775afc9fba3129c138db, master 58dda4d Published 확인. 공개 https://newsjeoul.co.kr/ 브라우저 DOM에서 7개 상품별 질문과 각각의 CTA가 새 문구로 표시되는 것을 확인. 링크 목적지는 클릭하지 않음.
