@@ -172,3 +172,7 @@ PR #4 병합 6bd09220423f6dadf7f240f7649947c6c3cd2369. Netlify 6ade6f2c8dd6d6ae0
 
 ## DEC-017 — Local verification (2026-10-26)
 Production build PASS. Playwright: 320/375/1440/1920px × 홈·그램·로보락·버즈·폴드 5경로, 이미지 로딩·본문 판단 카드·오버플로 없음·광고 위치/rel·페이지 JS 오류 없음 PASS. 375px 본문과 1920px 홈 스크린샷 육안 검수. WebP 4개 합계 약 224KB. 승인된 기존 GitHub→Netlify 배포 진행.
+
+
+## DEC-017 — Deployed / Verified (2026-10-26)
+PR #5 merge 3b4f3806324e1caae26c7c1ed8a41fa1eef0328b. Netlify production 6ade726128ddadf77cfe246c reported Site is live. Public HTTP checks: all 11 mapped article URLs returned 200 and article-visual markup. Public browser home confirmed 29 guides, new image thumbnails and affiliate panels. Existing URLs unchanged. Production build and responsive local image-loading QA passed.
