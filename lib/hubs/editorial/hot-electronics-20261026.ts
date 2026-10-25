@@ -208,7 +208,7 @@ export const HOT_ELECTRONICS_20261026: Record<string, HubDocument[]> = {
         },
         {
           "heading": "본문의 모델과 광고 옵션을 맞추세요",
-          "content": "이 글은 S10 MaxV Slim의 공식 조건을 다룹니다. Ultra나 다른 세대에 숫자를 그대로 적용하지 마세요. 아래 링크에서도 모델과 일반형·직배수 구성을 확인합니다.\n\n반려동물 때문에 구매한다면 [털·배변·물걸레를 나눠 보는 선택 기준](/hub/robot-vacuum-2026/buying-v0bb18), 유지비는 [호환 소모품 모델 확인](/hub/robot-vacuum-2026/consumable-model-code-check)에서 이어서 검토하세요."
+          "content": "이 글은 S10 MaxV Slim의 공식 조건을 다룹니다. Ultra나 다른 세대에 숫자를 그대로 적용하지 마세요. 아래 대안 광고는 S10 MaxV Ultra이며 Slim 판매 링크가 아닙니다. Slim 구매를 검토한다면 상단의 제조사 공식 조건부터 확인하세요.\n\n반려동물 때문에 구매한다면 [털·배변·물걸레를 나눠 보는 선택 기준](/hub/robot-vacuum-2026/buying-v0bb18), 유지비는 [호환 소모품 모델 확인](/hub/robot-vacuum-2026/consumable-model-code-check)에서 이어서 검토하세요."
         }
       ]
     },
@@ -242,7 +242,7 @@ export const HOT_ELECTRONICS_20261026: Record<string, HubDocument[]> = {
         },
         {
           "heading": "구매 체크리스트와 비교할 다음 글",
-          "content": "국내 정식 유통·보증 담당, 기본 패드 수량, 정기 교체품 가격, 도크 설치 공간을 판매 옵션에서 확인하세요. 아래는 매트릭스10 울트라 광고 링크이며 해외 공식 페이지의 구성과 같다고 보장하지 않습니다.\n\n집에 높은 문턱이 있다면 [로보락 문턱 표기의 실제 조건](/hub/robot-vacuum-2026/troubleshoot-vtxdcs)과 비교해 이동 가능성도 판단하세요. [로봇청소기 허브](/hub/robot-vacuum-2026)에서 설치·관리 질문을 함께 읽으면 본체 가격 밖의 비용을 확인할 수 있습니다."
+          "content": "국내 정식 유통·보증 담당, 기본 패드 수량, 정기 교체품 가격, 도크 설치 공간을 판매 옵션에서 확인하세요. 아래 대안 광고는 L30s Plus이며 매트릭스10 울트라 판매 링크가 아닙니다. 자동 물걸레 교체 등 본문의 기능을 L30s Plus에 적용하지 마세요.\n\n집에 높은 문턱이 있다면 [로보락 문턱 표기의 실제 조건](/hub/robot-vacuum-2026/troubleshoot-vtxdcs)과 비교해 이동 가능성도 판단하세요. [로봇청소기 허브](/hub/robot-vacuum-2026)에서 설치·관리 질문을 함께 읽으면 본체 가격 밖의 비용을 확인할 수 있습니다."
         }
       ]
     }

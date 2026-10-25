@@ -190,3 +190,6 @@ PR #6 merged (7cf538f). Official Coupang API image refresh run 40235869443 succe
 
 ## DEC-019 — Deployed / Verified (2026-10-26)
 Netlify 6ade775afc9fba3129c138db, master 58dda4d Published 확인. 공개 https://newsjeoul.co.kr/ 브라우저 DOM에서 7개 상품별 질문과 각각의 CTA가 새 문구로 표시되는 것을 확인. 링크 목적지는 클릭하지 않음.
+
+## DEC-020 — Implemented (2026-10-26)
+QuickChoice 서버 컴포넌트와 8개 URL의 조건별 선택 데이터 추가. 상단은 선택 이유/감수할 점/행동, 하단은 최종 요약으로 구성. 상품 사진 중복 추가 없음. 플립 비교 글에 기존 폴드 슬롯을 함께 연결. 그램 16형↔14형, Slim↔Ultra, Matrix10↔L30s Plus를 상단과 중간·측면 광고에서 구분. Matrix10 원고의 잘못된 링크 설명 수정. 기존 URL·canonical·추적 태그·공식 출처 보존. 로보락/Dreame 공식 페이지 재확인. 직접 시험/최저가/추천 순위/수익 주장은 추가하지 않음.
