@@ -317,3 +317,9 @@ PR32 병합 앱 master2182456f2c06999be18d9d644f45ad2ad08c163d, Netlify producti
 페이지별 선택적 productPrompts로 일반형 구성 확인 문구를 제공. 로컬 첫검수에서Frame 좌측카드가 선택문구를 전달받지 못하는 실제 누락을 발견해좌우Placement에도 전달하도록 수정했다. 기본문구는 다른페이지에서 보존한다. 공개 검증은 후속 기록한다.
 
 DEC-028 Local verified: production build/TypeScript·원고/검색·제휴회귀PASS. 375/1440px HTTP200·기존H1하나/title/canonical·직접답변meta·표5행·순서도decode720·가로넘침없음·태그6·Article실제수정일·FAQ3문항일치·고지/sponsored nofollow 확인. 홈/허브/검색 연결과sitemap unique/lastmod·robots검수. 허브링크는절대URL이어서QA의상대URL가정만고쳤으며원래연결은정상이었다. 첫최종QA는빌드완료전서버기동으로연결실패해빌드성공뒤재검사했다. 실제모바일그림의한글미표시를확인해기존OFL Pretendard의glyph를SVGpath로변환(41KB)하고표를두열로수정, 최종스크린샷육안검수. 로컬외부상품이미지는차단해검사제외했고공개후별도확인한다.
+
+
+### DEC-028 — Deployed / 공개 검증 완료 (2026-10-27)
+PR36 head00a8ed00b4535c2304c5d07c5cbcc2cfdf41c681, treef7930b505e313770c3768a7f4387932b28de96e1의10개텍스트파일(자체SVG포함)원격UTF-8일치·실제변경목록검증. Preview6adfb40398fb0449d9fe1247 성공52초후병합, 앱master9d4edc660158d887a8eb083eac8c1dae912dc8cc. Netlify production6adfb46e5a2eca340f9e78a0 Published37초확인.
+공개 https://newsjeoul.co.kr/hub/galaxy-buds4/with-iphone 에서기존title/H1하나/canonical보존, 새lead/meta·질문H2·버즈4후면3초절차·금액과시간분리·구매불필요조건·FAQ3/Article dateModified2026-10-27T04:55:47+09:00·태그6·기능표5행확인. 본문[광고·쿠팡]/수수료고지, 등록/go/buds4-body 네링크의sponsored nofollow와일반형모델구별·문맥CTA확인. 모든등록상품사진3곳naturalWidth1000/complete, 기존개념그림1200/complete·새순서SVG720/complete확인. 지연로딩직후false를오류/완료로단정하지않고카드제목·도식위치이동뒤완료확인, 제휴링크클릭없음. 공개허브의실제글링크와sitemap loc1개/lastmod일치확인. 로컬375/1440px모바일실제렌더/육안검수와공개검증을구분한다. 실제공개증빙buds-iphone-published-1793045767310.jpg.
+기존1편개선·신규0·미완료앱배포0. 새검색지표·제휴전환·수익은미조회이며성과를주장하지않는다. SearchAdvisor 로그인origin 자동검토차단후재시도/우회없음. 유료API/추가결제/DB쓰기/SNS·소라재개없음.
