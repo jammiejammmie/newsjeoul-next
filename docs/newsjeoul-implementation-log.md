@@ -283,3 +283,9 @@ PR #20 병합 master bc62b5f37f92fbc6269d439848de3b542596380c. Netlify productio
 
 ## DEC-026 — Implemented / 로컬 검증 (2026-10-26)
 기존 S펜 URL/제목과4개핵심블록을 보존하고 BLE미지원각주, 같은위치·앱별비교, 손상/수납부문의, 구매불필요조건과FAQ 보강. 자체SVG2개·증상표1·글별태그7개, 정확모델/구성/보증을확인하는CTA 추가. s25u-spen목적지/식별자/고지 유지. 원고·제휴회귀 및 production build 통과. 공개확인은 후속기록.
+
+
+### DEC-026 — Deployed / 운영 공개 검증 완료 (2026-10-26)
+PR #23 병합 master 8afd3c61e18fc0bdacefd7654d4a7a5e5de5e69c. Netlify production 6adf0e92710f03e50c25dc1d Published(36초), 배포 목록의 master@8afd3c6 확인. 앞선 검증 호출 중단 후 이번에 실제 운영 페이지를 새로 읽었으며 중복 생성/재배포하지 않았다.
+공개 URL https://newsjeoul.co.kr/hub/galaxy-s25-ultra/s-1xzjlx 에서 기존 제목/H1 1개/canonical 유지, BLE 미지원과 필기 문제 구분, 자석 제거 전후 비교·구매 불필요 조건·FAQ 실제 본문 확인. 자체 SVG2개 complete/naturalWidth720, 증상별 판단표1개, 본문태그7개와 metadata keywords7개, Article/FAQ schema 및 dateModified2026-10-26T17:17:00+09:00 확인. 기존 /go/s25u-spen 3개 모두 rel=sponsored nofollow noopener noreferrer, 앞선 수수료 고지와 정확모델·보증 확인 CTA 유지. 목적지 클릭은 하지 않았다. 공개화면 증빙 spen-published-1793003936496.jpg.
+로컬375/1440px 빌드/타입·본문·제휴·가로넘침·그림 로딩 검수와 운영 공개 검증을 구분한다. 이번 공개 결과는 기존1편 개선·신규0편이며 미완료 앱배포 없음. 검색/수익의 개선 성과는 아직 관측하지 않았다. SNS/소라/네이버 재인증·유료API·추가결제 없음.
