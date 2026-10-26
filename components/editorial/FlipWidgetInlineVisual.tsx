@@ -1,0 +1,6 @@
+import Image from 'next/image'
+export default function FlipWidgetInlineVisual({index}:{index:number}) {
+ if(index===0)return <figure className="article-visual"><Image src="/images/editorial/flip8-widget-decision.svg" alt="플립8에서 위젯이 안 보이는 경우의 추가 순서와 정보가 멈춘 경우의 원본 앱 점검을 나누는 설명도" width={720} height={630} unoptimized loading="lazy" style={{width:'100%',height:'auto'}}/><figcaption>국내 플립8 공식 안내에 따른 자체 순서 설명도. 실제 설정 화면을 복제한 이미지나 직접 시험 결과가 아닙니다.</figcaption></figure>
+ if(index!==4)return null
+ return <table style={{width:'100%',tableLayout:'fixed',fontSize:14,lineHeight:1.8,borderCollapse:'collapse',margin:'24px 0'}}><caption style={{textAlign:'left',fontWeight:800,fontSize:18}}>증상에 맞는 다음 행동</caption><thead><tr>{['지금 보이는 상태','먼저 할 일'].map(x=><th key={x} style={{textAlign:'left',padding:12,background:'#173b38',color:'white'}}>{x}</th>)}</tr></thead><tbody>{[['위젯 항목이 없음','편집·추가 목록과 지원 여부 확인'],['내용만 멈춤','펼쳐서 원본 앱도 열어 보기'],['앱은 정상·위젯만 실패','재시작·업데이트 확인 뒤 지원 문의'],['화면 전체 터치 실패·손상','위젯 설정과 분리해 기기 점검']].map(row=><tr key={row[0]}>{row.map(x=><td key={x} style={{padding:12,verticalAlign:'top',overflowWrap:'anywhere',borderBottom:'1px solid #cddbd4',background:'#f2f6f0'}}>{x}</td>)}</tr>)}</tbody></table>
+}
