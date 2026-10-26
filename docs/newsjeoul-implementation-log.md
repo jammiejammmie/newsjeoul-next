@@ -265,3 +265,8 @@ PR #15 병합 master 1d4002c95db7ed78162b1ae9c715e65986516ccd. Netlify productio
 
 ### DEC-023 후속 — A210C 웹 도식 보완 / Local verified (2026-10-26)
 기존웹 A210C URL에서문자요약카드2개를준비된실제연결도3개로교체. 상태화면vs외부영상출력/OS별외부A·A와A·B/100W입력→허브20W확보→호스트최대80W를해당문단에배치. Anker한국·미국공식모델원문재확인,사진·UI·실측아님을캡션에구분. 원본SVG준비파일재사용·한글subset내장으로합계약34KB. 기존slug/title/canonical/쿠팡대안UH-04목적지/고지/rel보존. 직접A210C제휴링크나네이버글수정아님. 빌드·TypeScript·원고/제휴회귀·375/1440px production렌더검사PASS, 일반USB-C글기존2그림유지. 조사research-20261026-1159.md.
+
+
+### A210C 웹 시각 보완 — Deployed / 공개 검증 (2026-10-26)
+PR #17 병합 ae9ddefd29208ea34238a3936ba86cf96841255c. Netlify production 6adec3a77d3a9c4a2268d88a Published(50초) 확인. 기존 공개 URL https://newsjeoul.co.kr/hub/galaxy-book5-pro/anker-a210c-smart-display-hub 에서 제목/canonical 유지, 새 도식3개 naturalWidth720/complete 확인. 기존 본문 등록 /go/book5-hub rel=sponsored nofollow, 수수료 고지 및 다른모델 UH-04 구분 확인. 공개 증빙 a210c-web-revised-1792984101766.jpg. 신규 글0·기존 글개선1이며 네이버글수정·SNS/소라재개없음.
+추가 포털/뉴스 조회: https://www.newspim.com/news/view/20261026000079 및 https://www.yna.co.kr/view/AKR20261026020200003 에서10/26 LG서랍형STEM출시보도 재확인. 공식 소개 페이지는 확보했지만 신모델 정확SKU·치수·정식제휴목적지미확인으로 보류유지. 버즈온은 기존공개원고와중복이라새URL발행안함. Search Advisor 실제화면의최근업데이트10/24·최근30일클릭3.1천/노출37.9만은이전집계와동일하며신규성과로해석하지않음. 유료API·광고구매·제휴자기클릭없음.
