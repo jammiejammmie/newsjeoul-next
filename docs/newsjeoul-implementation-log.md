@@ -276,3 +276,7 @@ PR #17 병합 ae9ddefd29208ea34238a3936ba86cf96841255c. Netlify production 6adec
 
 ### DEC-025 — Local verified
 375/1440px × 두 원고 모두HTTP200·H1하나·canonical·설명도2개decode·비용표1개·태그8/9·keywords·Article/FAQ schema·가로넘침없음 확인. 홈/버즈허브/검색/sitemap 새 URL 각 연결 및 sitemap중복없음 검증. 첫 QA가 전역 첫 JSON-LD를 문서schema로 잘못 선택한 것을 전체 script의 @graph 검사로 고쳐 통과. 실제 오류나 누락 schema를 완료로 가장하지 않음. 모바일 설명도 첫 장 두 장을 육안 확인한 뒤 모델 구별을 ≠로, 분실 조합을 직접 표현해 혼동을 줄임.
+
+
+### DEC-025 — Deployed / 공개 검증 완료 (2026-10-26)
+PR #20 병합 master bc62b5f37f92fbc6269d439848de3b542596380c. Netlify production6adee0d90ade6d436e8aac4d Published(41초) 확인. 직전 실행의 공개 검증 호출이 중단돼 이번에 실제 운영 화면을 이어 확인했으며 같은 글을 재생성하지 않았다. 새 https://newsjeoul.co.kr/hub/galaxy-buds4/lost-charging-case-replacement 제목·본문·canonical·그림2개complete/naturalWidth720·실제 상품 사진1000px·비용표1·태그9·수수료 고지 및 /go/buds4-body의 sponsored/nofollow 확인. 기존 https://newsjeoul.co.kr/hub/galaxy-buds4/single-bud-replacement 원래 제목·canonical 유지, 보강본문·도식2개 로딩720px·비용표1·태그8·고지/rel 확인. 지연 로딩 직후0px를 오류나 완료로 단정하지 않고 해당 그림이 표시된 뒤 complete를 다시 확인했다. 공개 홈 새글링크1개·sitemap 실제loc1개 확인. 공개증빙 buds-case-published-1792994704252.jpg. 신규1편·기존보완1편의 공개 검증이 완료됐으며 예약/초안 완료와 구별한다. 네이버 블로그 수정/신규등록은 기존 인증 origin 자동검토 차단으로 미완료, 재로그인/우회 없음. 유료 API·SNS/소라 작업·제휴 자기클릭 없음.
