@@ -88,7 +88,7 @@ export async function generateMetadata(
   return {
     title: `${document.title} | ${resolved.hub.title} | 뉴스저울`,
     description: desc,
-    keywords: resolved.hub.tags,
+    keywords: document.tags ?? resolved.hub.tags,
     alternates: { canonical: url },
     openGraph: {
       title: document.title, description: desc, url, siteName: '뉴스저울', locale: 'ko_KR', type: 'article',
@@ -233,6 +233,8 @@ export default async function HubDocPage(
             </div>
           </section>
         )}
+
+        {document.tags?.length ? <nav aria-label="글 관련 키워드" style={{display:'flex',flexWrap:'wrap',gap:8,marginTop:24}}>{document.tags.map(tag => <span key={tag} style={{font:'500 12px/1.6 Pretendard',padding:'5px 9px',background:'#edf2eb',borderRadius:12}}>#{tag}</span>)}</nav> : null}
 
         {document.sourceNote && (
           <div style={{ marginTop: 28, borderLeft: '3px solid var(--hot)', background: 'var(--paper2)', padding: '12px 15px' }}>

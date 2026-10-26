@@ -13,7 +13,6 @@ export const VISUAL_ROUTES: Record<string,string> = {
  '/hub/galaxy-z-fold8/tablet-replacement-reading-pdf':'fold',
  '/hub/galaxy-z-flip8/flip8-vs-fold8':'fold',
  '/hub/galaxy-buds4/pc-connect-mic':'buds',
- '/hub/galaxy-buds4/single-bud-replacement':'buds',
  '/hub/galaxy-buds4/case-not-charging':'buds',
  '/hub/galaxy-buds4/buds4-vs-buds4-pro':'buds',
  '/hub/galaxy-buds4/with-iphone':'buds',
