@@ -220,3 +220,7 @@ PR #9 merged 36a7e20a743f4cbfe647ca55d8bfcc3c18c7e1b1. Netlify 목록에서 해�
 
 ### DEC-021 — Responsive QA passed
 실제 Chromium 렌더 375px·1440px에서 홈/신박한 발견/신규 원고 모두 HTTP200, 가로 넘침 없음. 홈의 신박한 발견 필터는 정확히 첫 글1개 반환. 본문 도식2개 모두 decode 성공, 375px 스크린샷에서 한국어 내장 글리프·문단·고지 육안 검수. 본문 등록 제휴 링크 sponsored/nofollow와 다른 모델(시그델 UH-04) 문구 확인. initial QA의 로컬 글리프 부족과 브라우저 마지막 페이지 종료 문제를 해결한 뒤 최종 6경로 검사 PASS. 추가 production 의존성 없음. 테스트용 Chromium은 임시 환경에서만 사용.
+
+
+### DEC-021 — Deployed / Verified
+PR #10 merged e2b120fb8dcec0ee22ddbe6097dbcdb68ee4040d. Netlify 6ade98aeb40722729832c018 Published. 공개 /discoveries와 첫 A210C 원고의 제목·본문·내부링크·설명도·구분된 대안 광고 확인. 원격 11개 파일 내용을 로컬과 100% 대조. 본문 수수료 고지는 링크 앞에 문장 전체가 보이도록 후속 보완. 신규 글1편·모음1개, 기존 글 본문 변경0편. 블로그·클립 미게시, 새 A210C 정식 쿠팡 링크 미확보 유지.
