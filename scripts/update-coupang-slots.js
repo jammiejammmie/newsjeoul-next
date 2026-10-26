@@ -37,8 +37,8 @@ const LIMIT = 10 // 11 이상은 400 "limit is out of range"
 /** 슬롯 → 검색 조건. 허브 파일의 slot 값과 정확히 일치해야 한다. */
 const SLOT_QUERIES = {
   // Exact domestic model codes only; never substitute filters, other generations or used units.
-  'humidifier-xiaomi': { file:'humidifier.ts', kw:'CJSJSQ02XYKR', must:[['샤오미','xiaomi'],['cjsjsq02xykr']], exclude:['필터','소모품','부품','중고','리퍼','해외직구'] },
-  'humidifier-cuckoo': { file:'humidifier.ts', kw:'CH-GS301FW', must:[['쿠쿠','cuckoo'],['ch-gs301fw']], exclude:['필터','소모품','부품','중고','리퍼','해외직구'] },
+  'humidifier-xiaomi': { file:'humidifier.ts', kw:'샤오미 기화식 가습기 CJSJSQ02XYKR', must:[['샤오미','xiaomi'],['cjsjsq02xykr']], exclude:['필터','소모품','부품','중고','리퍼','해외직구'] },
+  'humidifier-cuckoo': { file:'humidifier.ts', kw:'쿠쿠 가습기 CH-GS301FW', must:[['쿠쿠','cuckoo'],['ch-gs301fw']], exclude:['필터','소모품','부품','중고','리퍼','해외직구'] },
   // 폴드8 — 'fold8'과 '폴드8'을 함께 요구하지 않고 OR로 둔다(상품명 표기가 갈린다).
   // 자급제 슬롯의 exclude에 'edge'가 있는 이유: '갤럭시 Z 폴드8 자급제' 검색 1위로 S25 Edge가
   // 잡힌다(실측). 모델명 SM-F971N을 must의 대안으로 둬 정확도를 올린다.
@@ -174,8 +174,6 @@ function loadSnapshot() {
       if (!hit && !MEDIA_ONLY) hit = pick(items, cfg.must, cfg.exclude)
 
       if (!hit) {
-        // Names only: diagnose exact-model search without exposing credentials or tracking URLs.
-        if (slot.startsWith('humidifier-')) console.log(`  [모델 후보] ${slot}: ${items.map(it => it.name).join(' | ') || '반환 상품 없음'}`)
         // 상품을 못 찾았다고 기존 링크를 지우지 않는다 — 일시적 검색 변동으로 살아 있는
         // 링크를 날리는 쪽이 더 나쁘다. 그대로 두고 로그만 남긴다.
         console.log(`  [빈슬롯] ${slot} — 검증 통과 상품 없음(기존 링크 유지)`)
