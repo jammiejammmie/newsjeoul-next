@@ -305,3 +305,9 @@ PR #26 병합 master34bbbd95f53b0cd63b5970a8cef5b35cec275945. Netlify production
 기존 buds-on-library-leakage-buying URL/title/canonical/본문 판단/사진·도식/등록 제휴 목적지를 유지. 국내 출시일 도래에 맞춰 lead와 /discoveries 분야 카드의 '출시 전'을 제거하고 10/1 공개·10/26 발표·10/27 출시를 절대날짜로 구분했다. 쿠폰은 전날 Coming Soon 관측과10/27 오전9시 안내를 역사적 관측으로 명시, 자정 이후 즉시 발급 가능·현재재고·결제금액으로 단정하지 않는다. sourceNote/실제수정일 갱신. 공식 뉴스룸 원문 재확인, 행사 화면 신규조회·실측후기 아님. 로컬 빌드/반응형/SEO와 원격 공개 검증은 후속 기록한다.
 
 로컬 검수: QA 카드label 확인 경로를 홈에서 실제 /discoveries로 바로잡았다. sitemap 날짜는 UTC 문자열 고정 대신 동일시각 비교로 확인. 375/1440px 원고 HTTP200·H1/canonical·사진1000px/도식600px×2 decode·가로넘침없음·광고rel·Article 실제 수정일 통과. 모바일 실제 렌더를 육안 확인. /discoveries의 실제 수정일도 sitemap 반영.
+
+
+### 버즈 온 출시일 시점 정리 — Deployed / 공개 검증 완료 (2026-10-27)
+PR32 병합 앱 master2182456f2c06999be18d9d644f45ad2ad08c163d, Netlify production6adf79d8b1b51ef5a6d8f854 Published39초. Preview32/6adf7983a6ee224d1118355c는52초 완료. 이전 실행의 마지막 검수 호출 중단 후 이번에 같은 배포를 이어 검증했으며 재발행/재배포하지 않았다.
+공개 https://newsjeoul.co.kr/hub/galaxy-buds4/buds-on-library-leakage-buying 에서 기존 제목/H1/canonical 유지, lead·meta description의 국내 출시일10/27 안내, 전날 행사 관측과 오전9시 이전 발급 구분, Article dateModified2026-10-27T00:55:30+09:00 확인. 기존 수수료 고지와 /go/buds4-body rel=sponsored nofollow 유지, 실제 상품은 버즈4 대안이며 버즈온 직접링크가 아님. 사진1개1000px·자체도식2개600px 모두 complete 확인. 직전 지연 로딩0px를 실패/완료로 성급히 단정하지 않고 이번 표시 완료 후 확인했다.
+공개 /discoveries 카드label·원고 연결, sitemap loc의 원고와분야URL 각각1개와 두 lastmod의 실제 수정일 일치 확인. 모바일375/데스크톱1440 로컬 검수 및 모바일 육안 검수는 선행 완료. 실제 공개 증빙 buds-release-published-1793034259881.jpg. 기존1편 수정의 공개 검증 완료·새글0·미완료앱배포0. 검색 성과는10/24집계이며 변경성과/쿠팡매출 미확인.
