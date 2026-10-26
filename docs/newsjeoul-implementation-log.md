@@ -299,3 +299,9 @@ production build·타입·원고/제휴회귀PASS. 375/1440px 실제 production�
 ### DEC-027 — Deployed / 운영 공개 검증 완료 (2026-10-26)
 PR #26 병합 master34bbbd95f53b0cd63b5970a8cef5b35cec275945. Netlify production6adf276c38a2822de6b9ad8a Published(41초), master@34bbbd9 확인. 이전 실행의 마지막 증빙 호출이 중단되어 이번에 실제 공개 상태·미디어 로딩을 이어 확인했다. 글·PR·배포를 중복 생성하지 않았다.
 공개 https://newsjeoul.co.kr/hub/galaxy-z-flip8/cover-widget-missing 에서 원래 제목/H1하나/canonical/국내플립8추가절차 확인. '대부분 해결' 삭제, 자체도식1개 complete/naturalWidth720, 증상표1개·본문태그6·keywords6 확인. /go/flip8-case 3곳 모두 sponsored nofollow noopener noreferrer와 앞선 수수료 고지 및 '케이스 구매가 위젯 오류를 해결한다는 의미는 아닙니다' 구분 유지. 제휴 목적지 클릭 없음. 공개증빙 flip-widget-published-1793012759889.jpg. 기존1편 개선의 공개 검증 완료·신규0·미완료앱배포0이며 새로운 개선 성과는 미집계다.
+
+
+### 버즈 온 출시일 시점 정리 — 2026-10-27 / 구현·검증 중
+기존 buds-on-library-leakage-buying URL/title/canonical/본문 판단/사진·도식/등록 제휴 목적지를 유지. 국내 출시일 도래에 맞춰 lead와 /discoveries 분야 카드의 '출시 전'을 제거하고 10/1 공개·10/26 발표·10/27 출시를 절대날짜로 구분했다. 쿠폰은 전날 Coming Soon 관측과10/27 오전9시 안내를 역사적 관측으로 명시, 자정 이후 즉시 발급 가능·현재재고·결제금액으로 단정하지 않는다. sourceNote/실제수정일 갱신. 공식 뉴스룸 원문 재확인, 행사 화면 신규조회·실측후기 아님. 로컬 빌드/반응형/SEO와 원격 공개 검증은 후속 기록한다.
+
+로컬 검수: QA 카드label 확인 경로를 홈에서 실제 /discoveries로 바로잡았다. sitemap 날짜는 UTC 문자열 고정 대신 동일시각 비교로 확인. 375/1440px 원고 HTTP200·H1/canonical·사진1000px/도식600px×2 decode·가로넘침없음·광고rel·Article 실제 수정일 통과. 모바일 실제 렌더를 육안 확인. /discoveries의 실제 수정일도 sitemap 반영.
