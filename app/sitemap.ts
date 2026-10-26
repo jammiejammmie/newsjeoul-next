@@ -50,7 +50,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       const slugs = [...new Set([...ALL_HUBS.map((h) => h.slug), ...bySlug.keys()])]
       const hubUrls = slugs.map((slug) => ({
         url: `${BASE_URL}/hub/${slug}`,
-        lastModified: bySlug.get(slug) ? new Date(bySlug.get(slug) as string) : new Date(),
+        lastModified: bySlug.get(slug) ? new Date(bySlug.get(slug) as string) : (ALL_HUBS.find(h => h.slug === slug)?.updatedAtFallback ? new Date(ALL_HUBS.find(h => h.slug === slug)!.updatedAtFallback) : undefined),
         changeFrequency: 'daily' as const,
         priority: 0.9,
       }))
@@ -65,6 +65,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     } catch {
       return ALL_HUBS.map((h) => ({
         url: `${BASE_URL}/hub/${h.slug}`,
+        lastModified: new Date(h.updatedAtFallback),
         changeFrequency: 'daily' as const,
         priority: 0.9,
       }))
