@@ -294,3 +294,8 @@ PR #23 병합 master 8afd3c61e18fc0bdacefd7654d4a7a5e5de5e69c. Netlify productio
 ## DEC-027 — Implemented / Local verified (2026-10-26)
 기존 cover-widget-missing 제목/slug/lead/다섯섹션 유지, 빈도·해결보장·업데이트원인 단정과 성급한 초기화 조언 수정. 국내 삼성서비스8/20안내의 직접편집 단계 추가, 지원없음vs목록누락vs원본앱갱신 구분. 자체SVG1·증상표1·태그6, 구매불필요조건 추가. 기존 flip8-case등록목적지/광고무관성/수수료고지/rel유지.
 production build·타입·원고/제휴회귀PASS. 375/1440px 실제 production렌더HTTP200·H1하나·canonical보존·그림1decode720·표1·태그6·가로넘침없음·광고rel확인,375px도식육안검수. QA헬퍼의 과거S펜용 요약문(2그림/FAQ)이 남았으나 실제assert/JSON은 그림1·표1·태그6을 검사했고 FAQ검사는 없었다. 운영공개는 별도후속 확인.
+
+
+### DEC-027 — Deployed / 운영 공개 검증 완료 (2026-10-26)
+PR #26 병합 master34bbbd95f53b0cd63b5970a8cef5b35cec275945. Netlify production6adf276c38a2822de6b9ad8a Published(41초), master@34bbbd9 확인. 이전 실행의 마지막 증빙 호출이 중단되어 이번에 실제 공개 상태·미디어 로딩을 이어 확인했다. 글·PR·배포를 중복 생성하지 않았다.
+공개 https://newsjeoul.co.kr/hub/galaxy-z-flip8/cover-widget-missing 에서 원래 제목/H1하나/canonical/국내플립8추가절차 확인. '대부분 해결' 삭제, 자체도식1개 complete/naturalWidth720, 증상표1개·본문태그6·keywords6 확인. /go/flip8-case 3곳 모두 sponsored nofollow noopener noreferrer와 앞선 수수료 고지 및 '케이스 구매가 위젯 오류를 해결한다는 의미는 아닙니다' 구분 유지. 제휴 목적지 클릭 없음. 공개증빙 flip-widget-published-1793012759889.jpg. 기존1편 개선의 공개 검증 완료·신규0·미완료앱배포0이며 새로운 개선 성과는 미집계다.
