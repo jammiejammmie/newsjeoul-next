@@ -111,3 +111,7 @@ GitHub 연결 정상화 및 PR #1 운영 배포 완료. 과거 403/미배포 기
 - 매 글 SEO: 하나의 명확한 검색 의도, 고유하고 정확한 title/meta description/H1, 질문을 반영한 H2/H3, 앞부분의 직접 답변, 관련 내부 링크와 실제 연결된 허브, 기존 URL/canonical 보존, 색인 가능 응답/robots, sitemap와 실제 수정일, 본문과 일치하는 구조화 데이터, 모바일 가독성과 로딩을 확인한다. 허위 Review/AggregateRating/Offer나 미확인 가격을 넣지 않는다. 유사 검색 의도의 글은 중복 양산하지 않는다.
 - C-Rank는 네이버 고객센터의 블로그 검색 출처 신뢰도 설명으로 구분한다. newsjeoul.co.kr 웹사이트에 같은 공식이나 블로그 점수가 그대로 적용된다고 주장하지 않는다. 웹사이트는 Search Advisor 웹문서 가이드를 기준으로, 주제별 깊이·관련 글의 연결·정확한 원출처·지속적 업데이트·일관된 편집 기준을 유지한다. 키워드 반복 횟수·글자 수·이미지 수·발행 빈도를 순위 보장 공식으로 취급하지 않는다.
 - 참고 공식 문서: https://searchadvisor.naver.com/guide/seo-help , https://searchadvisor.naver.com/guide/content-basic , https://searchadvisor.naver.com/guide/report-seo , https://help.naver.com/service/5626/contents/22927 . 검색 유입 결과는 Search Advisor에서 실제 조회 가능한 값으로 비교하고 미확인을 성과로 보고하지 않는다.
+
+
+## v2.6 — 네이버 공개 품질 피드백 반영
+새 채널 작업과 신박한 발견 후보 선정 시 docs/naver-editorial-quality.md 및 docs/naver-quality-research-20261026.md를 읽는다. 이미지 존재만으로 도식 품질·공개 시각 검수를 통과시키지 않는다. A210C 수정 검토본은 준비 상태이며 공개 글에는 미반영이다. 실제 태그 3개와 준비 태그 10개를 구분한다. 신기한 행동과 영상 권한을 기준으로 클립 후보를 다시 고르고 미확인 인기/최신성/수익을 주장하지 않는다.

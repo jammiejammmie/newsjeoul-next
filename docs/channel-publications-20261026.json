@@ -34,5 +34,14 @@
     "자동 검수가 카테고리 기본명 게시판 상태의 공개를 차단. 실제 설정 이름을 저장한 뒤 다시 불러와 신박한 발견 선택 확인 후 발행",
     "본문 나눔고딕19, 굵은 소제목, 자체 도식 캡션. 모바일 별도 도메인 검수는 브라우저 정책으로 미완료",
     "클립 제작·게시 없음, 소라/SNS 중단 유지"
-  ]
+  ],
+  "revision": {
+    "status": "PREPARED_NOT_PUBLISHED",
+    "reason": "편집 인증 해제. 보안 로그인 요청 declined; 재요청하지 않음.",
+    "publicTagCount": 3,
+    "preparedTagCount": 10,
+    "preparedDiagrams": 3,
+    "libraryFileId": "libfile_dc74d5da4ce4819191c940eafef9cfd7",
+    "notes": "기존 이미지 2개는 등록돼 있으나 관계를 보여주는 도식 대신 텍스트 카드인 품질 문제. 19pt 굵은 소제목과 19pt 본문 구분 부족. 이전 공개 완료 기록은 수정 품질 검수 완료를 뜻하지 않음."
+  }
 }
