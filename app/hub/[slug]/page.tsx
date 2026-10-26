@@ -138,7 +138,7 @@ export default async function HubPage({ params }: { params: Promise<{ slug: stri
   }
   const entitySchema: Record<string, unknown> = {
     '@context': 'https://schema.org',
-    '@type': SCHEMA_TYPE[hub.kind] ?? 'Product',
+    '@type': hub.schema.collection ? 'CollectionPage' : (SCHEMA_TYPE[hub.kind] ?? 'Product'),
     '@id': `${BASE}/hub/${hub.slug}#entity`,
     name: hub.title,
     description: hub.definition,

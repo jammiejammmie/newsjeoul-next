@@ -234,6 +234,8 @@ export type HubConfig = {
 
   /** 구조화 데이터 보강 필드. kind에 따라 쓰이는 항목이 다르다. */
   schema: {
+    /** A product-category hub groups guides rather than representing one sellable model. */
+    collection?: boolean
     /** product·car */
     brand?: string
     /**

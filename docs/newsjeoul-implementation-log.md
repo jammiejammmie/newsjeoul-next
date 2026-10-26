@@ -323,3 +323,10 @@ DEC-028 Local verified: production build/TypeScript·원고/검색·제휴회귀
 PR36 head00a8ed00b4535c2304c5d07c5cbcc2cfdf41c681, treef7930b505e313770c3768a7f4387932b28de96e1의10개텍스트파일(자체SVG포함)원격UTF-8일치·실제변경목록검증. Preview6adfb40398fb0449d9fe1247 성공52초후병합, 앱master9d4edc660158d887a8eb083eac8c1dae912dc8cc. Netlify production6adfb46e5a2eca340f9e78a0 Published37초확인.
 공개 https://newsjeoul.co.kr/hub/galaxy-buds4/with-iphone 에서기존title/H1하나/canonical보존, 새lead/meta·질문H2·버즈4후면3초절차·금액과시간분리·구매불필요조건·FAQ3/Article dateModified2026-10-27T04:55:47+09:00·태그6·기능표5행확인. 본문[광고·쿠팡]/수수료고지, 등록/go/buds4-body 네링크의sponsored nofollow와일반형모델구별·문맥CTA확인. 모든등록상품사진3곳naturalWidth1000/complete, 기존개념그림1200/complete·새순서SVG720/complete확인. 지연로딩직후false를오류/완료로단정하지않고카드제목·도식위치이동뒤완료확인, 제휴링크클릭없음. 공개허브의실제글링크와sitemap loc1개/lastmod일치확인. 로컬375/1440px모바일실제렌더/육안검수와공개검증을구분한다. 실제공개증빙buds-iphone-published-1793045767310.jpg.
 기존1편개선·신규0·미완료앱배포0. 새검색지표·제휴전환·수익은미조회이며성과를주장하지않는다. SearchAdvisor 로그인origin 자동검토차단후재시도/우회없음. 유료API/추가결제/DB쓰기/SNS·소라재개없음.
+
+
+## DEC-029 — 가습기 계절 구매 가이드 / 구현·검증 중 (2026-10-27)
+신규 /hub/humidifier/winter-type-cleaning-running-cost 및 가습기 허브를 추가했다. L와mL/h·모드 조건, 가열/기화/초음파/복합 원리, 실제 세척 범위, 2025년 소비자원 시험의 전기·필터 합계, 현재 총비용 계산·설치/구매불필요조건·구매 전 목록을 연결한다. 2025년 가격/시험을 현재 판매가·2026순위로 표시하지 않는다. 제조사 CJSJSQ02XYKR 국내 사양·정격9W·세척/급수 조건을 재확인했다. 소비자원 PDF표를 스크린샷으로 대조했으며 카드뉴스의 묶음면적/요약 오기 대신 원문 종합표를 사용한다.
+정확 도식2개는 자체 SVG와 기존OFL Pretendard glyph경로로 제작해 한글폰트 의존을 없앴다. 모바일 읽기·본문표·이미지decode·메타/홈/검색/사이트맵·제휴 목적지/사진일치는 후속 검수한다. 별도브랜치와PR로 검증하며 운영 공개 전에는 발행완료로 보고하지 않는다.
+
+DEC-029 Local verified: production build/TypeScript·기존 원고/검색 회귀 통과. 375/1440px 실제 브라우저 HTTP200/H1하나/canonical/meta·비교표3행·자체SVG2개decode720/lazy·태그8·FAQ4/Article dateModified2026-10-27T08:25:30+09:00·가로넘침없음 확인. 실제375px 도식/표의한글·본문캡션을육안확인했다. 홈/가습기허브/검색의실제원고링크, sitemap원고/허브각1개·실제날짜·robots통과. 허브구조화데이터CollectionPage확인·허위Offer/Review없음. 아직새정식목적지/사진은미등록상태이며운영발행완료와구분한다.
