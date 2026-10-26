@@ -224,3 +224,7 @@ PR #9 merged 36a7e20a743f4cbfe647ca55d8bfcc3c18c7e1b1. Netlify 목록에서 해�
 
 ### DEC-021 — Deployed / Verified
 PR #10 merged e2b120fb8dcec0ee22ddbe6097dbcdb68ee4040d. Netlify 6ade98aeb40722729832c018 Published. 공개 /discoveries와 첫 A210C 원고의 제목·본문·내부링크·설명도·구분된 대안 광고 확인. 원격 11개 파일 내용을 로컬과 100% 대조. 본문 수수료 고지는 링크 앞에 문장 전체가 보이도록 후속 보완. 신규 글1편·모음1개, 기존 글 본문 변경0편. 블로그·클립 미게시, 새 A210C 정식 쿠팡 링크 미확보 유지.
+
+
+### DEC-021 — 최종 공개 확인 완료
+PR #11 merged 5822596df38c9b2a2c603ca5a90660bfba07bb89, Netlify 6ade991d0ade6d436e7fdb04 Published/44초 확인. 운영 기본 URL(검증 query 없는 주소)에서 HTTP200 및 링크 앞 전체 수수료 문구 확인, 공개 브라우저에서 sponsored/nofollow 재확인. 홈·/discoveries·신규 글·sitemap 모두200, 신규 글/모음 canonical·sitemap실제 수정일 연결 확인. 두 본문 이미지 공개 로딩 성공. 기존 URL 삭제/교체 없음. 추가 비용/API 호출·제휴 자기클릭 없음. A210C 직접 제휴 링크/원본 영상 재사용 허가는 미확보이며 블로그·클립은 게시하지 않음.
