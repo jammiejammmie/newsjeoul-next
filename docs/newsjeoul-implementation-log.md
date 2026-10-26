@@ -280,3 +280,6 @@ PR #17 병합 ae9ddefd29208ea34238a3936ba86cf96841255c. Netlify production 6adec
 
 ### DEC-025 — Deployed / 공개 검증 완료 (2026-10-26)
 PR #20 병합 master bc62b5f37f92fbc6269d439848de3b542596380c. Netlify production6adee0d90ade6d436e8aac4d Published(41초) 확인. 직전 실행의 공개 검증 호출이 중단돼 이번에 실제 운영 화면을 이어 확인했으며 같은 글을 재생성하지 않았다. 새 https://newsjeoul.co.kr/hub/galaxy-buds4/lost-charging-case-replacement 제목·본문·canonical·그림2개complete/naturalWidth720·실제 상품 사진1000px·비용표1·태그9·수수료 고지 및 /go/buds4-body의 sponsored/nofollow 확인. 기존 https://newsjeoul.co.kr/hub/galaxy-buds4/single-bud-replacement 원래 제목·canonical 유지, 보강본문·도식2개 로딩720px·비용표1·태그8·고지/rel 확인. 지연 로딩 직후0px를 오류나 완료로 단정하지 않고 해당 그림이 표시된 뒤 complete를 다시 확인했다. 공개 홈 새글링크1개·sitemap 실제loc1개 확인. 공개증빙 buds-case-published-1792994704252.jpg. 신규1편·기존보완1편의 공개 검증이 완료됐으며 예약/초안 완료와 구별한다. 네이버 블로그 수정/신규등록은 기존 인증 origin 자동검토 차단으로 미완료, 재로그인/우회 없음. 유료 API·SNS/소라 작업·제휴 자기클릭 없음.
+
+## DEC-026 — Implemented / 로컬 검증 (2026-10-26)
+기존 S펜 URL/제목과4개핵심블록을 보존하고 BLE미지원각주, 같은위치·앱별비교, 손상/수납부문의, 구매불필요조건과FAQ 보강. 자체SVG2개·증상표1·글별태그7개, 정확모델/구성/보증을확인하는CTA 추가. s25u-spen목적지/식별자/고지 유지. 원고·제휴회귀 및 production build 통과. 공개확인은 후속기록.
