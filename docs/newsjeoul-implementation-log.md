@@ -289,3 +289,8 @@ PR #20 병합 master bc62b5f37f92fbc6269d439848de3b542596380c. Netlify productio
 PR #23 병합 master 8afd3c61e18fc0bdacefd7654d4a7a5e5de5e69c. Netlify production 6adf0e92710f03e50c25dc1d Published(36초), 배포 목록의 master@8afd3c6 확인. 앞선 검증 호출 중단 후 이번에 실제 운영 페이지를 새로 읽었으며 중복 생성/재배포하지 않았다.
 공개 URL https://newsjeoul.co.kr/hub/galaxy-s25-ultra/s-1xzjlx 에서 기존 제목/H1 1개/canonical 유지, BLE 미지원과 필기 문제 구분, 자석 제거 전후 비교·구매 불필요 조건·FAQ 실제 본문 확인. 자체 SVG2개 complete/naturalWidth720, 증상별 판단표1개, 본문태그7개와 metadata keywords7개, Article/FAQ schema 및 dateModified2026-10-26T17:17:00+09:00 확인. 기존 /go/s25u-spen 3개 모두 rel=sponsored nofollow noopener noreferrer, 앞선 수수료 고지와 정확모델·보증 확인 CTA 유지. 목적지 클릭은 하지 않았다. 공개화면 증빙 spen-published-1793003936496.jpg.
 로컬375/1440px 빌드/타입·본문·제휴·가로넘침·그림 로딩 검수와 운영 공개 검증을 구분한다. 이번 공개 결과는 기존1편 개선·신규0편이며 미완료 앱배포 없음. 검색/수익의 개선 성과는 아직 관측하지 않았다. SNS/소라/네이버 재인증·유료API·추가결제 없음.
+
+
+## DEC-027 — Implemented / Local verified (2026-10-26)
+기존 cover-widget-missing 제목/slug/lead/다섯섹션 유지, 빈도·해결보장·업데이트원인 단정과 성급한 초기화 조언 수정. 국내 삼성서비스8/20안내의 직접편집 단계 추가, 지원없음vs목록누락vs원본앱갱신 구분. 자체SVG1·증상표1·태그6, 구매불필요조건 추가. 기존 flip8-case등록목적지/광고무관성/수수료고지/rel유지.
+production build·타입·원고/제휴회귀PASS. 375/1440px 실제 production렌더HTTP200·H1하나·canonical보존·그림1decode720·표1·태그6·가로넘침없음·광고rel확인,375px도식육안검수. QA헬퍼의 과거S펜용 요약문(2그림/FAQ)이 남았으나 실제assert/JSON은 그림1·표1·태그6을 검사했고 FAQ검사는 없었다. 운영공개는 별도후속 확인.

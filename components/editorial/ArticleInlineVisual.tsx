@@ -1,3 +1,4 @@
+import FlipWidgetInlineVisual from './FlipWidgetInlineVisual'
 import SpenInlineVisual from './SpenInlineVisual'
 import BudsRecoveryInlineVisual from './BudsRecoveryInlineVisual'
 import EnergyVoucherInlineVisual from './EnergyVoucherInlineVisual'
@@ -10,6 +11,7 @@ const figures: Record<number, {src:string;alt:string;caption:string}> = {
 }
 export default function ArticleInlineVisual({path,index}:{path:string;index:number}) {
  if(['/hub/galaxy-buds4/single-bud-replacement','/hub/galaxy-buds4/lost-charging-case-replacement'].includes(path))return <BudsRecoveryInlineVisual path={path} index={index}/>
+ if(path==='/hub/galaxy-z-flip8/cover-widget-missing')return <FlipWidgetInlineVisual index={index}/>
  if(path==='/hub/galaxy-s25-ultra/s-1xzjlx')return <SpenInlineVisual index={index}/>
  if(path==='/hub/energy-voucher/winter-application-balance-2026')return <EnergyVoucherInlineVisual index={index}/>
  if(path==='/hub/galaxy-buds4/buds-on-library-leakage-buying')return <BudsOnInlineVisual index={index}/>
