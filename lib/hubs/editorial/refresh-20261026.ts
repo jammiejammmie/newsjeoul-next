@@ -424,7 +424,7 @@ export const REFRESH_20261026: Record<string, HubDocument[]> = {
       "format": "buying",
       "lead": "앤커 A210C는 충전·전송 상태를 본체 화면으로 보여주는 USB-C 허브입니다. 다만 240Hz는 외부 모니터 출력 조건이고, 맥에서 외부 화면 두 대를 서로 다른 내용으로 확장하려는 목적에는 맞지 않습니다.",
       "generatedBy": "ai-source-checked",
-      "updatedAt": "2026-10-26T08:56:09+09:00",
+      "updatedAt": "2026-10-26T12:00:00+09:00",
       "affiliateSlotIds": [],
       "sourceNote": "2026-10-26 공식 자료 확인. 한국 소개 https://www.ankerkorea.co.kr/lp/nano-usb-c-10-in-1-hub.html ; 동일 모델 미국 안내 https://www.anker.com/products/a210c-10-in-1-desktop-usb-c-hub-dual-4k-smart-display ; 국내 상품 https://ankerkorea.co.kr/product/앤커-나노-usb-c-10-in-1-240hz-스마트-디스플레이-허브-a210c/217/ . 출시일은 확정하지 않았으며 최신 24시간 신제품이라는 뜻이 아닙니다. 공식 정보를 대조한 AI 작성 글이며 직접 사용·측정한 후기가 아닙니다. 도식은 자체 제작 설명 자료이며 제품 사진·UI 재현이 아닙니다.",
       "blocks": [

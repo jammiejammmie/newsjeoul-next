@@ -1,4 +1,5 @@
 import EnergyVoucherInlineVisual from './EnergyVoucherInlineVisual'
+import A210CInlineVisual from './A210CInlineVisual'
 import Image from 'next/image'
 import BudsOnInlineVisual from './BudsOnInlineVisual'
 const figures: Record<number, {src:string;alt:string;caption:string}> = {
@@ -8,9 +9,8 @@ const figures: Record<number, {src:string;alt:string;caption:string}> = {
 export default function ArticleInlineVisual({path,index}:{path:string;index:number}) {
  if(path==='/hub/energy-voucher/winter-application-balance-2026')return <EnergyVoucherInlineVisual index={index}/>
  if(path==='/hub/galaxy-buds4/buds-on-library-leakage-buying')return <BudsOnInlineVisual index={index}/>
- const discovery=path==='/hub/galaxy-book5-pro/anker-a210c-smart-display-hub'
- const extra: Record<number,{src:string;alt:string;caption:string}>={1:{src:'/images/editorial/a210c-display-meaning.svg',alt:'A210C 본체 상태 화면과 외부 모니터 주사율, 맥 두 화면 제약을 구분하는 설명도',caption:'한국·미국 공식 A210C 안내를 정리한 자체 설명도. 실제 제품 외관이나 UI 재현이 아닙니다.'},5:{src:'/images/editorial/a210c-total-cost.svg',alt:'허브 본체 가격에 필요한 충전기와 케이블 비용을 더하고 현재 기기 유지와 비교하는 선택 도식',caption:'비용 비교를 위한 편집 도식. 가격·성능 실측이나 할인 안내가 아닙니다.'}}
- const f=discovery?extra[index]:path==='/hub/galaxy-book5-pro/buying-ak231s'?figures[index]:undefined
+ if(path==='/hub/galaxy-book5-pro/anker-a210c-smart-display-hub')return <A210CInlineVisual index={index}/>
+ const f=path==='/hub/galaxy-book5-pro/buying-ak231s'?figures[index]:undefined
  if(!f)return null
- return <figure className="article-visual"><Image src={f.src} alt={f.alt} width={600} height={discovery?650:880} unoptimized loading="lazy" style={{width:'100%',height:'auto'}}/><figcaption>{f.caption}</figcaption></figure>
+ return <figure className="article-visual"><Image src={f.src} alt={f.alt} width={600} height={880} unoptimized loading="lazy" style={{width:'100%',height:'auto'}}/><figcaption>{f.caption}</figcaption></figure>
 }
