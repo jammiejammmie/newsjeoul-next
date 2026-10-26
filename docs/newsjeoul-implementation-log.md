@@ -240,3 +240,7 @@ PR #11 merged 5822596df38c9b2a2c603ca5a90660bfba07bb89, Netlify 6ade991d0ade6d43
 
 ### DEC-022 — Deployed / 공개 검증
 PR #12 merged 3b556b8b1c0b46aadef0a321b4ed667b9d2b69cb. Netlify 운영 deploy 6adea992e3c423f4f5b3e709 Published master 확인. 공개 홈·/discoveries·신규 버즈 온 글·sitemap 모두 HTTP200, 신규 경로 연결, canonical·제목·수수료 고지 선행·sponsored/nofollow·버즈4 대안 모델 구분·본문 이미지3개 확인. 공개 사진2개는 EXIF 0개 및 원본 픽셀 유지 확인. 미확보 버즈 온 직접 쿠팡 링크는 다른 모델로 가장하지 않음. 테크쉽Get 첫 글은 별도 PUBLISHED 기록 유지. 공개 최종 검수에서 다섯 단계가 한 문단으로 합쳐지는 것을 확인해 기존 렌더러가 지원하는 목록 문법으로만 보완한다. 내일 국내 실제 판매/쿠폰 개시 여부는 출시 예정과 구분해 후속 확인 대상이며 새 자동화를 만들지 않았다.
+
+
+### DEC-022 — 최종 목록 보완 공개 확인
+PR #13 merged 2f12c18debbc9b912fade03262ae361469000564. Netlify 운영 deploy 6adeab74c04d090a1d64b6fa의 Published deploy 확인. 동일 운영 URL에서 구매 전 다섯 단계를 실제 li 5개로 확인했고 canonical·기존 등록 링크 rel=sponsored nofollow·다른 모델 구분·링크 앞 수수료 고지를 유지했다. 본문 사진·설명도 3개 모두 스크롤 후 loaded/naturalWidth>0 확인. 이번 실행 결과는 테크쉽Get 새 카테고리/글 1편 실제 공개와 뉴스저울 신규 글 1편 실제 공개이며 예약·초안 완료로 보고하지 않는다. A210C 블로그는 정식 네이티브 쇼핑 커넥트 카드, 버즈 온 직접 쿠팡 링크는 미확보로 유지. 추가 유료 API·제휴 자기클릭·SNS/소라 재개 없음.
