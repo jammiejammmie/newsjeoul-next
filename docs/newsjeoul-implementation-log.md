@@ -311,3 +311,9 @@ PR #26 병합 master34bbbd95f53b0cd63b5970a8cef5b35cec275945. Netlify production
 PR32 병합 앱 master2182456f2c06999be18d9d644f45ad2ad08c163d, Netlify production6adf79d8b1b51ef5a6d8f854 Published39초. Preview32/6adf7983a6ee224d1118355c는52초 완료. 이전 실행의 마지막 검수 호출 중단 후 이번에 같은 배포를 이어 검증했으며 재발행/재배포하지 않았다.
 공개 https://newsjeoul.co.kr/hub/galaxy-buds4/buds-on-library-leakage-buying 에서 기존 제목/H1/canonical 유지, lead·meta description의 국내 출시일10/27 안내, 전날 행사 관측과 오전9시 이전 발급 구분, Article dateModified2026-10-27T00:55:30+09:00 확인. 기존 수수료 고지와 /go/buds4-body rel=sponsored nofollow 유지, 실제 상품은 버즈4 대안이며 버즈온 직접링크가 아님. 사진1개1000px·자체도식2개600px 모두 complete 확인. 직전 지연 로딩0px를 실패/완료로 성급히 단정하지 않고 이번 표시 완료 후 확인했다.
 공개 /discoveries 카드label·원고 연결, sitemap loc의 원고와분야URL 각각1개와 두 lastmod의 실제 수정일 일치 확인. 모바일375/데스크톱1440 로컬 검수 및 모바일 육안 검수는 선행 완료. 실제 공개 증빙 buds-release-published-1793034259881.jpg. 기존1편 수정의 공개 검증 완료·새글0·미완료앱배포0. 검색 성과는10/24집계이며 변경성과/쿠팡매출 미확인.
+
+## DEC-028 — Implemented / 검증 중 (2026-10-27)
+기존 with-iphone URL/H1/title/canonical·네 블록 원문·등록제휴목적지 유지. iOS 앱 지원 제품·버즈4/프로 기능 조건·후면3초 페어링·단계별 실패 점검·총비용/구매불필요조건·체크목록·FAQ를 보강했다. 자체SVG순서도1개/HTML기능표1개/태그6개, actual updatedAt와sourceNote 갱신. 공개사진을 임의 복제하지 않고 실제화면/실측후기로 포장하지 않는다.
+페이지별 선택적 productPrompts로 일반형 구성 확인 문구를 제공. 로컬 첫검수에서Frame 좌측카드가 선택문구를 전달받지 못하는 실제 누락을 발견해좌우Placement에도 전달하도록 수정했다. 기본문구는 다른페이지에서 보존한다. 공개 검증은 후속 기록한다.
+
+DEC-028 Local verified: production build/TypeScript·원고/검색·제휴회귀PASS. 375/1440px HTTP200·기존H1하나/title/canonical·직접답변meta·표5행·순서도decode720·가로넘침없음·태그6·Article실제수정일·FAQ3문항일치·고지/sponsored nofollow 확인. 홈/허브/검색 연결과sitemap unique/lastmod·robots검수. 허브링크는절대URL이어서QA의상대URL가정만고쳤으며원래연결은정상이었다. 첫최종QA는빌드완료전서버기동으로연결실패해빌드성공뒤재검사했다. 실제모바일그림의한글미표시를확인해기존OFL Pretendard의glyph를SVGpath로변환(41KB)하고표를두열로수정, 최종스크린샷육안검수. 로컬외부상품이미지는차단해검사제외했고공개후별도확인한다.
