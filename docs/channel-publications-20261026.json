@@ -1,0 +1,38 @@
+{
+  "account": "techshipget",
+  "name": "테크쉽Get",
+  "category": {
+    "id": 9,
+    "name": "신박한 발견",
+    "status": "공개 목록 확인"
+  },
+  "post": {
+    "title": "USB-C 허브에 화면이 왜 필요할까? 앤커 A210C 구매 전 확인할 5가지",
+    "url": "https://blog.naver.com/techshipget/224453826660",
+    "postId": "224453826660",
+    "status": "PUBLISHED",
+    "publishedDate": "2026-10-26",
+    "verified": "공개 글·카테고리1개·전체63개·자동/수동 광고 고지·공식 링크 확인"
+  },
+  "affiliate": {
+    "product": "앤커 나노 USB-C 10-in-1 240Hz 스마트 디스플레이 허브 A210C",
+    "merchant": "앤커 공식스토어",
+    "productId": "13778839730",
+    "nativeAffiliateUrl": "https://brandconnect.naver.com/affiliates/1010380053492000?channelProductNo=13778839730&ac=b_ed",
+    "status": "블로그 네이티브 쇼핑커넥트 추가기능으로 발급·삽입",
+    "observedCommission": "5% (관측값, 변경 가능)",
+    "selfClick": false,
+    "notCoupang": true
+  },
+  "images": [
+    "a210c-display-meaning.png",
+    "a210c-total-cost.png",
+    "네이티브 제휴 카드 상품 사진"
+  ],
+  "notes": [
+    "별도 로그인 복구 완료. 과거 로그인 화면을 현재 게시 불가로 재사용하지 않음",
+    "자동 검수가 카테고리 기본명 게시판 상태의 공개를 차단. 실제 설정 이름을 저장한 뒤 다시 불러와 신박한 발견 선택 확인 후 발행",
+    "본문 나눔고딕19, 굵은 소제목, 자체 도식 캡션. 모바일 별도 도메인 검수는 브라우저 정책으로 미완료",
+    "클립 제작·게시 없음, 소라/SNS 중단 유지"
+  ]
+}

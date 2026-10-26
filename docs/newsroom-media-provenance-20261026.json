@@ -1,0 +1,18 @@
+[
+  {
+    "path": "public/images/editorial/buds-on-case-official.jpg",
+    "publicOriginalSHA256": "7767eeac2086214484783379abd04dc3da50db25b7cd508587c3e6278423ff10",
+    "publishedSHA256": "4438798385fab118acc7d78d2194cd95389b0f6aa092c8db8e95ba3b0e623b35",
+    "decodedPixelsIdentical": true,
+    "publishedExifTagCount": 0,
+    "change": "remove EXIF APP1 only, including GPS; no recompression, resizing, crop or pixel edits"
+  },
+  {
+    "path": "public/images/editorial/buds-on-wearing-official.jpg",
+    "publicOriginalSHA256": "3df060fb206fd0cca4ae02d1f42159e8ea3fe53c157ffffcc1a60e404a59ca4d",
+    "publishedSHA256": "424f4091eb5647c492487b68541084bccf1501ec02e7b9f3a319cd88ddf68c44",
+    "decodedPixelsIdentical": true,
+    "publishedExifTagCount": 0,
+    "change": "remove EXIF APP1 only, including GPS; no recompression, resizing, crop or pixel edits"
+  }
+]
