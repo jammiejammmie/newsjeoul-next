@@ -119,6 +119,8 @@ export default async function HubDocPage(
   const choices = QUICK_CHOICES[`/hub/${slug}/${document.slug}`]
   const placement = choices ? { slots: choices.slots ?? affiliateSlots.map(s => s.slot), context: choices.adContext ?? '선택한 조건에 맞춰 상품명·옵션·구성품을 확인하세요.' } : searchEntryPlacement(`/hub/${slug}/${document.slug}`)
 
+  // This full buying guide presents product cards only after the selection and cost sections.
+  const deferredShopping = slug === 'humidifier' && document.slug === 'winter-type-cleaning-running-cost'
   const { body: bodyBlocks, faq } = splitFaq(document.blocks)
 
   const schema = {
@@ -162,7 +164,7 @@ export default async function HubDocPage(
     <div className="nj-hub">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }} />
 
-      <AffiliateFrame placement={placement} fallback={affiliateSlots}>
+      <AffiliateFrame placement={deferredShopping ? null : placement} fallback={deferredShopping ? [] : affiliateSlots}>
       <div style={{ maxWidth: 780, margin: '0 auto', padding: '26px 32px 80px' }}>
         <nav style={{ font: '500 11.5px/1.5 Pretendard', color: 'var(--mute)', marginBottom: 14 }}>
           <Link href="/">홈</Link> <span style={{ opacity: .5 }}>›</span>{' '}
@@ -211,7 +213,7 @@ export default async function HubDocPage(
               })}
               <ArticleInlineVisual path={`/hub/${slug}/${document.slug}`} index={i} />
               {i === 2 && <ArticleDecisionVisual path={`/hub/${slug}/${document.slug}`} />}
-              {i === 1 && bodyBlocks.length >= 4 && <AffiliatePanel placement={placement} fallback={affiliateSlots} title="관련 상품 가격·옵션 비교" position="middle" />}
+              {(deferredShopping ? i === bodyBlocks.length - 1 : i === 1 && bodyBlocks.length >= 4) && <AffiliatePanel placement={placement} fallback={affiliateSlots} title="관련 상품 가격·옵션 비교" position="middle" />}
             </section>
           ))}
         </article>
@@ -243,7 +245,7 @@ export default async function HubDocPage(
           </div>
         )}
 
-        {choices ? <QuickChoice guide={choices} summary /> : <AffiliatePanel placement={placement} fallback={affiliateSlots} />}
+        {choices ? <QuickChoice guide={choices} summary /> : !deferredShopping && <AffiliatePanel placement={placement} fallback={affiliateSlots} />}
 
         <div style={{ marginTop: 32, paddingTop: 18, borderTop: '1px solid var(--line)' }}>
           <Link href={`/hub/${slug}`} style={{ font: '700 13.5px/1.4 Pretendard' }}>
