@@ -17,7 +17,7 @@ export const metadata: Metadata = {
 }
 const format: Record<string,string> = { buying:'구매 판단',troubleshoot:'문제 해결',howto:'사용법',compare:'비교' }
 export default function EditorialHome() {
- const guides=Object.entries(EDITORIAL_DOCUMENTS).flatMap(([hub,docs])=>docs.map(d=>({href:`/hub/${hub}/${d.slug}`,title:d.title,lead:d.lead??'',category:DISCOVERY_ROUTES.includes(`/hub/${hub}/${d.slug}`)?'신박한 발견':({'galaxy-buds4':'이어폰·오디오','galaxy-book5-pro':'노트북·주변기기','lg-gram-2026':'노트북·주변기기','robot-vacuum-2026':'생활가전','melon-streaming':'구독 생활'} as Record<string,string>)[hub]??'스마트폰',format:format[d.format]??'가이드'})))
+ const guides=Object.entries(EDITORIAL_DOCUMENTS).flatMap(([hub,docs])=>docs.map(d=>({href:`/hub/${hub}/${d.slug}`,title:d.title,lead:d.lead??'',category:DISCOVERY_ROUTES.includes(`/hub/${hub}/${d.slug}`)?'신박한 발견':({'energy-voucher':'생활·지원 제도','galaxy-buds4':'이어폰·오디오','galaxy-book5-pro':'노트북·주변기기','lg-gram-2026':'노트북·주변기기','robot-vacuum-2026':'생활가전','melon-streaming':'구독 생활'} as Record<string,string>)[hub]??'스마트폰',format:format[d.format]??'가이드'})))
  const shopping = { slots: ['gram26-body','rv26-roborock','fold8-body'], context: '뉴스저울에서 다룬 제품의 판매 옵션을 비교하세요. 가격·재고·구성은 판매 페이지에서 확인할 수 있습니다.' }
  return <AffiliateFrame home placement={{ ...shopping, slots: ['book5-hub','buds4-case'] }}><div className="editorial-home">
   <div className="editorial-mast"><span>THE EVERYDAY DECISION JOURNAL</span><span>문제를 풀고, 선택을 가볍게.</span></div>

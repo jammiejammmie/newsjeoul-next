@@ -88,6 +88,7 @@ export async function generateMetadata(
   return {
     title: `${document.title} | ${resolved.hub.title} | 뉴스저울`,
     description: desc,
+    keywords: resolved.hub.tags,
     alternates: { canonical: url },
     openGraph: {
       title: document.title, description: desc, url, siteName: '뉴스저울', locale: 'ko_KR', type: 'article',
