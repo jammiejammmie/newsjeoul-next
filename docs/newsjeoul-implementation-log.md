@@ -214,3 +214,9 @@ PR #8, master f138bb3e40036527499d576cb64220c0ff9d8e60. Netlify 6ade8c0ce3c423f4
 
 ### 2026-10-26 최종 공개 확인
 PR #9 merged 36a7e20a743f4cbfe647ca55d8bfcc3c18c7e1b1. Netlify 목록에서 해당 master Published 확인. 운영 브라우저에서 canonical 보존, 2026.10.26 갱신 표시, 등록 /go/book5-hub 본문 링크 및 rel=sponsored nofollow 확인. 도식 두 장과 실제 제휴 사진 모두 loaded/naturalWidth>0 확인. 데스크톱 가로 넘침 없음 및 도식 한글 육안 확인. 모바일 실기 렌더는 Chromium 다운로드 실패로 미확인 상태 유지. 공개 기존 글 개선 1편, 신규 원고 공개 0편. 추가 유료 API·제휴 자기클릭 없음. ‘신박한 발견’은 docs/novel-product-discovery-plan.md에 기획 기록했으며 실제 사이트/블로그 메뉴나 클립을 생성한 것은 아님.
+
+## DEC-021 — Implemented / Local validation (2026-10-26)
+`/discoveries` 신박한 발견 모음과 홈 진입 링크·신박한 발견 필터, 첫 A210C 모델 구매 판단 글 추가. 기존 허브 조회·검색·관련 글·사이트맵 경로 재사용. 본문 도식2종은 제품 외관/실측 UI가 아닌 공식 조건의 자체 설명. 한국어 글리프가 없는 QA 브라우저에서 도식 글자가 깨지는 문제를 발견해 기존 Pretendard 폰트의 필요한 글자만 SVG에 내장하는 방식으로 보완. 원고·제휴 회귀 검사 및 production build PASS. 새 A210C 쿠팡 링크 미확보로 기존 시그델 UH-04 링크를 모델이 다른 대안 광고로 본문 끝에만 구분. 기존 제휴 식별자/목적지 유지. 조사·보류·시점 근거는 discoveries-research-20261026-0856.json. 블로그/클립 실제 게시나 카테고리 생성은 하지 않음.
+
+### DEC-021 — Responsive QA passed
+실제 Chromium 렌더 375px·1440px에서 홈/신박한 발견/신규 원고 모두 HTTP200, 가로 넘침 없음. 홈의 신박한 발견 필터는 정확히 첫 글1개 반환. 본문 도식2개 모두 decode 성공, 375px 스크린샷에서 한국어 내장 글리프·문단·고지 육안 검수. 본문 등록 제휴 링크 sponsored/nofollow와 다른 모델(시그델 UH-04) 문구 확인. initial QA의 로컬 글리프 부족과 브라우저 마지막 페이지 종료 문제를 해결한 뒤 최종 6경로 검사 PASS. 추가 production 의존성 없음. 테스트용 Chromium은 임시 환경에서만 사용.

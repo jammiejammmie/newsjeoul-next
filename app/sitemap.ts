@@ -20,6 +20,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // `/topic`만 하드코딩돼 있어 /tools/ev-subsidy가 색인 대상에서 통째로 빠져 있었다 —
   // 구조화 데이터까지 갖춘 검색 착륙지인데 사이트맵에 없으면 크롤러가 늦게 찾는다.
   const staticRoutes: MetadataRoute.Sitemap = [
+    { url: `${BASE_URL}/discoveries`, lastModified: '2026-10-26T08:56:09+09:00', changeFrequency: 'weekly', priority: 0.8 },
     { url: `${BASE_URL}/`,      changeFrequency: 'daily', priority: 1.0 },
     { url: `${BASE_URL}/topic`, changeFrequency: 'daily', priority: 0.9 },
     ...TOOL_ROUTES.map((t) => ({

@@ -1,0 +1,21 @@
+{
+  "observedAt":"2026-10-26T08:56:09+09:00",
+  "base":"795d5c200fb51199a7d770a1e05341cb9fe18554",
+  "existingWork":"PR8/PR9 merged and prior public verification recorded; no open PR returned at run start; no duplicate hub guide created",
+  "readerQuestion":"A210C의 상태 화면에 차액을 낼 가치가 있고 내 모니터·OS·충전 구성에서 실제로 쓸 수 있나?",
+  "selected":{"model":"Anker A210C","slug":"/hub/galaxy-book5-pro/anker-a210c-smart-display-hub","category":"/discoveries","difference":"기존 buying-ak231s는 일반 허브 조합 선택. 이번 글은 A210C 모델 고유 화면·240Hz 의미·맥 두 화면·80W·총비용 판단","value":"한국 홍보의 상태 화면/240Hz 설명과 미국 동일 모델의 macOS 확장 제약·USB-C 영상 미지원·충전기 별도 조건을 연결","affiliate":"A210C의 사용자 쿠팡 정식 링크 미확보. 본문 끝 기존 시그델 UH-04를 별도 대안 광고로 명시하고 기존 등록 /go/book5-hub만 사용. A210C 링크로 가장하지 않음"},
+  "sources":[
+    {"url":"https://www.ankerkorea.co.kr/lp/nano-usb-c-10-in-1-hub.html","publishedAt":null,"facts":"본체 상태 화면, 영어 UI, 외부 모니터 240Hz 조건, 국내 모델 소개"},
+    {"url":"https://www.anker.com/products/a210c-10-in-1-desktop-usb-c-hub-dual-4k-smart-display","publishedAt":null,"facts":"동일 A210C, macOS 두 외부 화면 복제, USB-C 영상 미지원, PD 입력100W/호스트최대80W, 충전기 별도. 국가별 판매 구성은 국내 판매처 재확인"},
+    {"url":"https://ankerkorea.co.kr/product/앤커-나노-usb-c-10-in-1-240hz-스마트-디스플레이-허브-a210c/217/","publishedAt":null,"facts":"표시가159900/할인가127900 관측. 옵션 전 품절 표기는 전 색상 실재고로 확대하지 않음"},
+    {"url":"https://www.notebookcheck.net/Anker-unveils-new-10-in-1-Nano-USB-C-Hub-with-240Hz-display.1307470.0.html","publishedAt":"2026-05-27 검색 결과","decision":"24~72시간 신제품으로 채택하지 않음. 작은 본체 화면240Hz로 읽히는 보도는 공식 외부 출력 조건과 구분"},
+    {"url":"https://www.reddit.com/r/UsbCHardware/comments/1veebu4/usb_tester_collection/","publishedAt":"화면 상대시점2mo ago","score":null,"comments":null,"decision":"상태표시/테스터 관심 질문 참고만. 최신/바이럴/국내 검색량 주장 안 함"},
+    {"url":"https://www.techradar.com/tech/top-tech-of-the-month-the-best-new-gadgets-weve-tested-for-october-2026","publishedAt":"본문2026-09-30","decision":"당일 신제품 근거 아님. 테스트 후기 복제하지 않음"}
+  ],
+  "freshness":"포털/뉴스/Reddit/제조사 검색 수행. 직전 실행 이후 24~72시간의 검증 가능한 출시 변화는 확보하지 못함. 검증된 기존 제품을 새 코너 첫 소재로 채택. 검색량/CPC/경쟁도/급상승 수치 없음",
+  "images":"자체 정보 도식 2장. 제품 사진·실측 UI 재현 아님. 정확 모델 사진/영상 재사용 허가는 미확보; 원본 복제·클립 게시 없음",
+  "channels":"뉴스저울 웹만 구현. 테크쉽Get 블로그 카테고리·게시·클립은 미실행. 쇼핑 커넥트 기존 발급 링크는 그대로 보존하며 외부 웹 삽입하지 않음",
+  "validation":"원고/검색/사이트맵 및 제휴 검사 PASS, production build PASS. 모바일375px와PC1440px 화면/이미지/링크 검사 결과와 배포는 implementation log 후속 기록",
+  "paidAIAPI":false,
+  "affiliateSelfClick":false
+}
