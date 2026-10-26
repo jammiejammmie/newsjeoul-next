@@ -25,7 +25,7 @@ export default function AffiliatePanel({ placement, fallback = [], title = 'ì¿ í
       {placement?.context && <p className="affiliate-context">{placement.context}</p>}
       <div className="affiliate-products">
         {slots.map(slot => {
-          const product=affiliateProduct(slot), image=productImage(product), [eyebrow,reason,cta]=productPrompt(slot.slot)
+          const product=affiliateProduct(slot), image=productImage(product), [eyebrow,reason,cta]=placement?.productPrompts?.[slot.slot] ?? productPrompt(slot.slot)
           return (
           <a key={slot.slot} href={`/go/${slot.slot}`} rel="sponsored nofollow noopener noreferrer" target="_blank" className="affiliate-product">
             {image && <div className="affiliate-product-photo"><Image src={image} alt={product?.name || slot.label} width={400} height={400} unoptimized loading="lazy" referrerPolicy="no-referrer" /></div>}

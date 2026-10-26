@@ -8,8 +8,8 @@ export default function AffiliateFrame({ children, placement, fallback = [], hom
 }) {
   const ids = placement?.slots ?? fallback.filter(s=>s.targetUrl).map(s=>s.slot)
   const leftIds = ids.slice(0,1), rightIds=ids.slice(1,2)
-  const leftPlacement = leftIds.length ? {slots:leftIds,context:placement?.context??''}:null
-  const rightPlacement = rightIds.length ? {slots:rightIds,context:placement?.context??''}:null
+  const leftPlacement = leftIds.length ? {slots:leftIds,context:placement?.context??'',productPrompts:placement?.productPrompts}:null
+  const rightPlacement = rightIds.length ? {slots:rightIds,context:placement?.context??'',productPrompts:placement?.productPrompts}:null
   const enabled = !!(placement?.slots.length || fallback.some(slot => slot.targetUrl))
   if (!enabled) return <>{children}</>
   return <div className={`affiliate-frame${home ? ' affiliate-frame-home' : ''}`}>
