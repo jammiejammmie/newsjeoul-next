@@ -261,3 +261,7 @@ PR #13 merged 2f12c18debbc9b912fade03262ae361469000564. Netlify 운영 deploy 6a
 ### DEC-024 — Deployed / 공개 검증 완료
 PR #15 병합 master 1d4002c95db7ed78162b1ae9c715e65986516ccd. Netlify production 6adeb6ca780a52b725ecb914 Published(46초) 확인. 실제 공개 URL https://newsjeoul.co.kr/hub/energy-voucher/winter-application-balance-2026 에서 제목·본문·H1 1개·canonical·키워드/본문태그16개·표1개·공식복지로링크·출처6개·광고0 확인. 도식3개 모두 complete/naturalWidth600. 공개 홈의 새 글 링크와 생활·지원 제도 분야 확인, 클릭 후 실제 원고로 이동 확인. 공개 sitemap XML의 loc 원소에서 허브와 문서 각각1개 확인(브라우저 XML뷰어의 숨긴 원문+표시문 전체 textContent 중복은 URL중복이 아님). 증빙 energy-voucher-published-1792980797194.jpg.
 네이버 원고는 libfile_050cceb47f3c8191997a108f46b29318 / file_00000000f574820980a36628492d0467, v1.0 준비·미게시. 네이버 인증 재요청·작성 화면 등록·초안 저장·공개 게시를 하지 않았다. 실제 공개는 뉴스저울 신규 글1편·새 허브1개, 새 공개 예약0건. 검색 집계는10/24의 기존 값이며 신규 성과·제휴전환·수익으로 해석하지 않는다. 소라/SNS 중단 유지, 유료 API·추가 결제·제휴 자기클릭 없음.
+
+
+### DEC-023 후속 — A210C 웹 도식 보완 / Local verified (2026-10-26)
+기존웹 A210C URL에서문자요약카드2개를준비된실제연결도3개로교체. 상태화면vs외부영상출력/OS별외부A·A와A·B/100W입력→허브20W확보→호스트최대80W를해당문단에배치. Anker한국·미국공식모델원문재확인,사진·UI·실측아님을캡션에구분. 원본SVG준비파일재사용·한글subset내장으로합계약34KB. 기존slug/title/canonical/쿠팡대안UH-04목적지/고지/rel보존. 직접A210C제휴링크나네이버글수정아님. 빌드·TypeScript·원고/제휴회귀·375/1440px production렌더검사PASS, 일반USB-C글기존2그림유지. 조사research-20261026-1159.md.
