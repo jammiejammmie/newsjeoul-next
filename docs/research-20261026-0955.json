@@ -1,0 +1,112 @@
+{
+  "observedAt": "2026-10-26T09:55:49+09:00",
+  "base": "8598456aeccc9aede11ef88b2411a2ebfeab9633",
+  "openPRsAtStart": [],
+  "searchAdvisor": {
+    "updatedAt": "2026-10-24",
+    "range": "최근30일 PC+Mobile",
+    "clicksDisplay": "3.1천",
+    "impressionsDisplay": "37.9만",
+    "ctrDisplay": "0.8%",
+    "status": "직전 조회와 같은 집계. 새 글 성과나 쿠팡 클릭이 아님"
+  },
+  "candidates": [
+    {
+      "product": "Galaxy Buds On",
+      "readerSituation": "조용한 공부 공간과 주변 대화를 함께 고려하는 이어폰 구매자",
+      "question": "누음 저감이 있으면 도서관에서 안 새는가, 내 갤럭시 AI와 케이스 혜택은 쓸 수 있는가?",
+      "gap": "출시 요약의 장점과 공식 각주·AI 조건·쿠폰 발급/사용 기간이 흩어져 있음",
+      "value": "누음과 외부 소음의 방향, 체험 질문, 기기 조건, 시리얼 종류, 추가 지출을 한 글에서 연결",
+      "decision": "신규 모델 고유 의도 채택. 기존 버즈4·프로 비교/분실/PC 연결 글과 중복하지 않음",
+      "route": "/hub/galaxy-buds4/buds-on-library-leakage-buying",
+      "firstAnnouncement": "2026-10-01",
+      "domesticAnnouncement": "2026-10-26",
+      "domesticLaunchScheduled": "2026-10-27",
+      "searchVolume": null,
+      "trendProof": null
+    },
+    {
+      "product": "Anker Laptop Charger Pro A120F",
+      "url": "https://www.anker.com/products/a120f-100w-usb-c-gan-charger-battery-care",
+      "decision": "후보 보존. 국내 판매 모델·정식 제휴 링크·배터리 수명40% 주장 적용조건 추가 확인 필요. A210C 허브 글과 합치지 않음"
+    },
+    {
+      "product": "Acer EP130K ePaper monitor",
+      "url": "https://news.acer.com/acer-announces-new-epaper-and-triple-display-monitors",
+      "announcement": "2026-09-02",
+      "decision": "국내 구매·실제 판매·정식 제휴 링크 미확인, 최신 출시로 발행하지 않음"
+    },
+    {
+      "product": "PixelMob",
+      "url": "https://www.digitalcameraworld.com/cameras/storage/an-incredibly-versatile-new-tool-for-creators-is-now-tantalizingly-close-to-mass-production",
+      "decision": "기사 관측은 최근이나 양산 예정·크라우드펀딩 단계. 국내 사용/배송/공식 근거 미검증으로 보류"
+    },
+    {
+      "product": "Galaxy W27",
+      "url": "https://www.goodmorningvietnam.co.kr/news/article.html?no=84247",
+      "reportDate": "2026-10-25",
+      "decision": "중국 전용 예정·하드웨어 추정 혼재. 국내 구매 가이드로 발행하지 않음"
+    }
+  ],
+  "sources": [
+    {
+      "url": "https://news.samsung.com/kr/삼성전자-클립형-무선-이어폰-갤럭시-버즈-온-국내",
+      "publishedAt": "2026-10-26",
+      "role": "출시일·가격·색상·누음 각주·국내 판매 안내"
+    },
+    {
+      "url": "https://news.samsung.com/kr/삼성전자-갤럭시-최초-클립형-무선-이어폰-갤럭시-버",
+      "publishedAt": "2026-10-01",
+      "role": "최초 공개·AI/음성메모 조건"
+    },
+    {
+      "url": "https://www.samsung.com/sec/event/galaxy-buds-on/promotion/",
+      "publishedAt": null,
+      "role": "발급대상/발급/사용기간, 16종 케이스, S/N(C), Coming Soon·오전9시"
+    },
+    {
+      "url": "https://news.samsung.com/kr/삼성전자-갤럭시-버즈4-시리즈-공개",
+      "publishedAt": "2026-02-26",
+      "role": "일반형 오픈형/프로 커널형 구분"
+    },
+    {
+      "url": "https://www.reddit.com/r/Android/comments/1wum1iz/samsung_electronics_unveils_galaxy_buds_on/",
+      "publishedAt": "2026-10-01 검색 결과",
+      "searchSnapshotVotes": 167,
+      "liveScore": null,
+      "commentCount": null,
+      "role": "누음·일상 쓰임·가격 비교 질문의 탐색 맥락. 국내 검색량/급상승/당일 바이럴 근거로 쓰지 않음"
+    },
+    {
+      "url": "https://news.samsung.com/kr/삼성전자-뉴스룸-콘텐츠-이용에-대한-안내",
+      "role": "직접 제작 기사/이미지 자유 이용, 외부 제공 워터마크/별도 작성자 제한, 임의 가공 금지, 영상 다운로드 임의 이용 금지"
+    }
+  ],
+  "media": [
+    {
+      "path": "public/images/editorial/buds-on-case-official.jpg",
+      "sha256": "4438798385fab118acc7d78d2194cd95389b0f6aa092c8db8e95ba3b0e623b35",
+      "kind": "삼성 뉴스룸 공개 배포 사진. EXIF(GPS 포함) 제거. 압축 이미지 데이터·픽셀·크롭 변경 없음",
+      "publicOriginalSHA256": "7767eeac2086214484783379abd04dc3da50db25b7cd508587c3e6278423ff10",
+      "decodedPixelsIdentical": true
+    },
+    {
+      "path": "public/images/editorial/buds-on-wearing-official.jpg",
+      "sha256": "424f4091eb5647c492487b68541084bccf1501ec02e7b9f3a319cd88ddf68c44",
+      "kind": "삼성 뉴스룸 공개 배포 사진. EXIF(GPS 포함) 제거. 압축 이미지 데이터·픽셀·크롭 변경 없음",
+      "publicOriginalSHA256": "3df060fb206fd0cca4ae02d1f42159e8ea3fe53c157ffffcc1a60e404a59ca4d",
+      "decodedPixelsIdentical": true
+    }
+  ],
+  "affiliate": {
+    "directBudsOnCoupang": "미확보",
+    "used": "등록 /go/buds4-body를 일반형 대안으로 본문 끝에만 표시. 버즈 온/프로가 아님을 명시. 자동 광고 패널 제외",
+    "tracking": "AF3904190 보존",
+    "selfClick": false,
+    "partnersWeb": "현재 탭은 비로그인 공개 화면. 비대화형 재로그인 요청 없이 기존 링크 사용"
+  },
+  "paidAIAPI": false,
+  "socialChannels": "뉴스저울 SNS·소라 중단 유지",
+  "validation": "원고·검색·사이트맵/제휴 검사 및 production build PASS. 실제 반응형 검수와 공개 결과는 implementation log에 후속 기록",
+  "mediaSafety": "자동 업로드 검수가 원본의 미검증 개인정보 가능성을 보류. 공개 원본과 바이트 일치 확인 후 GPS 필드 존재 확인. EXIF만 제거한 실질적으로 안전한 파일로 변경, 픽셀 동일·EXIF 없음 검증. 기존 거절을 우회하지 않음."
+}
