@@ -14,7 +14,9 @@ const hot = {}
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/hubs/editorial/hot-electronics-20261026.ts', 'utf8'), {compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText, {exports:hot})
 const energy = {}
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/hubs/editorial/energy-voucher-20261026.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText,{exports:energy})
-vm.runInNewContext(compiled, { exports: moduleExports, require: id => id.includes('energy-voucher') ? energy : id.includes('hot-electronics') ? hot : id.includes('refresh-') ? refresh : practical })
+const recovery = {}
+vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/hubs/editorial/buds-recovery-20261026.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText,{exports:recovery})
+vm.runInNewContext(compiled, { exports: moduleExports, require: id => id.includes('buds-recovery') ? recovery : id.includes('energy-voucher') ? energy : id.includes('hot-electronics') ? hot : id.includes('refresh-') ? refresh : practical })
 const { EDITORIAL_DOCUMENTS, mergeEditorialDocuments, mergeEditorialSitemap, editorialSlots } = moduleExports
 const total = Object.values(EDITORIAL_DOCUMENTS).flat().length
 const budsTotal = EDITORIAL_DOCUMENTS['galaxy-buds4'].length

@@ -1,3 +1,4 @@
+import { BUDS_RECOVERY_20261026 } from './buds-recovery-20261026'
 import { ENERGY_VOUCHER_20261026 } from './energy-voucher-20261026'
 import { HOT_ELECTRONICS_20261026 } from './hot-electronics-20261026'
 import { REFRESH_20261026 } from './refresh-20261026'
@@ -31,7 +32,7 @@ for (const [hub, docs] of Object.entries(PRACTICAL_GUIDES)) {
   EDITORIAL_DOCUMENTS[hub] = [...(EDITORIAL_DOCUMENTS[hub] ?? []), ...docs]
 }
 
-for (const [hub, docs] of [...Object.entries(REFRESH_20261026), ...Object.entries(HOT_ELECTRONICS_20261026), ...Object.entries(ENERGY_VOUCHER_20261026)]) {
+for (const [hub, docs] of [...Object.entries(REFRESH_20261026), ...Object.entries(HOT_ELECTRONICS_20261026), ...Object.entries(ENERGY_VOUCHER_20261026), ...Object.entries(BUDS_RECOVERY_20261026)]) {
   const merged = new Map((EDITORIAL_DOCUMENTS[hub] ?? []).map(doc => [doc.slug, doc]))
   for (const doc of docs) merged.set(doc.slug, doc)
   EDITORIAL_DOCUMENTS[hub] = [...merged.values()]

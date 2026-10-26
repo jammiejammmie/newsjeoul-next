@@ -89,6 +89,7 @@ export async function getDbHubSlugs(): Promise<string[]> {
 }
 
 export type HubDocument = {
+  tags?: string[]
   affiliateSlotIds?: string[]
   slug: string
   format: string

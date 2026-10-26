@@ -9,7 +9,7 @@ export function affiliateProduct(slot:HubAffiliateSlot): Product | undefined {
 export function productImage(p?:Product) { return p?.image && /^https:\/\/(?:[^/]*\.coupangcdn\.com\/|ads-partners\.coupang\.com\/image1\/)/.test(p.image) ? p.image : undefined }
 export function productPrompt(slot:string) {
  const prompts:Record<string,[string,string,string]>={
- 'buds4-body':['한쪽 교체 견적, 새 세트와 얼마나 차이 날까?','단품 견적과 비교할 새 세트 가격·색상·구성을 살펴보세요.','새 세트 가격·구성 보기'],
+ 'buds4-body':['단품 복구 견적, 새 세트와 얼마나 차이 날까?','필요한 부품의 총견적과 비교할 새 세트 가격·색상·구성을 살펴보세요.','새 세트 가격·구성 보기'],
  'gram26-body':['윈도우까지 포함된 가격일까?','RAM·SSD만 보고 고르기 전에, 선택 옵션의 운영체제 포함 여부도 확인하세요.','RAM·SSD·윈도우 옵션 보기'],
  'rv26-roborock':['비슷한 이름, 같은 도크 기능일까?','이 상품은 S10 MaxV Ultra입니다. Slim과 혼동하지 말고 세척·건조 기능과 구성품을 확인하세요.','Ultra 도크·구성 확인'],
  'rv26-dreame':['청소기와 함께, 도크는 어디까지 해줄까?','이 상품은 L30s Plus입니다. 자동 먼지 비움 외에 필요한 기능과 관리할 부분을 비교하세요.','L30s Plus 구성 살펴보기'],

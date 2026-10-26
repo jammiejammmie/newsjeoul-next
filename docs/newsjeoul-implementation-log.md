@@ -270,3 +270,9 @@ PR #15 병합 master 1d4002c95db7ed78162b1ae9c715e65986516ccd. Netlify productio
 ### A210C 웹 시각 보완 — Deployed / 공개 검증 (2026-10-26)
 PR #17 병합 ae9ddefd29208ea34238a3936ba86cf96841255c. Netlify production 6adec3a77d3a9c4a2268d88a Published(50초) 확인. 기존 공개 URL https://newsjeoul.co.kr/hub/galaxy-book5-pro/anker-a210c-smart-display-hub 에서 제목/canonical 유지, 새 도식3개 naturalWidth720/complete 확인. 기존 본문 등록 /go/book5-hub rel=sponsored nofollow, 수수료 고지 및 다른모델 UH-04 구분 확인. 공개 증빙 a210c-web-revised-1792984101766.jpg. 신규 글0·기존 글개선1이며 네이버글수정·SNS/소라재개없음.
 추가 포털/뉴스 조회: https://www.newspim.com/news/view/20261026000079 및 https://www.yna.co.kr/view/AKR20261026020200003 에서10/26 LG서랍형STEM출시보도 재확인. 공식 소개 페이지는 확보했지만 신모델 정확SKU·치수·정식제휴목적지미확인으로 보류유지. 버즈온은 기존공개원고와중복이라새URL발행안함. Search Advisor 실제화면의최근업데이트10/24·최근30일클릭3.1천/노출37.9만은이전집계와동일하며신규성과로해석하지않음. 유료API·광고구매·제휴자기클릭없음.
+
+## DEC-025 — Implemented / 검증 중 (2026-10-26)
+기존 single-bud-replacement URL·제목을 보존해 모델/좌우·단품/새세트 총비용·중고 위험·커플링·복구 후 확인으로 확장. 새 lost-charging-case-replacement는 빈케이스 단독찾기 제한→보호커버와충전본체 구분→국내공급문의→견적 비교→반품조건→수령후확인으로 작성. 각 도식2개·비용표1개, 글별 태그8/9개 및 metadata keywords 구현. 기존 제휴/AF3904190 유지, 실제 상품과 일반형/프로/단품 차이 명시. 네이버 편집은 인증 origin 자동검토 차단으로 미실행. 조사 research-20261026-buds-recovery.md. 타입·원고/제휴 회귀·production build PASS. 운영 공개는 별도 검증한다.
+
+### DEC-025 — Local verified
+375/1440px × 두 원고 모두HTTP200·H1하나·canonical·설명도2개decode·비용표1개·태그8/9·keywords·Article/FAQ schema·가로넘침없음 확인. 홈/버즈허브/검색/sitemap 새 URL 각 연결 및 sitemap중복없음 검증. 첫 QA가 전역 첫 JSON-LD를 문서schema로 잘못 선택한 것을 전체 script의 @graph 검사로 고쳐 통과. 실제 오류나 누락 schema를 완료로 가장하지 않음. 모바일 설명도 첫 장 두 장을 육안 확인한 뒤 모델 구별을 ≠로, 분실 조합을 직접 표현해 혼동을 줄임.
