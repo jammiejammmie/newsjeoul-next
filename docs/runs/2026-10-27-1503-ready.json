@@ -78,5 +78,6 @@
     "typescript": "pass",
     "productionBuild": "pass",
     "browser": "PASS: local production 375px/1440px, scrollWidth=375 at375px, both SVG loaded, unique H1/canonical, home/hub/search/sitemap inclusion. Production unpublished."
-  }
+  },
+  "blogVisuals": "2026-10-27 후속 실행에서 마루부리 도식 경로 제작 완료"
 }

@@ -51,7 +51,7 @@ LG 공용 퓨리케어 안내에는 PM1.0 센서 렌즈를 관리하는 방법�
 - 후보의 정확한 국내 모델·필터 코드·공급처와 교체 비용
 - 배송·전력·소모품·점검을 합친 사용기간 총액
 
-이번 글에는 일치하는 정식 등록 상품 링크가 없어 광고 카드를 넣지 않았습니다. 대체품도 동시 사용 조건과 관리 부담이 맞아야 하며, 다른 방식의 상품을 같은 해결책처럼 권하지 않습니다.
+대체품도 동시 사용 조건과 관리 부담이 맞아야 하며, 다른 방식의 상품을 같은 해결책처럼 권하지 않습니다.
 
 ## 자주 묻는 질문
 
@@ -64,6 +64,6 @@ A. 보장할 수 없습니다. 레딧 의견도 서로 다르며 물 종류만�
 Q. 필터를 새로 사기 전에 무엇을 해야 하나요?
 A. 두 모델과 발생 조건을 적고 가습기 정지 상태의 변화, 설치 조건, 센서 관리 안내를 확인한 뒤 필요하면 제조사에 점검을 요청하세요.
 
-2026-10-27 확인. LG 공용 안내(2026-06-10) https://www.lge.co.kr/support/solutions-20150605999307 ; 하이드로타워 센서 안내(2026-01-14) https://www.lge.co.kr/support/solutions-20154980888457 ; Xiaomi 국내 제품·관리 안내 https://www.mi.com/kr/product/xiaomi-smart-evaporative-humidifier/ . Reddit는 본문에 원문을 연결한 미검증 경험담이며 최근 검색량 증가·제품 성능 근거가 아닙니다. AI가 공식 자료를 대조해 작성했으며 직접 사용·측정한 후기가 아닙니다. Reddit 원문 https://www.reddit.com/r/AirPurifiers/comments/1qerr01/using_a_humidifier_and_air_purfier_at_the_same/ Reddit 원문 https://www.reddit.com/r/AirPurifiers/comments/1qerr01/using_a_humidifier_and_air_purfier_at_the_same/
+2026-10-27 확인. LG 공용 안내(2026-06-10) https://www.lge.co.kr/support/solutions-20150605999307 ; 하이드로타워 센서 안내(2026-01-14) https://www.lge.co.kr/support/solutions-20154980888457 ; Xiaomi 국내 제품·관리 안내 https://www.mi.com/kr/product/xiaomi-smart-evaporative-humidifier/ . Reddit는 본문에 원문을 연결한 미검증 경험담이며 최근 검색량 증가·제품 성능 근거가 아닙니다. AI가 공식 자료를 대조해 작성했으며 직접 사용·측정한 후기가 아닙니다. Reddit 원문 https://www.reddit.com/r/AirPurifiers/comments/1qerr01/using_a_humidifier_and_air_purfier_at_the_same/
 
-편집 지정: 마루부리 본문16px·소제목24px 굵게·캡션13px·행간1.8. 도식2개를 점검·비용 문단 뒤 사진 컴포넌트로 배치. 원고만 준비됨; 네이버 편집·실제 예약 미완료. 도식 내부 글자는 웹용 Pretendard 경로이므로 블로그용 마루부리 도식 보정이 필요함.
+편집 지정: 마루부리 본문16px·소제목24px 굵게·캡션13px·행간1.8. 마루부리 도식2개를 점검·비용 문단 뒤 사진 컴포넌트로 배치. 네이버 실제 편집·예약 미완료.

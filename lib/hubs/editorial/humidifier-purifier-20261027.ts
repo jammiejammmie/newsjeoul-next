@@ -17,7 +17,7 @@ export const HUMIDIFIER_PURIFIER_20261027: Record<string, HubDocument[]> = {
         "기화식가습기",
         "필터교체"
       ],
-      "sourceNote": "2026-10-27 확인. LG 공용 안내(2026-06-10) https://www.lge.co.kr/support/solutions-20150605999307 ; 하이드로타워 센서 안내(2026-01-14) https://www.lge.co.kr/support/solutions-20154980888457 ; Xiaomi 국내 제품·관리 안내 https://www.mi.com/kr/product/xiaomi-smart-evaporative-humidifier/ . Reddit는 본문에 원문을 연결한 미검증 경험담이며 최근 검색량 증가·제품 성능 근거가 아닙니다. AI가 공식 자료를 대조해 작성했으며 직접 사용·측정한 후기가 아닙니다. Reddit 원문 https://www.reddit.com/r/AirPurifiers/comments/1qerr01/using_a_humidifier_and_air_purfier_at_the_same/ Reddit 원문 https://www.reddit.com/r/AirPurifiers/comments/1qerr01/using_a_humidifier_and_air_purfier_at_the_same/",
+      "sourceNote": "2026-10-27 확인. LG 공용 안내(2026-06-10) https://www.lge.co.kr/support/solutions-20150605999307 ; 하이드로타워 센서 안내(2026-01-14) https://www.lge.co.kr/support/solutions-20154980888457 ; Xiaomi 국내 제품·관리 안내 https://www.mi.com/kr/product/xiaomi-smart-evaporative-humidifier/ . Reddit는 본문에 원문을 연결한 미검증 경험담이며 최근 검색량 증가·제품 성능 근거가 아닙니다. AI가 공식 자료를 대조해 작성했으며 직접 사용·측정한 후기가 아닙니다. Reddit 원문 https://www.reddit.com/r/AirPurifiers/comments/1qerr01/using_a_humidifier_and_air_purfier_at_the_same/",
       "blocks": [
         {
           "heading": "빨간 숫자가 곧 필터 교체 신호는 아닙니다",
@@ -45,7 +45,7 @@ export const HUMIDIFIER_PURIFIER_20261027: Record<string, HubDocument[]> = {
         },
         {
           "heading": "구매 전에는 이 네 가지 답을 확보하세요",
-          "content": "- 내 공기청정기와 후보 가습기의 동시 사용에 대한 제조사 안내\n- 실제 방에서 설명서상 배치 조건을 지킬 자리\n- 후보의 정확한 국내 모델·필터 코드·공급처와 교체 비용\n- 배송·전력·소모품·점검을 합친 사용기간 총액\n\n이번 글에는 일치하는 정식 등록 상품 링크가 없어 광고 카드를 넣지 않았습니다. 대체품도 동시 사용 조건과 관리 부담이 맞아야 하며, 다른 방식의 상품을 같은 해결책처럼 권하지 않습니다."
+          "content": "- 내 공기청정기와 후보 가습기의 동시 사용에 대한 제조사 안내\n- 실제 방에서 설명서상 배치 조건을 지킬 자리\n- 후보의 정확한 국내 모델·필터 코드·공급처와 교체 비용\n- 배송·전력·소모품·점검을 합친 사용기간 총액\n\n대체품도 동시 사용 조건과 관리 부담이 맞아야 하며, 다른 방식의 상품을 같은 해결책처럼 권하지 않습니다."
         },
         {
           "heading": "자주 묻는 질문",
