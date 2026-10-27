@@ -359,3 +359,8 @@ PR48 head e484c3fa3a42aa8f762c4348043d6da138436263를 병합해 최종 master 53
 기존 `fold8-charger`의 EP-TA845 상품 식별키·등록 사진·AF3904190만 재사용했다. 공식 패키지의 1m 5A 케이블과 판매명의 1.8m 케이블 차이는 판매 페이지에서 확인할 질문으로 명시했다. 현재 가격·재고·정품·충전 성능을 보장하지 않으며 제휴 카드는 판단을 마친 뒤 한 번만 노출한다.
 
 자체 HTML/CSS 시각 자료3개와 비교표1개를 문단 가까이에 배치했다. `node scripts/test-editorial-content.cjs`, `npx tsc --noEmit`, `npm run build` 통과. 서버 렌더에서 H1 하나, 고유 title/canonical, Article/FAQ/Breadcrumb 구조화데이터, 고지와 정확 상품명, `/go/fold8-charger` 한 개 및 `sponsored nofollow`, 홈·허브·검색·sitemap 실제 연결과 robots 색인 가능 상태를 확인했다. 운영 배포·공개 렌더 검증은 후속 기록한다.
+
+### DEC-032 — Deployed / 운영 공개 검증 완료 (2026-10-27)
+PR50 head `a12b8936e6841f0c95d1a2033fca68603d4f1816`의 변경 파일12개와 신규 원고 UTF-8 내용을 원격에서 확인했다. Netlify Preview `6ae00727e5e6073b4da9a867`은 51초에 성공했고, 프리뷰에서 H1 하나·고유 title/canonical·자체 시각 자료·표·Article/FAQ/Breadcrumb schema·등록 상품명·사진 naturalWidth1000·고지와 `/go/fold8-charger` 한 개의 `sponsored nofollow`를 확인했다.
+
+PR50 병합 후 master `f80d2db62efbd87c9b73c470ba45555f2ed437ca`, Netlify production `6ae007e47c3b09e9fd6000b4` Published 42초를 확인했다. 공개 https://newsjeoul.co.kr/hub/galaxy-z-fold8/45w-charger-pps-cable 에서 제목·H1·본문·canonical·공식 시험 조건·구매 불필요 조건·표·구조화데이터를 확인했다. EP-TA845 등록 상품 사진은 complete/naturalWidth1000이며, 1.8m 구성 확인 질문과 수수료 고지, 단일 제휴 링크의 sponsored nofollow를 확인하고 목적지는 클릭하지 않았다. 홈·폴드8 허브·사이트 검색·sitemap에 신규 URL이 각각 실제 연결되고 sitemap lastmod가 원고 수정일과 일치한다. 1348px 운영 화면에서 가로 넘침 없음과 본문·표·상품 카드를 육안 확인했다. 375px 실제 운영 브라우저 크기 변경 기능은 없어 모바일 실제 렌더 완료로 기록하지 않으며, 빌드와 기존 반응형 CSS만 확인했다. 새 검색 노출·클릭·제휴 전환·수익은 미집계이며 0으로 해석하지 않는다.
