@@ -1,3 +1,4 @@
+import CondensationInlineVisual from './CondensationInlineVisual'
 import HumidifierInlineVisual from './HumidifierInlineVisual'
 import CarbonMatInlineVisual from './CarbonMatInlineVisual'
 import GramDualMonitorInlineVisual from './GramDualMonitorInlineVisual'
@@ -17,6 +18,7 @@ const figures: Record<number, {src:string;alt:string;caption:string}> = {
  2: {src:'/images/editorial/usb-c-power-budget.svg',alt:'Anker 10-in-1 Dual Display 허브의 최대 입력 100W 중 허브 소비 15W를 고려해 노트북에 최대 85W를 전달하는 예시',caption:'Anker 해당 제품 FAQ 기준의 정격 설명 예시. 실측값이나 아래 광고 상품의 사양이 아닙니다.'},
 }
 export default function ArticleInlineVisual({path,index}:{path:string;index:number}) {
+ if(path==='/hub/humidifier/window-condensation-before-buying')return <CondensationInlineVisual index={index}/>
  if(path==='/hub/humidifier/air-purifier-pm-spike') {
   const v=index===2?{file:'check',height:550,alt:'가습기 정지와 두 모델의 동시 사용 지침 확인 뒤 지속 여부에 따라 상담으로 이어지는 점검 순서',caption:'공식 안내와 편집 점검 순서를 연결한 자체 설명도입니다. 실제 센서 구조나 시험 결과가 아닙니다.'}:index===5?{file:'cost',height:470,alt:'기존 기기의 점검과 유지비를 새 기화식 본체와 필터, 배송비 및 관리 부담과 비교하는 도식',caption:'같은 사용기간의 지출 항목을 비교하는 자체 도식입니다. 현재 가격이나 절감액을 제시하지 않습니다.'}:null
   return v?<figure className="article-visual"><Image src={`/images/editorial/humidifier-purifier-${v.file}.svg`} alt={v.alt} width={720} height={v.height} unoptimized loading="lazy" style={{width:'100%',height:'auto'}}/><figcaption>{v.caption}</figcaption></figure>:null
