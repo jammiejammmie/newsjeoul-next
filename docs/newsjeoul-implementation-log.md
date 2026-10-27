@@ -378,3 +378,10 @@ PR52 head `acf231b7855577fe93b13fb803e204d8f3490545`의 변경 파일 9개와 �
 PR52를 병합해 master `740450d4033d2fbace54430bee65d82a36917fab`, Netlify production `6ae0174b4de987df54229ba0` Published 39초를 확인했다. 공개 https://newsjeoul.co.kr/hub/galaxy-z-flip8/screen-film-warning 에서 새 제목·직접 답변·내부/외부 구분·센터/구매 비용·구매 불필요 조건·FAQ 4개·dateModified를 확인했다. 기존의 잘못된 “소모품 개념이 아니다” 문구는 사라졌다. 제휴 영역은 본체·케이스를 제거하고 ESSENWOO 외부 강화유리 세트 한 개만 판단 뒤에 노출하며, 사진 complete/naturalWidth1000·정확 질문/CTA·고지·rel을 확인하고 목적지는 클릭하지 않았다.
 
 홈·플립8 허브·사이트 검색에서 기존 URL의 실제 연결을 확인했고, sitemap은 URL 1건과 `2026-10-27T12:04:00+09:00` 수정일을 제공한다. 1363px 운영 화면은 가로 넘침이 없고 본문·표·상품 카드를 육안 확인했다. 현재 Cloud Browser에는 뷰포트 변경 기능이 없어 375px 실제 운영 렌더 완료로 기록하지 않으며, production build와 기존 반응형 레이아웃만 확인했다. 새 검색 노출·클릭·제휴 전환·수익은 미집계이며 0으로 해석하지 않는다.
+
+## DEC-034 — 로봇청소기 소모품 호환 가이드 / 구현·로컬 검증 (2026-10-27)
+기존 `/hub/robot-vacuum-2026/consumable-model-code-check`를 같은 URL에서 보강했다. S9 MaxV Ultra와 Slim의 물걸레 구조 차이, 일반형과 급배수형 구분, 본체용·도크용 부품 경계, 세척/교체 판단, “1년 세트”와 실제 사용 단가, 구매 불필요 조건을 연결했다. 로보락 한국 공식 제품 페이지·FAQ와 공식 소모품 안내를 근거로 사용했고, 커뮤니티 질문은 혼란 사례로만 구분했다.
+
+등록된 `rv26-parts`의 정확 식별키·상품명·사진·AF3904190만 재사용한다. 카드 질문은 S9 MaxV Ultra 옵션·품목 수량·정품/호환품·반품 조건 확인으로 맞췄다. 제휴 카드는 전체 판단 뒤 한 번만 노출하며 현재 가격·재고·정품·모든 옵션 호환을 보장하지 않는다. 본체/도크 부품표, 청소/교체 결정도, 실제 사용 단가 식 등 자체 HTML/CSS 시각 자료 3개를 관련 문단 가까이에 배치했다.
+
+`node scripts/test-editorial-content.cjs`, `npm run build`, `git diff --check`가 통과했다. 기존 URL 검색 회귀와 단일 `rv26-parts` 슬롯을 검사했다. PR·Preview·병합·운영 공개 검증 전이므로 아직 발행 완료로 기록하지 않는다.

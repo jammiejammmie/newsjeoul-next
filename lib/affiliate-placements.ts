@@ -15,6 +15,10 @@ export function searchEntryPlacement(path: string): AffiliatePlacement | null {
       slots: ['flip8-film'], context: '내부 출고 필름을 교체하는 상품이 아닙니다. 외부 커버 화면용 플립8 옵션·케이스 간섭·필름과 렌즈 필름 수량을 확인하는 광고입니다.',
       productPrompts: { 'flip8-film': ['외부 화면용인지, 내부 접는 화면용인지 확인했나요?', '등록 상품은 플립8 외부 강화유리와 카메라 렌즈 필름 세트입니다. 플립8 옵션·수량·케이스 간섭과 현재 결제조건을 확인하세요.', '외부 화면 옵션·구성 확인'] },
     },
+    '/hub/robot-vacuum-2026/consumable-model-code-check': {
+      slots: ['rv26-parts'], context: '정확한 본체·도크 모델과 필요한 품목을 먼저 확인한 뒤, S9 MaxV Ultra 호환 세트의 옵션·수량·현재 결제조건을 확인하는 광고입니다. 정품 또는 모든 옵션의 호환을 보증하지 않습니다.',
+      productPrompts: { 'rv26-parts': ['S9 MaxV Ultra용 옵션과 필요한 부품 수량이 맞을까?', '등록 상품은 S9 MaxV Ultra 호환 세트입니다. 본체·도크 형식, 정품·호환품 구분, 품목별 수량과 반품 조건을 대조하세요.', '호환 모델·세트 구성 확인'] },
+    },
     '/hub/humidifier/winter-type-cleaning-running-cost': {
       slots:['humidifier-xiaomi','humidifier-cuckoo'], context:'관리 방식과 공간에 맞는 후보를 고른 뒤 본체 모델·구성·보증을 확인하는 광고입니다. 두 상품은 가열식이 아니며, 과거 시험가격을 현재 가격으로 보장하지 않습니다.',
       productPrompts:{
