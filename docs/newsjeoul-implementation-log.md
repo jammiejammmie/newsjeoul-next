@@ -364,3 +364,10 @@ PR48 head e484c3fa3a42aa8f762c4348043d6da138436263를 병합해 최종 master 53
 PR50 head `a12b8936e6841f0c95d1a2033fca68603d4f1816`의 변경 파일12개와 신규 원고 UTF-8 내용을 원격에서 확인했다. Netlify Preview `6ae00727e5e6073b4da9a867`은 51초에 성공했고, 프리뷰에서 H1 하나·고유 title/canonical·자체 시각 자료·표·Article/FAQ/Breadcrumb schema·등록 상품명·사진 naturalWidth1000·고지와 `/go/fold8-charger` 한 개의 `sponsored nofollow`를 확인했다.
 
 PR50 병합 후 master `f80d2db62efbd87c9b73c470ba45555f2ed437ca`, Netlify production `6ae007e47c3b09e9fd6000b4` Published 42초를 확인했다. 공개 https://newsjeoul.co.kr/hub/galaxy-z-fold8/45w-charger-pps-cable 에서 제목·H1·본문·canonical·공식 시험 조건·구매 불필요 조건·표·구조화데이터를 확인했다. EP-TA845 등록 상품 사진은 complete/naturalWidth1000이며, 1.8m 구성 확인 질문과 수수료 고지, 단일 제휴 링크의 sponsored nofollow를 확인하고 목적지는 클릭하지 않았다. 홈·폴드8 허브·사이트 검색·sitemap에 신규 URL이 각각 실제 연결되고 sitemap lastmod가 원고 수정일과 일치한다. 1348px 운영 화면에서 가로 넘침 없음과 본문·표·상품 카드를 육안 확인했다. 375px 실제 운영 브라우저 크기 변경 기능은 없어 모바일 실제 렌더 완료로 기록하지 않으며, 빌드와 기존 반응형 CSS만 확인했다. 새 검색 노출·클릭·제휴 전환·수익은 미집계이며 0으로 해석하지 않는다.
+
+## DEC-033 — 플립8 내부·외부 보호필름 가이드 / 구현·로컬 검증 (2026-10-27)
+기존 자동 문서 `/hub/galaxy-z-flip8/screen-film-warning`을 같은 URL에서 보강했다. 내부 출고 필름과 외부 커버 화면을 먼저 구분하고, 기포·들뜸·검은 줄·터치 불량의 다음 행동, 내부 셀프 제거를 피해야 하는 이유, 외부 필름 선택·부착 순서, 센터/상품 총비용과 구매 불필요 조건을 연결했다. 기존 원고의 “소모품이 아니다”라는 오류는 삼성전자서비스의 소모품 안내에 맞게 바로잡았다.
+
+본문 가까이에 내부/외부 비교표, 증상별 결정도, 센터비와 상품비 비교도를 HTML/CSS로 배치했다. 기존 `flip8-film` 정확 식별키·상품명·등록 사진만 재사용하며 제휴 카드를 본문 판단 뒤 한 번만 표시하도록 지연했다. 본체·케이스 광고를 제거하고 외부 화면 옵션·구성·케이스 간섭 확인 문구를 추가했다. 수수료 고지와 `sponsored nofollow`, 기존 AF3904190 목적지는 보존하며 제휴 링크를 클릭하지 않는다.
+
+`node scripts/test-editorial-content.cjs`와 `npm run build`가 통과했다. 검색 회귀는 문서 수 하드코딩 대신 실제 예상 URL을 검사하도록 보정했다. 로컬 개발 서버는 이 실행 환경의 `uv_interface_addresses` 시스템 오류로 열리지 않아 픽셀 렌더는 Netlify Preview와 운영 브라우저에서 검증한다. PR·병합·운영 공개 전이므로 아직 발행 완료로 기록하지 않는다.

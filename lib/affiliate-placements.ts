@@ -11,6 +11,10 @@ export function searchEntryPlacement(path: string): AffiliatePlacement | null {
     '/hub/galaxy-z-fold8/45w-charger-pps-cable': {
       slots: ['fold8-charger'], context: '기존 25W로 충분한지 먼저 판단한 뒤, EP-TA845 어댑터 모델과 PD PPS·케이블 구성을 확인하는 광고입니다. 실제 충전 속도나 30분 63%를 보장하지 않습니다.',
     },
+    '/hub/galaxy-z-flip8/screen-film-warning': {
+      slots: ['flip8-film'], context: '내부 출고 필름을 교체하는 상품이 아닙니다. 외부 커버 화면용 플립8 옵션·케이스 간섭·필름과 렌즈 필름 수량을 확인하는 광고입니다.',
+      productPrompts: { 'flip8-film': ['외부 화면용인지, 내부 접는 화면용인지 확인했나요?', '등록 상품은 플립8 외부 강화유리와 카메라 렌즈 필름 세트입니다. 플립8 옵션·수량·케이스 간섭과 현재 결제조건을 확인하세요.', '외부 화면 옵션·구성 확인'] },
+    },
     '/hub/humidifier/winter-type-cleaning-running-cost': {
       slots:['humidifier-xiaomi','humidifier-cuckoo'], context:'관리 방식과 공간에 맞는 후보를 고른 뒤 본체 모델·구성·보증을 확인하는 광고입니다. 두 상품은 가열식이 아니며, 과거 시험가격을 현재 가격으로 보장하지 않습니다.',
       productPrompts:{
