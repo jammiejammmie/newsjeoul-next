@@ -371,3 +371,10 @@ PR50 병합 후 master `f80d2db62efbd87c9b73c470ba45555f2ed437ca`, Netlify produ
 본문 가까이에 내부/외부 비교표, 증상별 결정도, 센터비와 상품비 비교도를 HTML/CSS로 배치했다. 기존 `flip8-film` 정확 식별키·상품명·등록 사진만 재사용하며 제휴 카드를 본문 판단 뒤 한 번만 표시하도록 지연했다. 본체·케이스 광고를 제거하고 외부 화면 옵션·구성·케이스 간섭 확인 문구를 추가했다. 수수료 고지와 `sponsored nofollow`, 기존 AF3904190 목적지는 보존하며 제휴 링크를 클릭하지 않는다.
 
 `node scripts/test-editorial-content.cjs`와 `npm run build`가 통과했다. 검색 회귀는 문서 수 하드코딩 대신 실제 예상 URL을 검사하도록 보정했다. 로컬 개발 서버는 이 실행 환경의 `uv_interface_addresses` 시스템 오류로 열리지 않아 픽셀 렌더는 Netlify Preview와 운영 브라우저에서 검증한다. PR·병합·운영 공개 전이므로 아직 발행 완료로 기록하지 않는다.
+
+### DEC-033 — Deployed / 운영 공개 검증 완료 (2026-10-27)
+PR52 head `acf231b7855577fe93b13fb803e204d8f3490545`의 변경 파일 9개와 새 원고 UTF-8 내용을 원격에서 확인했다. Netlify Preview `6ae016b1eb1f9466b62b7ef5`는 52초에 성공했다. 프리뷰에서 기존 canonical, H1 하나, 질문형 H2, 자체 시각 자료 3개·표 1개, Article/FAQ/Breadcrumb 구조화데이터, 등록 상품 한 개와 사진 naturalWidth1000, 수수료 고지와 `/go/flip8-film`의 `sponsored nofollow`를 확인했다.
+
+PR52를 병합해 master `740450d4033d2fbace54430bee65d82a36917fab`, Netlify production `6ae0174b4de987df54229ba0` Published 39초를 확인했다. 공개 https://newsjeoul.co.kr/hub/galaxy-z-flip8/screen-film-warning 에서 새 제목·직접 답변·내부/외부 구분·센터/구매 비용·구매 불필요 조건·FAQ 4개·dateModified를 확인했다. 기존의 잘못된 “소모품 개념이 아니다” 문구는 사라졌다. 제휴 영역은 본체·케이스를 제거하고 ESSENWOO 외부 강화유리 세트 한 개만 판단 뒤에 노출하며, 사진 complete/naturalWidth1000·정확 질문/CTA·고지·rel을 확인하고 목적지는 클릭하지 않았다.
+
+홈·플립8 허브·사이트 검색에서 기존 URL의 실제 연결을 확인했고, sitemap은 URL 1건과 `2026-10-27T12:04:00+09:00` 수정일을 제공한다. 1363px 운영 화면은 가로 넘침이 없고 본문·표·상품 카드를 육안 확인했다. 현재 Cloud Browser에는 뷰포트 변경 기능이 없어 375px 실제 운영 렌더 완료로 기록하지 않으며, production build와 기존 반응형 레이아웃만 확인했다. 새 검색 노출·클릭·제휴 전환·수익은 미집계이며 0으로 해석하지 않는다.
