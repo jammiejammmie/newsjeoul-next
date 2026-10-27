@@ -2,7 +2,7 @@ import type { HubDocument } from '../index'
 
 export const LG_GRAM_DISPLAY_20261027: Record<string, HubDocument[]> = {
   'lg-gram-2026': [{
-    slug: 'dual-monitor-usb-c-hub',
+    slug: 'howto-d3qn0e',
     format: 'buying',
     title: 'LG 그램 2026 모니터 2대 연결, 멀티허브가 꼭 필요할까?',
     lead: 'HDMI 한 대와 USB-C 영상 출력 한 대를 각각 연결할 수 있다면 독 없이도 시작할 수 있습니다. 다만 16Z95U와 16Z90U의 포트 표기가 다르므로, 허브보다 먼저 전체 모델 코드와 원하는 해상도·주사율을 확인하세요.',

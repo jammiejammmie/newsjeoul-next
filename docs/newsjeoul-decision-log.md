@@ -307,3 +307,6 @@
 신규 /hub/lg-gram-2026/dual-monitor-usb-c-hub를 추가했다. AMD 16Z95U와 인텔 16Z90U의 공식 USB-C 표기 차이, HDMI+USB-C 직결, 독이 필요한 조건, 충전기·케이블을 포함한 총비용, Windows 확장·감지 순서와 구매 불필요 조건을 한 흐름으로 연결했다. 포트 수만으로 두 외부 화면 확장을 보장하지 않고 실제 모델·해상도·주사율·MST·PD 조건을 판매 설명서에서 확인하도록 했다.
 기존 LG 그램 허브의 미발행 ‘외부 모니터·독 연결 조합’ 항목을 같은 의도의 실제 글로 교체해 중복 URL을 만들지 않았다. 등록된 gram26-hub의 Wavlink 상품 식별키·사진만 재사용했으며 특정 그램의 듀얼 모니터 호환 보장 상품으로 표현하지 않았다. 수수료 고지와 sponsored nofollow를 유지한다.
 LG 공식 포트 비교표와 직결/독 비용 자체 도식을 본문 문단 가까이에 배치했다. 제품 외형·포트 위치·실측 화면을 만들지 않았다. 원고/검색 회귀, TypeScript, production build 33개 정적 페이지 통과. 서버 렌더 HTML에서 H1 하나, canonical, Article/FAQ schema, Wavlink 상품명, /go/gram26-hub 3개, 수수료 고지·rel, 홈/허브/검색/sitemap 연결을 확인했다. 현재 실행 환경의 Playwright 브라우저 바이너리가 없어 로컬 픽셀 렌더는 운영 배포 뒤 브라우저로 별도 확인한다.
+
+### DEC-031 canonical correction — 기존 자동 문서 URL 보존 (2026-10-27)
+첫 운영 검증에서 같은 검색 의도의 기존 자동 문서 /hub/lg-gram-2026/howto-d3qn0e가 sibling으로 실제 노출되는 것을 발견했다. 신규 URL 양산을 중단하고 이번 고품질 원고의 slug를 기존 URL로 바꿔 DB 문서를 같은 URL에서 덮어쓴다. 잠시 공개된 /hub/lg-gram-2026/dual-monitor-usb-c-hub는 308로 기존 URL에 합친다. 허브·홈·검색·sitemap의 정본도 기존 URL 하나로 맞춘다.

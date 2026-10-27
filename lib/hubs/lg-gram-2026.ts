@@ -49,7 +49,7 @@ export const lgGram2026: HubConfig = {
         },
         { title: '배터리 27시간에 가깝게 쓰는 설정' },
         { title: '엑사원 온디바이스 AI로 실제로 되는 것' },
-        { title: 'LG 그램 2026 모니터 2대 연결, 멀티허브가 꼭 필요할까?', slug: 'dual-monitor-usb-c-hub', badge: '표', updatedAt: '2026-10-27' },
+        { title: 'LG 그램 2026 모니터 2대 연결, 멀티허브가 꼭 필요할까?', slug: 'howto-d3qn0e', badge: '표', updatedAt: '2026-10-27' },
         { title: '처음 켜고 해두면 편한 설정 순서' },
       ],
     },
