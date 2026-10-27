@@ -5,6 +5,9 @@ export function searchEntryPlacement(path: string): AffiliatePlacement | null {
     return { slots: ['buds4-body'], context: '음악 감상 기기 광고입니다. 멜론 이용권 판매나 계정 공유 서비스가 아닙니다.' }
   }
   const placements: Record<string, AffiliatePlacement> = {
+    '/hub/lg-gram-2026/dual-monitor-usb-c-hub': {
+      slots: ['gram26-hub'], context: '직결 연결로 해결되는지 먼저 확인한 뒤, 필요한 영상 출력·PD·USB 조건과 정확히 일치하는지 살펴보는 멀티허브 광고입니다. 특정 그램의 듀얼 모니터 확장을 보장하지 않습니다.',
+    },
     '/hub/humidifier/winter-type-cleaning-running-cost': {
       slots:['humidifier-xiaomi','humidifier-cuckoo'], context:'관리 방식과 공간에 맞는 후보를 고른 뒤 본체 모델·구성·보증을 확인하는 광고입니다. 두 상품은 가열식이 아니며, 과거 시험가격을 현재 가격으로 보장하지 않습니다.',
       productPrompts:{
