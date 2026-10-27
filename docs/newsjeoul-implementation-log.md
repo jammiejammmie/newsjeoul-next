@@ -385,3 +385,8 @@ PR52를 병합해 master `740450d4033d2fbace54430bee65d82a36917fab`, Netlify pro
 등록된 `rv26-parts`의 정확 식별키·상품명·사진·AF3904190만 재사용한다. 카드 질문은 S9 MaxV Ultra 옵션·품목 수량·정품/호환품·반품 조건 확인으로 맞췄다. 제휴 카드는 전체 판단 뒤 한 번만 노출하며 현재 가격·재고·정품·모든 옵션 호환을 보장하지 않는다. 본체/도크 부품표, 청소/교체 결정도, 실제 사용 단가 식 등 자체 HTML/CSS 시각 자료 3개를 관련 문단 가까이에 배치했다.
 
 `node scripts/test-editorial-content.cjs`, `npm run build`, `git diff --check`가 통과했다. 기존 URL 검색 회귀와 단일 `rv26-parts` 슬롯을 검사했다. PR·Preview·병합·운영 공개 검증 전이므로 아직 발행 완료로 기록하지 않는다.
+
+### DEC-034 — Deployed / 운영 공개 검증 완료 (2026-10-27)
+PR54 head `29e7205166c2473e9006a19c2ab3b42b4fa950c7`의 실제 변경 파일 9개와 신규 원고 UTF-8 내용을 원격에서 확인했다. Netlify Preview `6ae02228c6ef1736c8f000ed`가 성공했고, 기존 canonical·H1 하나·질문형 H2 8개·자체 시각 자료 3개와 표 1개·FAQ/Article/Breadcrumb 구조화데이터를 확인했다. 등록 `rv26-parts` 한 개만 판단 뒤 표시되며, 상품 사진은 지연 로딩 후 complete/naturalWidth1000, 수수료 고지와 `/go/rv26-parts`의 `sponsored nofollow`를 확인했다. 제휴 목적지는 클릭하지 않았다.
+
+PR54를 squash 병합해 master `1679578a9887875e84834211745bb4bae446addb`가 됐다. 공개 https://newsjeoul.co.kr/hub/robot-vacuum-2026/consumable-model-code-check 에서 새 본문·dateModified `2026-10-27T13:35:00+09:00`·단일 상품 카드·이미지·고지·rel을 재확인했다. 1363px 운영 화면에서 가로 넘침이 없고, 로봇청소기 허브·사이트 검색에 기존 URL이 각 1건 연결되며 sitemap도 같은 URL 1건과 실제 수정일을 제공한다. Netlify 대시보드는 현재 브라우저에서 로그아웃 상태라 production deploy ID는 미확인으로 남기되, 운영 도메인의 새 원고 공개와 자산 로딩은 직접 확인했다. 375px 실제 운영 렌더는 도구의 viewport 변경 기능이 없어 완료로 기록하지 않는다. 새 검색 노출·클릭·제휴 전환·수익은 미집계이며 0으로 해석하지 않는다.
