@@ -123,6 +123,7 @@ export default async function HubDocPage(
   const deferredShopping = (slug === 'humidifier' && document.slug === 'winter-type-cleaning-running-cost')
     || (slug === 'galaxy-z-fold8' && document.slug === '45w-charger-pps-cable')
     || (slug === 'galaxy-z-flip8' && document.slug === 'screen-film-warning')
+    || (slug === 'robot-vacuum-2026' && document.slug === 'consumable-model-code-check')
   const { body: bodyBlocks, faq } = splitFaq(document.blocks)
 
   const schema = {

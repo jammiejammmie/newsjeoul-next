@@ -28,7 +28,9 @@ const fold8Charging = {}
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/hubs/editorial/fold8-charging-20261027.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText,{exports:fold8Charging})
 const flip8Film = {}
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/hubs/editorial/flip8-film-20261027.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText,{exports:flip8Film})
-vm.runInNewContext(compiled, { exports: moduleExports, require: id => id.includes('flip8-film-') ? flip8Film : id.includes('fold8-charging') ? fold8Charging : id.includes('lg-gram-display') ? gramDisplay : id.includes('carbon-mat-') ? carbonMat : id.includes('humidifier-') ? humidifier : id.includes('flip-widget') ? flip : id.includes('buds-recovery') ? recovery : id.includes('energy-voucher') ? energy : id.includes('hot-electronics') ? hot : id.includes('refresh-') ? refresh : practical })
+const robotVacuumParts = {}
+vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/hubs/editorial/robot-vacuum-parts-20261027.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText,{exports:robotVacuumParts})
+vm.runInNewContext(compiled, { exports: moduleExports, require: id => id.includes('robot-vacuum-parts') ? robotVacuumParts : id.includes('flip8-film-') ? flip8Film : id.includes('fold8-charging') ? fold8Charging : id.includes('lg-gram-display') ? gramDisplay : id.includes('carbon-mat-') ? carbonMat : id.includes('humidifier-') ? humidifier : id.includes('flip-widget') ? flip : id.includes('buds-recovery') ? recovery : id.includes('energy-voucher') ? energy : id.includes('hot-electronics') ? hot : id.includes('refresh-') ? refresh : practical })
 const { EDITORIAL_DOCUMENTS, mergeEditorialDocuments, mergeEditorialSitemap, editorialSlots } = moduleExports
 const total = Object.values(EDITORIAL_DOCUMENTS).flat().length
 const budsTotal = EDITORIAL_DOCUMENTS['galaxy-buds4'].length
@@ -65,7 +67,12 @@ assert.deepEqual(Array.from(fold8ChargingDoc.affiliateSlotIds), ['fold8-charger'
 assert.ok(fold8ChargingDoc.sourceNote.includes('EP-TA845'))
 assert.ok(fold8ChargingDoc.blocks.some(block => block.content.includes('30분에 최대 63%')))
 const flip8FilmDoc = EDITORIAL_DOCUMENTS['galaxy-z-flip8'].find(item => item.slug === 'screen-film-warning')
+const robotPartsDoc = EDITORIAL_DOCUMENTS['robot-vacuum-2026'].find(item => item.slug === 'consumable-model-code-check')
 assert.ok(flip8FilmDoc)
+assert.ok(robotPartsDoc)
+assert.deepEqual(Array.from(robotPartsDoc.affiliateSlotIds), ['rv26-parts'])
+assert.ok(robotPartsDoc.blocks.some(block => block.heading === '자주 묻는 질문'))
+assert.ok(robotPartsDoc.blocks.some(block => block.content.includes('S9 MaxV Slim')))
 assert.deepEqual(Array.from(flip8FilmDoc.affiliateSlotIds), ['flip8-film'])
 assert.ok(flip8FilmDoc.sourceNote.includes('solution/688871'))
 assert.ok(flip8FilmDoc.blocks.some(block => block.content.includes('외부 커버 화면')))
@@ -84,4 +91,5 @@ assert.ok(find('탄소매트 전기료').some(item => item.slug === 'carbon-heat
 assert.ok(find('그램 모니터 2대').some(item => item.slug === 'lg-gram-2026/howto-d3qn0e'))
 assert.ok(find('폴드8 45W 충전기').some(item => item.slug === 'galaxy-z-fold8/45w-charger-pps-cable'))
 assert.ok(find('플립8 내부 필름').some(item => item.slug === 'galaxy-z-flip8/screen-film-warning'))
+assert.ok(find('로봇청소기 호환 소모품').some(item => item.slug === 'robot-vacuum-2026/consumable-model-code-check'))
 console.log('PASS: guide search, Korean multi-word query, Unicode normalization, empty query and limits')
