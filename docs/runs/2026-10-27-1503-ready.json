@@ -1,0 +1,82 @@
+{
+  "observedAt": "2026-10-27T15:03:10+09:00",
+  "base": "ec4c0a4ec6ec8ae128520daf4dd6b605b56f35ce",
+  "openPRsAtStart": [],
+  "existingHumidifierBlog": {
+    "status": "scheduled",
+    "scheduledAt": "2026-10-27T17:00:00+09:00",
+    "evidence": "네이버 예약 목록: 정확 제목과 2026.10.27 17:00, 1건; 임시저장0건 확인",
+    "publishedAt": null
+  },
+  "newOriginal": {
+    "title": "가습기 켜면 공기청정기 빨간불, 필터부터 바꿔야 할까?",
+    "status": "ready",
+    "intendedWebSlot": "2026-10-27T17:00:00+09:00",
+    "intendedBlogSlot": "2026-10-27T20:00:00+09:00",
+    "webUrl": "https://newsjeoul.co.kr/hub/humidifier/air-purifier-pm-spike",
+    "blogUrl": null,
+    "publishedAt": null,
+    "scheduledAt": null,
+    "productionDeploy": null,
+    "reason": "검증되지 않은 미래 시간필터를 운영에 넣지 않음. branch에서 보존하고 기존 실행의 공개 슬롯에 merge. 블로그는 편집 원고 준비; 실제 예약 없음."
+  },
+  "dailyOriginals": {
+    "clearlyNewPublished": 3,
+    "titles": [
+      "겨울 가습기 구매 가이드",
+      "탄소매트 구매 가이드",
+      "폴드8 45W 충전기"
+    ],
+    "readyNew": 1,
+    "excluded": [
+      "그램 기존 검색 URL 개선",
+      "플립 필름 수정",
+      "로봇 소모품 수정",
+      "기록 PR",
+      "동일 원고 블로그 복제"
+    ],
+    "target": 5,
+    "targetMet": false
+  },
+  "metrics": {
+    "searchAdvisor": "현재 홈 로그인 버튼 노출, 새로운 노출·클릭·CTR 미조회. 블로그 세션과 구분",
+    "affiliateClicks": null,
+    "conversion": null,
+    "revenue": null
+  },
+  "research": {
+    "reader": "가습기 켠 직후 청정기 빨간 표시를 본 사람",
+    "gap": "공식 문서의 센서 반응·동시 사용과 커뮤니티의 증류수/거리 팁이 섞임",
+    "value": "기기 모델별 예외→무구매 점검→상담→유지/교체 총액을 연결",
+    "recent72h": "검색했으나 최근72시간 발표·공개 급상승 지표를 검증하지 못함. 계절 상시 문제 후보로 선정",
+    "reddit": {
+      "url": "https://www.reddit.com/r/AirPurifiers/comments/1qerr01/using_a_humidifier_and_air_purfier_at_the_same/",
+      "posted": "상대 표기 9개월 전; 정확 날짜 미확인",
+      "upvotes": null,
+      "comments": null,
+      "use": "미검증 팁·상충 의견으로만 표시; 국내 검색량 아님"
+    },
+    "official": [
+      {
+        "url": "https://www.lge.co.kr/support/solutions-20150605999307",
+        "date": "2026-06-10"
+      },
+      {
+        "url": "https://www.lge.co.kr/support/solutions-20154980888457",
+        "date": "2026-01-14"
+      },
+      {
+        "url": "https://www.mi.com/kr/product/xiaomi-smart-evaporative-humidifier/",
+        "date": null
+      }
+    ],
+    "duplicates": "remote master 편집 원고·허브 확인. 기존 방식/전기료 글과 질문 다름",
+    "affiliate": "동시사용 문제를 해결하는 정식 등록 대체품의 목적지·정확 상품 미확보. 타 품목 대체 광고 없음"
+  },
+  "validation": {
+    "content": "pass",
+    "typescript": "pass",
+    "productionBuild": "pass",
+    "browser": "PASS: local production 375px/1440px, scrollWidth=375 at375px, both SVG loaded, unique H1/canonical, home/hub/search/sitemap inclusion. Production unpublished."
+  }
+}
