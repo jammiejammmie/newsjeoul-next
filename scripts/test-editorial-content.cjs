@@ -24,7 +24,9 @@ const carbonMat = {}
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/hubs/editorial/carbon-mat-20261027.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText,{exports:carbonMat})
 const gramDisplay = {}
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/hubs/editorial/lg-gram-display-20261027.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText,{exports:gramDisplay})
-vm.runInNewContext(compiled, { exports: moduleExports, require: id => id.includes('lg-gram-display') ? gramDisplay : id.includes('carbon-mat-') ? carbonMat : id.includes('humidifier-') ? humidifier : id.includes('flip-widget') ? flip : id.includes('buds-recovery') ? recovery : id.includes('energy-voucher') ? energy : id.includes('hot-electronics') ? hot : id.includes('refresh-') ? refresh : practical })
+const fold8Charging = {}
+vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/hubs/editorial/fold8-charging-20261027.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText,{exports:fold8Charging})
+vm.runInNewContext(compiled, { exports: moduleExports, require: id => id.includes('fold8-charging') ? fold8Charging : id.includes('lg-gram-display') ? gramDisplay : id.includes('carbon-mat-') ? carbonMat : id.includes('humidifier-') ? humidifier : id.includes('flip-widget') ? flip : id.includes('buds-recovery') ? recovery : id.includes('energy-voucher') ? energy : id.includes('hot-electronics') ? hot : id.includes('refresh-') ? refresh : practical })
 const { EDITORIAL_DOCUMENTS, mergeEditorialDocuments, mergeEditorialSitemap, editorialSlots } = moduleExports
 const total = Object.values(EDITORIAL_DOCUMENTS).flat().length
 const budsTotal = EDITORIAL_DOCUMENTS['galaxy-buds4'].length
@@ -55,6 +57,11 @@ assert.ok(gramDisplayDoc)
 assert.deepEqual(Array.from(gramDisplayDoc.affiliateSlotIds), ['gram26-hub'])
 assert.ok(gramDisplayDoc.sourceNote.includes('16z95u-gs5wk'))
 assert.ok(gramDisplayDoc.blocks.some(block => block.content.includes('Thunderbolt 4')))
+const fold8ChargingDoc = EDITORIAL_DOCUMENTS['galaxy-z-fold8'].find(item => item.slug === '45w-charger-pps-cable')
+assert.ok(fold8ChargingDoc)
+assert.deepEqual(Array.from(fold8ChargingDoc.affiliateSlotIds), ['fold8-charger'])
+assert.ok(fold8ChargingDoc.sourceNote.includes('EP-TA845'))
+assert.ok(fold8ChargingDoc.blocks.some(block => block.content.includes('30분에 최대 63%')))
 console.log('PASS: offline availability, DB override, unrelated documents, affiliate scope, sitemap dedup/date')
 const searchExports = {}
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/hubs/editorial/search.ts', 'utf8'), {compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText, {exports:searchExports, require:()=>moduleExports})
@@ -68,4 +75,5 @@ assert.ok(find('아이폰 케이블').every(item => item.type === 'guide' && ite
 assert.equal(find('ＵＳＢ').length, find('usb').length)
 assert.ok(find('탄소매트 전기료').some(item => item.slug === 'carbon-heated-mat/buying-temperature-wash-cost'))
 assert.ok(find('그램 모니터 2대').some(item => item.slug === 'lg-gram-2026/howto-d3qn0e'))
+assert.ok(find('폴드8 45W 충전기').some(item => item.slug === 'galaxy-z-fold8/45w-charger-pps-cable'))
 console.log('PASS: guide search, Korean multi-word query, Unicode normalization, empty query and limits')

@@ -127,6 +127,7 @@ export const galaxyZFold8: HubConfig = {
         { title: '저장용량, 어느 구성이 맞나', slug: 'storage-choice' },
         { title: '지원금 vs 선택약정, 24개월 총액 비교', slug: 'subsidy-vs-contract' },
         { title: '케이스·필름 실제로 쓸 만한 것만', slug: 'case-and-film-picks' },
+        { title: '45W 충전기, 기존 25W를 바꿔야 할까?', slug: '45w-charger-pps-cable' },
         { title: '개통 첫날 해두면 편한 8가지', slug: 'first-day-setup' },
       ],
     },
