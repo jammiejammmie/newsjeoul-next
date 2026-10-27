@@ -18,6 +18,8 @@ const recovery = {}
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/hubs/editorial/buds-recovery-20261026.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText,{exports:recovery})
 const flip = {}
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/hubs/editorial/flip-widget-20261026.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText,{exports:flip})
+const condensation = {}
+vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/hubs/editorial/humidifier-condensation-20261027.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText,{exports:condensation})
 const humidityPair = {}
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/hubs/editorial/humidifier-purifier-20261027.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText,{exports:humidityPair})
 const humidifier = {}
@@ -32,7 +34,7 @@ const flip8Film = {}
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/hubs/editorial/flip8-film-20261027.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText,{exports:flip8Film})
 const robotVacuumParts = {}
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/hubs/editorial/robot-vacuum-parts-20261027.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText,{exports:robotVacuumParts})
-vm.runInNewContext(compiled, { exports: moduleExports, require: id => id.includes('humidifier-purifier') ? humidityPair : id.includes('robot-vacuum-parts') ? robotVacuumParts : id.includes('flip8-film-') ? flip8Film : id.includes('fold8-charging') ? fold8Charging : id.includes('lg-gram-display') ? gramDisplay : id.includes('carbon-mat-') ? carbonMat : id.includes('humidifier-') ? humidifier : id.includes('flip-widget') ? flip : id.includes('buds-recovery') ? recovery : id.includes('energy-voucher') ? energy : id.includes('hot-electronics') ? hot : id.includes('refresh-') ? refresh : practical })
+vm.runInNewContext(compiled, { exports: moduleExports, require: id => id.includes('humidifier-condensation') ? condensation : id.includes('humidifier-purifier') ? humidityPair : id.includes('robot-vacuum-parts') ? robotVacuumParts : id.includes('flip8-film-') ? flip8Film : id.includes('fold8-charging') ? fold8Charging : id.includes('lg-gram-display') ? gramDisplay : id.includes('carbon-mat-') ? carbonMat : id.includes('humidifier-') ? humidifier : id.includes('flip-widget') ? flip : id.includes('buds-recovery') ? recovery : id.includes('energy-voucher') ? energy : id.includes('hot-electronics') ? hot : id.includes('refresh-') ? refresh : practical })
 const { EDITORIAL_DOCUMENTS, mergeEditorialDocuments, mergeEditorialSitemap, editorialSlots } = moduleExports
 const total = Object.values(EDITORIAL_DOCUMENTS).flat().length
 const budsTotal = EDITORIAL_DOCUMENTS['galaxy-buds4'].length

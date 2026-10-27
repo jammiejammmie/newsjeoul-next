@@ -1,0 +1,16 @@
+{
+  "pr": 60,
+  "url": "https://github.com/jammiejammmie/newsjeoul-next/pull/60",
+  "contentCommit": "5aee52a29d246be530e0243b5e8e64ecec08d069",
+  "tree": "1cc9e397d5dd2da7b4a26d6ace527780ba8afd47",
+  "status": "ready",
+  "draft": true,
+  "merged": false,
+  "published": false,
+  "scheduled": false,
+  "plannedAt": "2026-10-27T20:05:00+09:00",
+  "earliestEligibleAt": "2026-10-27T20:02:30+09:00",
+  "verification": "10개 UTF-8 파일의 로컬 Git blob SHA와 업로드 SHA 일치, 원격tree 경로/SHA 전체 일치. PR파일10개 확인. 블로그 원문 준비만, 네이티브 예약 미완료.",
+  "dailyPublished": 4,
+  "affiliate": "적합한 등록 쿠팡 상품·사진 미확보, 제휴링크0"
+}
