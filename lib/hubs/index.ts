@@ -19,6 +19,7 @@ import { youthSavingsAccount } from './youth-savings-account'
 import { melonStreaming } from './melon-streaming'
 import { energyVoucher } from './energy-voucher'
 import { humidifier } from './humidifier'
+import { carbonHeatedMat } from './carbon-heated-mat'
 
 export type * from './types'
 
@@ -37,7 +38,7 @@ const HUBS: HubConfig[] = [
   galaxyZFlip8, galaxyS25Ultra, iphone17Pro, galaxyBuds4,
   galaxyBook5Pro, lgGram2026, robotVacuum2026, youthSavingsAccount,
   // 2026-08-12 — 음악 스트리밍(첫 구독 서비스 허브)
-  melonStreaming, energyVoucher, humidifier,
+  melonStreaming, energyVoucher, humidifier, carbonHeatedMat,
 ]
 
 export const ALL_HUBS = HUBS

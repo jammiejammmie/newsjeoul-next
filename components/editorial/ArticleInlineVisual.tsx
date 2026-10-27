@@ -1,4 +1,5 @@
 import HumidifierInlineVisual from './HumidifierInlineVisual'
+import CarbonMatInlineVisual from './CarbonMatInlineVisual'
 import BudsIphoneInlineVisual from './BudsIphoneInlineVisual'
 import FlipWidgetInlineVisual from './FlipWidgetInlineVisual'
 import SpenInlineVisual from './SpenInlineVisual'
@@ -12,6 +13,7 @@ const figures: Record<number, {src:string;alt:string;caption:string}> = {
  2: {src:'/images/editorial/usb-c-power-budget.svg',alt:'Anker 10-in-1 Dual Display 허브의 최대 입력 100W 중 허브 소비 15W를 고려해 노트북에 최대 85W를 전달하는 예시',caption:'Anker 해당 제품 FAQ 기준의 정격 설명 예시. 실측값이나 아래 광고 상품의 사양이 아닙니다.'},
 }
 export default function ArticleInlineVisual({path,index}:{path:string;index:number}) {
+ if(path==='/hub/carbon-heated-mat/buying-temperature-wash-cost')return <CarbonMatInlineVisual index={index}/>
  if(path==='/hub/humidifier/winter-type-cleaning-running-cost')return <HumidifierInlineVisual index={index}/>
  if(path==='/hub/galaxy-buds4/with-iphone')return <BudsIphoneInlineVisual index={index}/>
  if(['/hub/galaxy-buds4/single-bud-replacement','/hub/galaxy-buds4/lost-charging-case-replacement'].includes(path))return <BudsRecoveryInlineVisual path={path} index={index}/>

@@ -20,7 +20,9 @@ const flip = {}
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/hubs/editorial/flip-widget-20261026.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText,{exports:flip})
 const humidifier = {}
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/hubs/editorial/humidifier-20261027.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText,{exports:humidifier})
-vm.runInNewContext(compiled, { exports: moduleExports, require: id => id.includes('humidifier-') ? humidifier : id.includes('flip-widget') ? flip : id.includes('buds-recovery') ? recovery : id.includes('energy-voucher') ? energy : id.includes('hot-electronics') ? hot : id.includes('refresh-') ? refresh : practical })
+const carbonMat = {}
+vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/hubs/editorial/carbon-mat-20261027.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText,{exports:carbonMat})
+vm.runInNewContext(compiled, { exports: moduleExports, require: id => id.includes('carbon-mat-') ? carbonMat : id.includes('humidifier-') ? humidifier : id.includes('flip-widget') ? flip : id.includes('buds-recovery') ? recovery : id.includes('energy-voucher') ? energy : id.includes('hot-electronics') ? hot : id.includes('refresh-') ? refresh : practical })
 const { EDITORIAL_DOCUMENTS, mergeEditorialDocuments, mergeEditorialSitemap, editorialSlots } = moduleExports
 const total = Object.values(EDITORIAL_DOCUMENTS).flat().length
 const budsTotal = EDITORIAL_DOCUMENTS['galaxy-buds4'].length
@@ -42,6 +44,10 @@ assert.equal(sitemap.length, total + 1)
 assert.equal(sitemap[0].lastModified, doc.updatedAt)
 assert.equal(mergeEditorialSitemap([]).length, total)
 assert.ok(doc.sourceNote.includes('https://www.samsungsvc.co.kr/solution/25084'))
+const carbonDoc = EDITORIAL_DOCUMENTS['carbon-heated-mat'][0]
+assert.equal(carbonDoc.affiliateSlotIds.length, 0)
+assert.ok(carbonDoc.sourceNote.includes('newsId=156734593'))
+assert.ok(carbonDoc.blocks.some(block => block.content.includes('39~64℃')))
 console.log('PASS: offline availability, DB override, unrelated documents, affiliate scope, sitemap dedup/date')
 const searchExports = {}
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/hubs/editorial/search.ts', 'utf8'), {compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText, {exports:searchExports, require:()=>moduleExports})
@@ -53,4 +59,5 @@ assert.equal(find('충전', 1).length, 1)
 assert.equal(find('충전', 0).length, 0)
 assert.ok(find('아이폰 케이블').every(item => item.type === 'guide' && item.slug.startsWith('iphone-17-pro/')))
 assert.equal(find('ＵＳＢ').length, find('usb').length)
+assert.ok(find('탄소매트 전기료').some(item => item.slug === 'carbon-heated-mat/buying-temperature-wash-cost'))
 console.log('PASS: guide search, Korean multi-word query, Unicode normalization, empty query and limits')
