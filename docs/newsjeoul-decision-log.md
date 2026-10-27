@@ -310,3 +310,6 @@ LG 공식 포트 비교표와 직결/독 비용 자체 도식을 본문 문단 �
 
 ### DEC-031 canonical correction — 기존 자동 문서 URL 보존 (2026-10-27)
 첫 운영 검증에서 같은 검색 의도의 기존 자동 문서 /hub/lg-gram-2026/howto-d3qn0e가 sibling으로 실제 노출되는 것을 발견했다. 신규 URL 양산을 중단하고 이번 고품질 원고의 slug를 기존 URL로 바꿔 DB 문서를 같은 URL에서 덮어쓴다. 잠시 공개된 /hub/lg-gram-2026/dual-monitor-usb-c-hub는 308로 기존 URL에 합친다. 허브·홈·검색·sitemap의 정본도 기존 URL 하나로 맞춘다.
+
+### DEC-031 — Deployed / canonical 공개 검증 완료 (2026-10-27)
+최종 정본은 기존 자동 문서 URL /hub/lg-gram-2026/howto-d3qn0e다. PR47의 새 원고 공개 뒤 중복을 운영에서 발견했고 PR48로 기존 URL 보존·새 slug 영구 이동을 완료했다. 최종 master 53b0d74, Netlify 6adffa458bc6528b4a265604 Published. 본문·표·도식·구조화데이터·정식 gram26-hub 사진/질문/CTA·고지/rel, 홈/허브/검색/sitemap 단일 정본을 확인했다. 모바일 실제 렌더는 도구 제한으로 미확인 상태를 유지한다.
