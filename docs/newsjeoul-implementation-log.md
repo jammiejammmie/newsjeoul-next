@@ -344,3 +344,6 @@ DEC-030 Local verified: 원고/검색 회귀·TypeScript·production build(33개
 ### LG 그램 2026 모니터 2대 연결 가이드 — Implemented / 배포 전 (2026-10-27)
 신규 원고·모델별 포트 비교표·직결/독 비용 도식·연구 기록을 추가했다. 기존 그램 허브의 미발행 항목을 실제 slug로 연결하고, 검색·홈·sitemap 자동 병합과 등록 gram26-hub 상품 질문/CTA를 보강했다. 정확 모델·영상 출력·MST·PD·충전기 포함 여부를 확인하도록 하며 현재 가격·재고·호환 보장을 쓰지 않는다.
 node scripts/test-editorial-content.cjs, npx tsc --noEmit, npm run build 통과. 서버 렌더에서 본문·구조화데이터·내부 연결·제휴 링크 속성을 확인했다. PR·병합·Netlify 운영 공개 및 모바일 육안 검증은 후속 기록한다.
+
+### LG 그램 듀얼 모니터 가이드 — canonical 수정 / 배포 전 (2026-10-27)
+PR47 운영 확인에서 기존 /hub/lg-gram-2026/howto-d3qn0e가 같은 의도로 존재함을 발견했다. 새 원고를 기존 slug로 옮기고, 잠시 공개된 dual-monitor-usb-c-hub는 DOC_SLUG_RENAMES의 영구 이동으로 기존 canonical에 합친다. 신규 URL과 기존 자동 URL을 동시에 남기지 않는다.

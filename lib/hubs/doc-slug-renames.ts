@@ -38,6 +38,8 @@ export type DocSlugRename = {
 }
 
 export const DOC_SLUG_RENAMES: DocSlugRename[] = [
+  // 2026-10-27: 짧게 공개됐던 신규 slug를 기존 자동 문서 URL로 합쳐 canonical을 보존한다.
+  { hub: 'lg-gram-2026', from: 'dual-monitor-usb-c-hub', to: 'howto-d3qn0e', title: 'LG 그램 2026 모니터 2대 연결, 멀티허브가 꼭 필요할까?', merged: true },
   // ── 갤럭시 Z 폴드8 ──────────────────────────────────────────────
   // '폴드8 멀티윈도우 3분할 설정하는 법'(8-3-dw76cz)은 **일부러 두었다**.
   // 노출 337·클릭 40으로 이 허브에서 유일하게 검색 성과가 나는 페이지다. URL을 바꾸면

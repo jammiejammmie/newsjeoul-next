@@ -5,7 +5,7 @@ export function searchEntryPlacement(path: string): AffiliatePlacement | null {
     return { slots: ['buds4-body'], context: '음악 감상 기기 광고입니다. 멜론 이용권 판매나 계정 공유 서비스가 아닙니다.' }
   }
   const placements: Record<string, AffiliatePlacement> = {
-    '/hub/lg-gram-2026/dual-monitor-usb-c-hub': {
+    '/hub/lg-gram-2026/howto-d3qn0e': {
       slots: ['gram26-hub'], context: '직결 연결로 해결되는지 먼저 확인한 뒤, 필요한 영상 출력·PD·USB 조건과 정확히 일치하는지 살펴보는 멀티허브 광고입니다. 특정 그램의 듀얼 모니터 확장을 보장하지 않습니다.',
     },
     '/hub/humidifier/winter-type-cleaning-running-cost': {
