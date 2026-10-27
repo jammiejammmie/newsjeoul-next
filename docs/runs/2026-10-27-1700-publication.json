@@ -1,0 +1,71 @@
+{
+  "observedAt": "2026-10-27T17:02:29+09:00",
+  "decision": "DEC-035",
+  "title": "가습기 켜면 공기청정기 빨간불, 필터부터 바꿔야 할까?",
+  "status": "published",
+  "webUrl": "https://newsjeoul.co.kr/hub/humidifier/air-purifier-pm-spike",
+  "pr": 58,
+  "head": "10b9e6de722a5d0f043099984035c720870e9485",
+  "master": "6236a174e758cdeb18b39c6c080e0a7e79cf6e62",
+  "previewDeploy": "6ae04cce8dc26c9287b142cf",
+  "productionDeploy": "6ae05a1b5bbfd4aec87f9101",
+  "deployment": "Netlify published master@6236a17, 2026-10-27 17시, build48초. 운영 URL에서 새 원고 확인.",
+  "webVerification": "H1 하나·고유title·canonical·직접답변·FAQ·원출처·Reddit 미검증 구분 확인. 두 SVG complete/naturalWidth720, 가로 넘침 없음. 제휴 링크0개이며 적합한 정식 대체품 미확보로 광고 없음. 제휴 목적지 클릭 없음. 운영HTTP200, 홈·허브·검색·sitemap에 slug 연결 확인. 검색결과 페이지 noindex는 기존 정책, 개별원고는 noindex없음.",
+  "priorValidation": "동일 head의 콘텐츠/타입/production build 통과 및 로컬375px/1440px 실제 렌더·홈/허브/검색/sitemap 연결 검수 재사용. 운영 375px viewport 검수는 미실시.",
+  "blog": {
+    "newArticle": "ready",
+    "url": null,
+    "scheduled": false,
+    "reason": "독립원고·도식2개 준비. 새 원고 네이티브 예약은 실행하지 않았음. 브라우저 공개/예약 최종단계는 action-time 확인이 필요하고 비대면 실행에서는 받지 않음. 인증 오류가 아님."
+  },
+  "existingBlogReservation": {
+    "title": "겨울 가습기 고르는 법｜가열식·기화식·초음파식, 전기료와 세척 비교",
+    "scheduledAt": "2026-10-27T17:00:00+09:00",
+    "reservationVerifiedBeforeSlot": true,
+    "publicVerified": true,
+    "observation": "17:04경 공개 글224455434654·전체64개 확인. 예약목록 버튼 사라짐. 본문에 사진 설명을 입력하세요. 잔여2곳 및 소제목 마지막 글자 분리 발견. 공개됨과 품질검수완료는 다름. 교정 필요; 재로그인 문제 아님.",
+    "url": "https://blog.naver.com/techshipget/224455434654"
+  },
+  "daily": {
+    "publishedOriginalsConfirmed": 4,
+    "target": 5,
+    "met": false,
+    "remaining": 1,
+    "counting": "그램·플립·로봇청소기 기존URL개선/기록PR/동일원고 블로그게시 제외"
+  },
+  "spacing": "새 웹 원고는 운영공개 확인시각 기준 최소3시간 뒤. 다음 후보20:02 KST 이후. 시간 필터/새 자동화 없음.",
+  "research": [
+    {
+      "question": "제니퍼룸 마리모 가습기 PRO, 기존 가습기와 무엇이 다른가",
+      "portal": "https://nwww.newsis.com/view/NISX20261026_0003840623",
+      "published": "2026-10-26",
+      "observed": "2026-10-27T16:57:41+09:00",
+      "official": "https://www.locknlock.com/kor/story/news/1",
+      "decision": "최근 발표 후보. 정확 모델과 공식 상세 조건 검증 미완료이므로 아직 발행하지 않음. 국내급상승 주장 없음."
+    },
+    {
+      "question": "시로카 SD-3HC131 직구, 한국에서 쓸 수 있을까",
+      "official": "https://www.siroca.co.jp/product/hc-humidifier/",
+      "store": "https://store.siroca.jp/products/sd-3hc131",
+      "releaseDate": "2026-10-27",
+      "observed": "2026-10-27T16:59:40+09:00",
+      "decision": "공식 출시 예정일 확인. 국내정식판매/정식제휴 목적지/전원·보증·유지비 추가 검증 필요. 아직 원고 작성/예약으로 세지 않음."
+    },
+    {
+      "community": "https://www.reddit.com/r/BuyItForLife/comments/1pjmvsu/best_humidifier_for_lowmaintenance_no_filters/",
+      "observed": "2026-10-27T16:57:41+09:00",
+      "relativeDate": "10개월 전",
+      "upvotes": null,
+      "comments": null,
+      "decision": "색인에 세척·필터 질문과 첨가제 사용 댓글 있음. 국내 가습기에 일반화하지 않고 원고에 추가하지 않음.72시간 관심증가 증거 아님."
+    }
+  ],
+  "metrics": {
+    "searchAdvisor": null,
+    "affiliateClicks": null,
+    "orders": null,
+    "revenue": null,
+    "note": "미집계를0으로 해석하지 않음"
+  },
+  "channels": "Instagram/Threads/Sora 중단 유지. 클립 제작/게시를 이번 웹 발행 작업에 섞지 않음. 유료API/추가결제 없음."
+}
