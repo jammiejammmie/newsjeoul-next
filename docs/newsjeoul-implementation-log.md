@@ -352,3 +352,10 @@ PR47 운영 확인에서 기존 /hub/lg-gram-2026/howto-d3qn0e가 같은 의도�
 PR47 head b70c299f00bfd6aa953c2b6c552e6a356907fbf4를 병합해 master 184dc1cf0fd8de683b69cd8d460d4bb354f3acec, Netlify production 6adff94910fe16f3884ccb1d Published 39초를 확인했다. 첫 운영 검증에서 같은 의도의 기존 자동 문서 /hub/lg-gram-2026/howto-d3qn0e가 sibling으로 노출되는 것을 발견해 발행 완료로 보고하지 않고 canonical 수정으로 이어갔다.
 PR48 head e484c3fa3a42aa8f762c4348043d6da138436263를 병합해 최종 master 53b0d74df3c392519de233c714e9f602a44cf5d6, Netlify production 6adffa458bc6528b4a265604 Published 38초를 확인했다. 정본 https://newsjeoul.co.kr/hub/lg-gram-2026/howto-d3qn0e 에서 H1 하나·고유 title/meta/canonical·공식 모델 비교표·직결/독 비용 도식·Article/FAQ/Breadcrumb schema·태그8개·등록 Wavlink 상품명과 사진3개 naturalWidth1200·수수료 고지3곳·/go/gram26-hub 3곳의 sponsored nofollow를 확인했다. 제휴 목적지를 클릭하지 않았다.
 잠시 공개된 /hub/lg-gram-2026/dual-monitor-usb-c-hub는 운영에서 기존 정본 URL로 이동함을 확인했다. 홈·그램 허브·사이트 검색·sitemap은 정본만 포함하고 새 slug는 포함하지 않는다. 1363px 운영 화면은 가로 넘침이 없고 상품 사진·표를 육안 확인했다. 로컬 375px 실제 브라우저는 Playwright 바이너리 미설치, 운영 375px 래퍼는 Cloud Browser URL 정책 차단으로 완료하지 못했으며 모바일 완료로 기록하지 않는다. CSS의 600px 이하 카드 1열, 480px 이하 도식 1열 규칙과 production build만 확인했다. Search Advisor의 새 노출·클릭 및 제휴 전환·수익은 미조회이며 0으로 해석하지 않는다.
+
+## DEC-032 — 폴드8 45W 충전기 구매 가이드 / 구현·로컬 검증 (2026-10-27)
+신규 `/hub/galaxy-z-fold8/45w-charger-pps-cable`을 추가했다. 짧은 충전을 자주 하는 경우와 야간 충전 위주인 경우를 먼저 나누고, 공식 최대 약63%/30분의 시험 조건, 기기·PD3.0 PPS 어댑터·C-to-C 케이블·설정, 실제 속도 변수, 무선 충전 정렬 문제, 총비용, 5분 점검, 구매 불필요 조건을 연결했다.
+
+기존 `fold8-charger`의 EP-TA845 상품 식별키·등록 사진·AF3904190만 재사용했다. 공식 패키지의 1m 5A 케이블과 판매명의 1.8m 케이블 차이는 판매 페이지에서 확인할 질문으로 명시했다. 현재 가격·재고·정품·충전 성능을 보장하지 않으며 제휴 카드는 판단을 마친 뒤 한 번만 노출한다.
+
+자체 HTML/CSS 시각 자료3개와 비교표1개를 문단 가까이에 배치했다. `node scripts/test-editorial-content.cjs`, `npx tsc --noEmit`, `npm run build` 통과. 서버 렌더에서 H1 하나, 고유 title/canonical, Article/FAQ/Breadcrumb 구조화데이터, 고지와 정확 상품명, `/go/fold8-charger` 한 개 및 `sponsored nofollow`, 홈·허브·검색·sitemap 실제 연결과 robots 색인 가능 상태를 확인했다. 운영 배포·공개 렌더 검증은 후속 기록한다.

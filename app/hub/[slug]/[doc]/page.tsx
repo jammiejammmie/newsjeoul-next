@@ -120,7 +120,8 @@ export default async function HubDocPage(
   const placement = choices ? { slots: choices.slots ?? affiliateSlots.map(s => s.slot), context: choices.adContext ?? '선택한 조건에 맞춰 상품명·옵션·구성품을 확인하세요.' } : searchEntryPlacement(`/hub/${slug}/${document.slug}`)
 
   // This full buying guide presents product cards only after the selection and cost sections.
-  const deferredShopping = slug === 'humidifier' && document.slug === 'winter-type-cleaning-running-cost'
+  const deferredShopping = (slug === 'humidifier' && document.slug === 'winter-type-cleaning-running-cost')
+    || (slug === 'galaxy-z-fold8' && document.slug === '45w-charger-pps-cable')
   const { body: bodyBlocks, faq } = splitFaq(document.blocks)
 
   const schema = {
