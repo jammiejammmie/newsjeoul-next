@@ -1,5 +1,6 @@
 import HumidifierInlineVisual from './HumidifierInlineVisual'
 import CarbonMatInlineVisual from './CarbonMatInlineVisual'
+import GramDualMonitorInlineVisual from './GramDualMonitorInlineVisual'
 import BudsIphoneInlineVisual from './BudsIphoneInlineVisual'
 import FlipWidgetInlineVisual from './FlipWidgetInlineVisual'
 import SpenInlineVisual from './SpenInlineVisual'
@@ -14,6 +15,7 @@ const figures: Record<number, {src:string;alt:string;caption:string}> = {
 }
 export default function ArticleInlineVisual({path,index}:{path:string;index:number}) {
  if(path==='/hub/carbon-heated-mat/buying-temperature-wash-cost')return <CarbonMatInlineVisual index={index}/>
+ if(path==='/hub/lg-gram-2026/dual-monitor-usb-c-hub')return <GramDualMonitorInlineVisual index={index}/>
  if(path==='/hub/humidifier/winter-type-cleaning-running-cost')return <HumidifierInlineVisual index={index}/>
  if(path==='/hub/galaxy-buds4/with-iphone')return <BudsIphoneInlineVisual index={index}/>
  if(['/hub/galaxy-buds4/single-bud-replacement','/hub/galaxy-buds4/lost-charging-case-replacement'].includes(path))return <BudsRecoveryInlineVisual path={path} index={index}/>

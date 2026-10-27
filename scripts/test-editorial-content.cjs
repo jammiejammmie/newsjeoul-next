@@ -22,7 +22,9 @@ const humidifier = {}
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/hubs/editorial/humidifier-20261027.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText,{exports:humidifier})
 const carbonMat = {}
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/hubs/editorial/carbon-mat-20261027.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText,{exports:carbonMat})
-vm.runInNewContext(compiled, { exports: moduleExports, require: id => id.includes('carbon-mat-') ? carbonMat : id.includes('humidifier-') ? humidifier : id.includes('flip-widget') ? flip : id.includes('buds-recovery') ? recovery : id.includes('energy-voucher') ? energy : id.includes('hot-electronics') ? hot : id.includes('refresh-') ? refresh : practical })
+const gramDisplay = {}
+vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/hubs/editorial/lg-gram-display-20261027.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText,{exports:gramDisplay})
+vm.runInNewContext(compiled, { exports: moduleExports, require: id => id.includes('lg-gram-display') ? gramDisplay : id.includes('carbon-mat-') ? carbonMat : id.includes('humidifier-') ? humidifier : id.includes('flip-widget') ? flip : id.includes('buds-recovery') ? recovery : id.includes('energy-voucher') ? energy : id.includes('hot-electronics') ? hot : id.includes('refresh-') ? refresh : practical })
 const { EDITORIAL_DOCUMENTS, mergeEditorialDocuments, mergeEditorialSitemap, editorialSlots } = moduleExports
 const total = Object.values(EDITORIAL_DOCUMENTS).flat().length
 const budsTotal = EDITORIAL_DOCUMENTS['galaxy-buds4'].length
@@ -48,6 +50,11 @@ const carbonDoc = EDITORIAL_DOCUMENTS['carbon-heated-mat'][0]
 assert.equal(carbonDoc.affiliateSlotIds.length, 0)
 assert.ok(carbonDoc.sourceNote.includes('newsId=156734593'))
 assert.ok(carbonDoc.blocks.some(block => block.content.includes('39~64℃')))
+const gramDisplayDoc = EDITORIAL_DOCUMENTS['lg-gram-2026'].find(item => item.slug === 'dual-monitor-usb-c-hub')
+assert.ok(gramDisplayDoc)
+assert.deepEqual(Array.from(gramDisplayDoc.affiliateSlotIds), ['gram26-hub'])
+assert.ok(gramDisplayDoc.sourceNote.includes('16z95u-gs5wk'))
+assert.ok(gramDisplayDoc.blocks.some(block => block.content.includes('Thunderbolt 4')))
 console.log('PASS: offline availability, DB override, unrelated documents, affiliate scope, sitemap dedup/date')
 const searchExports = {}
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/hubs/editorial/search.ts', 'utf8'), {compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText, {exports:searchExports, require:()=>moduleExports})
@@ -60,4 +67,5 @@ assert.equal(find('충전', 0).length, 0)
 assert.ok(find('아이폰 케이블').every(item => item.type === 'guide' && item.slug.startsWith('iphone-17-pro/')))
 assert.equal(find('ＵＳＢ').length, find('usb').length)
 assert.ok(find('탄소매트 전기료').some(item => item.slug === 'carbon-heated-mat/buying-temperature-wash-cost'))
+assert.ok(find('그램 모니터 2대').some(item => item.slug === 'lg-gram-2026/dual-monitor-usb-c-hub'))
 console.log('PASS: guide search, Korean multi-word query, Unicode normalization, empty query and limits')
