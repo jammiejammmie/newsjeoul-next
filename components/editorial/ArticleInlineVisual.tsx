@@ -2,6 +2,7 @@ import HumidifierInlineVisual from './HumidifierInlineVisual'
 import CarbonMatInlineVisual from './CarbonMatInlineVisual'
 import GramDualMonitorInlineVisual from './GramDualMonitorInlineVisual'
 import Fold8ChargingInlineVisual from './Fold8ChargingInlineVisual'
+import Flip8FilmInlineVisual from './Flip8FilmInlineVisual'
 import BudsIphoneInlineVisual from './BudsIphoneInlineVisual'
 import FlipWidgetInlineVisual from './FlipWidgetInlineVisual'
 import SpenInlineVisual from './SpenInlineVisual'
@@ -18,6 +19,7 @@ export default function ArticleInlineVisual({path,index}:{path:string;index:numb
  if(path==='/hub/carbon-heated-mat/buying-temperature-wash-cost')return <CarbonMatInlineVisual index={index}/>
  if(path==='/hub/lg-gram-2026/howto-d3qn0e')return <GramDualMonitorInlineVisual index={index}/>
  if(path==='/hub/galaxy-z-fold8/45w-charger-pps-cable')return <Fold8ChargingInlineVisual index={index}/>
+ if(path==='/hub/galaxy-z-flip8/screen-film-warning')return <Flip8FilmInlineVisual index={index}/>
  if(path==='/hub/humidifier/winter-type-cleaning-running-cost')return <HumidifierInlineVisual index={index}/>
  if(path==='/hub/galaxy-buds4/with-iphone')return <BudsIphoneInlineVisual index={index}/>
  if(['/hub/galaxy-buds4/single-bud-replacement','/hub/galaxy-buds4/lost-charging-case-replacement'].includes(path))return <BudsRecoveryInlineVisual path={path} index={index}/>

@@ -122,6 +122,7 @@ export default async function HubDocPage(
   // This full buying guide presents product cards only after the selection and cost sections.
   const deferredShopping = (slug === 'humidifier' && document.slug === 'winter-type-cleaning-running-cost')
     || (slug === 'galaxy-z-fold8' && document.slug === '45w-charger-pps-cable')
+    || (slug === 'galaxy-z-flip8' && document.slug === 'screen-film-warning')
   const { body: bodyBlocks, faq } = splitFaq(document.blocks)
 
   const schema = {

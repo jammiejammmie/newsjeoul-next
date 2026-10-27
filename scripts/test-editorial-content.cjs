@@ -26,7 +26,9 @@ const gramDisplay = {}
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/hubs/editorial/lg-gram-display-20261027.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText,{exports:gramDisplay})
 const fold8Charging = {}
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/hubs/editorial/fold8-charging-20261027.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText,{exports:fold8Charging})
-vm.runInNewContext(compiled, { exports: moduleExports, require: id => id.includes('fold8-charging') ? fold8Charging : id.includes('lg-gram-display') ? gramDisplay : id.includes('carbon-mat-') ? carbonMat : id.includes('humidifier-') ? humidifier : id.includes('flip-widget') ? flip : id.includes('buds-recovery') ? recovery : id.includes('energy-voucher') ? energy : id.includes('hot-electronics') ? hot : id.includes('refresh-') ? refresh : practical })
+const flip8Film = {}
+vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/hubs/editorial/flip8-film-20261027.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText,{exports:flip8Film})
+vm.runInNewContext(compiled, { exports: moduleExports, require: id => id.includes('flip8-film-') ? flip8Film : id.includes('fold8-charging') ? fold8Charging : id.includes('lg-gram-display') ? gramDisplay : id.includes('carbon-mat-') ? carbonMat : id.includes('humidifier-') ? humidifier : id.includes('flip-widget') ? flip : id.includes('buds-recovery') ? recovery : id.includes('energy-voucher') ? energy : id.includes('hot-electronics') ? hot : id.includes('refresh-') ? refresh : practical })
 const { EDITORIAL_DOCUMENTS, mergeEditorialDocuments, mergeEditorialSitemap, editorialSlots } = moduleExports
 const total = Object.values(EDITORIAL_DOCUMENTS).flat().length
 const budsTotal = EDITORIAL_DOCUMENTS['galaxy-buds4'].length
@@ -62,12 +64,17 @@ assert.ok(fold8ChargingDoc)
 assert.deepEqual(Array.from(fold8ChargingDoc.affiliateSlotIds), ['fold8-charger'])
 assert.ok(fold8ChargingDoc.sourceNote.includes('EP-TA845'))
 assert.ok(fold8ChargingDoc.blocks.some(block => block.content.includes('30분에 최대 63%')))
+const flip8FilmDoc = EDITORIAL_DOCUMENTS['galaxy-z-flip8'].find(item => item.slug === 'screen-film-warning')
+assert.ok(flip8FilmDoc)
+assert.deepEqual(Array.from(flip8FilmDoc.affiliateSlotIds), ['flip8-film'])
+assert.ok(flip8FilmDoc.sourceNote.includes('solution/688871'))
+assert.ok(flip8FilmDoc.blocks.some(block => block.content.includes('외부 커버 화면')))
 console.log('PASS: offline availability, DB override, unrelated documents, affiliate scope, sitemap dedup/date')
 const searchExports = {}
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/hubs/editorial/search.ts', 'utf8'), {compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText, {exports:searchExports, require:()=>moduleExports})
 const find = searchExports.searchEditorialDocuments
 assert.equal(find('   ').length, 0)
-assert.equal(find('액체').length, 1)
+assert.ok(find('액체').some(item => item.slug === 'iphone-17-pro/liquid-detected-before-buying-cable'))
 assert.equal(find('없는검색어').length, 0)
 assert.equal(find('충전', 1).length, 1)
 assert.equal(find('충전', 0).length, 0)
@@ -76,4 +83,5 @@ assert.equal(find('ＵＳＢ').length, find('usb').length)
 assert.ok(find('탄소매트 전기료').some(item => item.slug === 'carbon-heated-mat/buying-temperature-wash-cost'))
 assert.ok(find('그램 모니터 2대').some(item => item.slug === 'lg-gram-2026/howto-d3qn0e'))
 assert.ok(find('폴드8 45W 충전기').some(item => item.slug === 'galaxy-z-fold8/45w-charger-pps-cable'))
+assert.ok(find('플립8 내부 필름').some(item => item.slug === 'galaxy-z-flip8/screen-film-warning'))
 console.log('PASS: guide search, Korean multi-word query, Unicode normalization, empty query and limits')
