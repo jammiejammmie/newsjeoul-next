@@ -8,7 +8,7 @@ export const humidifier: HubConfig = {
  createdAt:'2026-10-27',updatedAtFallback:'2026-10-27T08:38:01+09:00',updateCountFallback:0,
  newsKeywords:['가습기'],newsExclude:['가습기살균제','피해자'],
  verdict:'물통 크기와 광고 살균 수치보다, 내 방에서 필요한 가습량과 매일 관리할 수 있는 구조를 먼저 고르세요.',
- evergreen:{howto:{label:'급수·세척',items:[]},troubleshoot:{label:'설치·물때·결로',items:[]},compare:{label:'방식 비교',items:[]},buying:{label:'겨울 구매 판단',items:[{title:'겨울 가습기 고르는 법: 가열식·기화식·초음파식, 전기료와 세척 비교',slug:'winter-type-cleaning-running-cost',badge:'표',updatedAt:'2026-10-27'}]}},
+ evergreen:{howto:{label:'급수·세척',items:[]},troubleshoot:{label:'설치·물때·결로',items:[{title:'가습기 켜면 공기청정기 빨간불, 필터부터 바꿔야 할까?',slug:'air-purifier-pm-spike',updatedAt:'2026-10-27'}]},compare:{label:'방식 비교',items:[]},buying:{label:'겨울 구매 판단',items:[{title:'겨울 가습기 고르는 법: 가열식·기화식·초음파식, 전기료와 세척 비교',slug:'winter-type-cleaning-running-cost',badge:'표',updatedAt:'2026-10-27'}]}},
  specsTitle:'구매할 때 비교할 항목',specs:[{label:'가습량',value:'시간당 mL와 사용할 공간'},{label:'물통',value:'용량과 분리·급수 방식'},{label:'관리',value:'물통·가습부·필터의 세척 범위'},{label:'유지비',value:'전력량·소모품 가격·교체 주기'}],
  faq:[{q:'큰 물통이면 더 넓은 공간에 쓸 수 있나요?',a:'물통 용량과 시간당 가습량은 다릅니다. 사용할 모드의 가습량과 면적을 확인하세요.'},{q:'가열식이면 청소가 필요 없나요?',a:'가열식도 세척·물때 관리가 필요합니다. 냉각 후 해당 모델의 안내를 따르세요.'}],
  timelineTitle:'자료 확인 이력',timeline:[{date:'2025-10-30',text:'한국소비자원 가습기 13개 품질비교 발표'},{date:'2026-10-27',text:'국내 제조사 자료 대조 및 겨울 구매 가이드 작성'}],

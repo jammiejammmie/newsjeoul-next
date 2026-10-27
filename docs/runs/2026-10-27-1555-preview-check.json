@@ -1,0 +1,46 @@
+{
+  "observedAt": "2026-10-27T15:55:37+09:00",
+  "master": "ec4c0a4ec6ec8ae128520daf4dd6b605b56f35ce",
+  "openPR": 58,
+  "headBefore": "1ccd56c3c197c5f4055ee4cbab3b06222787e77d",
+  "status": "ready",
+  "webPublic": false,
+  "intendedWebSlot": "2026-10-27T17:00:00+09:00",
+  "existingBlogReservation": {
+    "title": "겨울 가습기 고르는 법｜가열식·기화식·초음파식, 전기료와 세척 비교",
+    "date": "2026-10-27T17:00:00+09:00",
+    "count": 1,
+    "verified": "네이버 예약 목록 재확인; 임시저장0건"
+  },
+  "preview": {
+    "deploy": "6ae041382829b61fe6cf3108",
+    "status": "success",
+    "url": "https://deploy-preview-58--jazzy-truffle-7b8784.netlify.app/hub/humidifier/air-purifier-pm-spike",
+    "inspection": "H1·본문·FAQ·근거 링크·도식2개 렌더 확인. 중복 Reddit 원문과 독자에게 무관한 제휴 구현 사유 문장을 발견하여 보정."
+  },
+  "productionCheck": "운영 직접 URL에서 404 표시 확인. 아직 병합하지 않았고 조기 공개되지 않음.",
+  "blogPreparation": "도식2개의 내부 글자를 마루부리로 재제작하고 경로로 변환해 글꼴 누락 방지. 독립 원고 업데이트. 실제 신규 블로그 예약은 아님.",
+  "font": {
+    "official": "https://hangeul.naver.com/font",
+    "retrieval": "https://raw.githubusercontent.com/fonts-archive/MaruBuri/main/MaruBuri-Regular.ttf",
+    "license": "네이버 공식 글꼴 안내의 상업 사용 가능 조건 확인. 폰트 파일 자체는 저장소에 재배포하지 않고 설명도 글자에 사용."
+  },
+  "research": {
+    "candidate": "윈도우 블루투스 이어폰 마이크 활성화 시 음질 저하",
+    "duplicate": "기존 galaxy-buds4/pc-connect-mic 검색 의도와 겹침. 신규 수에 포함하지 않고 기존 URL 개선 후보로 보류.",
+    "official": "https://support.microsoft.com/ko-kr/windows/hardware/bluetooth/configuring-bluetooth-le-audio-quality-settings-on-windows-11",
+    "verified": "24H2 이상·제조사 드라이버·LE Audio 기기 등 조건이 함께 필요. 최신 버전 번호만으로 지원 단정 금지.",
+    "community": "https://www.reddit.com/r/Windows11/comments/1h4vg6v/windows_11_bluetooth_poor_audio_quality_updated/",
+    "communityUse": "색인된 핸즈프리 서비스 해제 팁은 마이크 기능 상실 가능성을 구분해야 함. 미검증 팁으로 조사만 하며 지금 원고에 삽입하지 않음.",
+    "reactionCount": null,
+    "fresh72h": "포털/뉴스·공식 Microsoft·Reddit 검색 확인. 최근72시간 신규 발표나 국내 급상승 수치 미확인; 오래된 글의 크롤링 날짜를 게시일로 쓰지 않음."
+  },
+  "daily": {
+    "publishedOriginalsConfirmed": 3,
+    "readyOriginals": 1,
+    "target": 5,
+    "met": false,
+    "reason": "5편 숫자를 위해 기존 검색 의도와 겹치는 PC 연결 글을 신규 생성하지 않음. 공개 간격 유지."
+  },
+  "validation": "타입·콘텐츠·production build 통과;375px/1440px 실제 로컬 렌더·이미지 로딩·홈/허브/검색/sitemap 연결 재검증. 운영 공개 미완료."
+}
