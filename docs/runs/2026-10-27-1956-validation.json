@@ -1,0 +1,40 @@
+{
+  "observedAt": "2026-10-27T20:02:00+09:00",
+  "pr": 60,
+  "contentHead": "9ccd0c8093e5c680b940db9f44fa905e4c3d3f7f",
+  "base": "6d8d96bd103bae951788f59367b51066fb4347dc",
+  "state": "ready",
+  "plannedAt": "2026-10-27T20:05:00+09:00",
+  "scheduled": false,
+  "preview": "https://deploy-preview-60--jazzy-truffle-7b8784.netlify.app/hub/humidifier/window-condensation-before-buying",
+  "validation": "콘텐츠/타입/build 재통과. 375/1440px 로컬 actual render와 홈/허브/검색/sitemap 연결 통과. 프리뷰 H1하나·고유title/canonical·도식2개·Article/FAQ/Breadcrumb·운영문구 제거 확인. 관련쿠팡슬롯 targetUrl 미확보로 제휴0.",
+  "integrity": "UTF8 2개와 PNG2개의 로컬 Gitblob SHA/원격tree 일치. PNG720x650/720x720 마루부리·흰바탕·파란 포인트. 육안 확인.",
+  "blog": {
+    "status": "ready-text-and-images",
+    "url": null,
+    "scheduled": false,
+    "session": "기존 공개글에서 내메뉴·수정·글쓰기 확인. 로그인 실패 아님.",
+    "blocker": "브라우저 공개/예약 최종단계 action-time 확인은 비대면 실행에서 받을 수 없음. 이번 원고의 네이티브 편집기 서식/이미지 삽입/예약 미실시."
+  },
+  "searchAdvisor": "기존 탭에 로그인 버튼 표시. 새 지표 미조회. 인증 재요청 없음.",
+  "research": {
+    "checkedAt": "2026-10-27T19:57:00+09:00",
+    "official": [
+      "https://www.epa.gov/indoor-air-quality-iaq/use-and-care-home-humidifiers",
+      "https://www.mi.com/kr/product/xiaomi-smart-evaporative-humidifier/"
+    ],
+    "portalQuery": "가습기 신제품 2026 10 27 / 최근3일",
+    "reddit": [
+      {
+        "url": "https://www.reddit.com/r/BuyItForLife/comments/1thw0ud/best_humidifier_in_2026/",
+        "relativeDate": "5개월 전",
+        "upvotes": null,
+        "comments": null,
+        "decision": "세척/관리질문 재확인,최근72시간 관심 증가 아님. 신규발행 중복 안 함"
+      }
+    ],
+    "decision": "이전 조사 뒤 확정된 새제품변화를 확인하지 못함. 급상승 주장 없음."
+  },
+  "channels": "Instagram/Threads/Sora중단, 클립 별개. 유료API/추가결제/새자동화 없음.",
+  "deployment": "20:05 이후에만 병합. 이 기록은 운영공개 검증 이전."
+}
