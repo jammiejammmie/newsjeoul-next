@@ -1,0 +1,50 @@
+{
+  "observedAt": "2026-10-27T20:08:33+09:00",
+  "decision": "DEC-036",
+  "status": "published",
+  "title": "가습기 켜면 창문 결로, 새 가습기·제습기부터 사야 할까?",
+  "webUrl": "https://newsjeoul.co.kr/hub/humidifier/window-condensation-before-buying",
+  "actualPublicObservedAt": "2026-10-27T20:06:00+09:00",
+  "pr": 60,
+  "head": "10c82b3ffb951e501c3cc4875c33985069d26217",
+  "master": "3fbc496b75f42e550ce4016d5ba7a0447bda1966",
+  "previewDeploy": "6ae084d7e9d20c126135b410",
+  "productionDeploy": "6ae08564f444111809e42c20",
+  "netlify": "Published master@3fbc496, 20:05 시작,38초 성공. 운영 본문 직접 확인.",
+  "verification": {
+    "body": "제목·앞부분 직접답변·모델별 조건·공식출처·미검증 Reddit 구분·도식2개·FAQ 확인. H1하나·고유title/meta/canonical·noindex없음·Article/FAQ/Breadcrumb·넘침없음.",
+    "connections": "운영홈 새원고1개·가습기허브·창문결로 검색결과 실제 연결 확인. 운영sitemap HTTP200 해당URL1건, lastmod2026-10-27T19:03:47+09:00. XML 브라우저 프레임 timeout 뒤 일반 HTTP로 검증.",
+    "affiliate": "정확한 관련 쿠팡 targetUrl/상품사진 미확보, 링크0. 광고 없으므로 상단고지 없음. 임의링크·무관대체·자기클릭 없음.",
+    "local": "콘텐츠/타입/build 통과,375/1440px actual render·도식·내부연결 검증. 운영브라우저375px는 미실시.",
+    "assets": "마루부리 PNG720x650/720x720 로컬SHA=원격blobSHA 및 tree일치. public/images/editorial/condensation-blog-check.png, condensation-blog-cost.png. 네이버삽입전."
+  },
+  "blog": {
+    "status": "ready-text-and-images",
+    "url": null,
+    "scheduled": false,
+    "published": false,
+    "reason": "기존 세션은 내메뉴/수정/글쓰기 노출로 유지 확인. 네이티브 서식·이미지삽입·예약 미실시. Computer Use action-time 공개/예약 확인을 비대면에서 받을 수 없어 완료로 보고 안 함. 로그인 실패 아님."
+  },
+  "daily": {
+    "confirmedNewOriginalsPublished": 5,
+    "target": 5,
+    "webGoalMet": true,
+    "blogGoalMet": false,
+    "counting": "가습기방식·탄소매트·폴드8충전기·가습기공기청정기·가습기결로. 기존URL개선/기록PR/동일원고채널중복 제외."
+  },
+  "spacing": {
+    "previousPublicObservedAt": "2026-10-27T17:02:29+09:00",
+    "currentPublicObservedAt": "2026-10-27T20:06:00+09:00",
+    "minimumHours": 3,
+    "nextNewWebEarliestAt": "2026-10-27T23:06:00+09:00",
+    "note": "다음 기본편성은 다음날08시. 추가양질원고라도 같은채널3시간 간격 유지. 예약시스템 구현 안 함."
+  },
+  "metrics": {
+    "searchAdvisor": null,
+    "affiliateClicks": null,
+    "orders": null,
+    "revenue": null,
+    "note": "SearchAdvisor 로그인버튼확인. 미조회/미집계를0아님."
+  },
+  "limits": "유료API/추가결제/새자동화 없음. Instagram/Threads/Sora 중단 유지."
+}
