@@ -14,7 +14,7 @@ export const humidifier: HubConfig = {
  timelineTitle:'자료 확인 이력',timeline:[{date:'2025-10-30',text:'한국소비자원 가습기 13개 품질비교 발표'},{date:'2026-10-27',text:'국내 제조사 자료 대조 및 겨울 구매 가이드 작성'}],
  affiliate:{allowed:true,slots:[
   { slot: 'humidifier-xiaomi', label: 'Xiaomi 스마트 기화식 가습기 CJSJSQ02XYKR 본체', network: 'coupang', kind: 'device' },
-  { slot: 'humidifier-cuckoo', label: '쿠쿠 CH-GS301FW 초음파식 가습기 본체', network: 'coupang', kind: 'device' },
+  { slot: 'humidifier-cuckoo', label: '쿠쿠 CH-GS301FW 초음파식 가습기 본체', network: 'coupang', kind: 'device', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=8513907870&itemId=24646323744&vendorItemId=91657024082&traceid=V0-153-544fd2b15eef5e8e&requestid=20261029070833889287601654&token=31850C%7CGM&pt=0&slot=4' },
  ]},
  editor:{name:'뉴스저울 편집부',beat:'생활가전',statement:'한국소비자원의 비교시험과 국내 제조사 제품·관리 안내를 대조합니다.'},
  related:[{title:'로봇청소기',slug:'robot-vacuum-2026'},{title:'에너지바우처',slug:'energy-voucher'}],
