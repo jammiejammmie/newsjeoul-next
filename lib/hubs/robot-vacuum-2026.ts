@@ -132,7 +132,7 @@ export const robotVacuum2026: HubConfig = {
     slots: [
       { slot: 'rv26-roborock', label: '로보락 S10 MaxV Slim', network: 'coupang', kind: 'device', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=9360875400&itemId=27775039726&vendorItemId=94735440608&traceid=V0-153-0e576ee32b6beae5&requestid=20261013090633210123081959&token=31850C%7CMIXED&pt=0&slot=1' },
       { slot: 'rv26-dreame', label: '드리미 매트릭스10 울트라', network: 'coupang', kind: 'device', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=9765446325&itemId=29227517942&vendorItemId=96117162391&traceid=V0-153-ab7a9f6be39f7a53&requestid=20261013090633840135792007&token=31850C%7CGM&pt=0&slot=4' },
-      { slot: 'rv26-parts', label: '로봇청소기 소모품', network: 'coupang', kind: 'accessory', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=8793343491&itemId=25573445092&vendorItemId=92564527350&traceid=V0-153-28888bbed5dd0e1b&clickBeacon=e7e1ab30-ca65-11f1-9cbe-44a70469ddab%7E3&requestid=20261018050405537283474344&token=31850C%7CMIXED&pt=1&slot=1' },
+      { slot: 'rv26-parts', label: '로봇청소기 소모품', network: 'coupang', kind: 'accessory', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=9781909939&itemId=29285268041&vendorItemId=96204511716&traceid=V0-153-cd52e4ce559af646&requestid=20261030072430327122751316&token=31850C%7CGM&pt=0&slot=1' },
     ],
   },
 
