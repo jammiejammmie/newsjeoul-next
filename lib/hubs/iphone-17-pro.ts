@@ -159,7 +159,7 @@ export const iphone17Pro: HubConfig = {
 
   schema: {
     brand: 'Apple',
-    price: 1594800,
+    price: 1531650,
     currency: 'KRW',
   },
 }
