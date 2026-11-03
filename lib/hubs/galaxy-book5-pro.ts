@@ -118,7 +118,7 @@ export const galaxyBook5Pro: HubConfig = {
     slots: [
       { slot: 'book5-body', label: '갤럭시북5 프로', network: 'coupang', kind: 'device', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=8524610232&itemId=24680912476&vendorItemId=93725434663&traceid=V0-153-59873d5649e2e5c4&clickBeacon=a4d21380-c753-11f1-932c-41812ce5017c%7E3&requestid=20261014071548595135797528&token=31850C%7CMIXED&pt=1&slot=1' },
       { slot: 'book5-hub', label: 'USB-C 멀티허브', network: 'coupang', kind: 'accessory', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=6879524687&itemId=22600026482&vendorItemId=95095372271&traceid=V0-153-24cdd84ab31772d6&requestid=20261030072420012245340075&token=31850C%7CGM&pt=0&slot=1' },
-      { slot: 'book5-pouch', label: '노트북 파우치', network: 'coupang', kind: 'accessory', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=8700463499&itemId=25264874689&vendorItemId=92260713015&traceid=V0-153-136b42e21c46f041&clickBeacon=5d865d70-b6c7-11f1-82dd-e83de8cb92a9%7E3&requestid=20260923055120840289285469&token=31850C%7CMIXED&pt=1&slot=1' },
+      { slot: 'book5-pouch', label: '노트북 파우치', network: 'coupang', kind: 'accessory', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=6589286352&itemId=24901713774&vendorItemId=91908220501&traceid=V0-153-10f05df9ca1954a2&clickBeacon=7a797680-d71d-11f1-b291-26bd6fffe0ef%7E3&requestid=20261103092823288154494089&token=31850C%7CMIXED&pt=1&slot=1' },
     ],
   },
 
