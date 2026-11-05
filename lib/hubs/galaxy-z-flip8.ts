@@ -135,9 +135,9 @@ export const galaxyZFlip8: HubConfig = {
   affiliate: {
     allowed: true,
     slots: [
-      { slot: 'flip8-body', label: '갤럭시 Z 플립8 자급제', network: 'coupang', kind: 'device', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=9782789623&itemId=29288128311&vendorItemId=96204463539&traceid=V0-153-fa0a958413d28399&requestid=20261024055647477037890460&token=31850C%7CMIXED&pt=0&slot=7' },
-      { slot: 'flip8-case', label: '플립8 전용 케이스', network: 'coupang', kind: 'accessory', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=9720601115&itemId=29089858655&vendorItemId=96015448613&traceid=V0-153-1789a25fad110b28&clickBeacon=ef0da100-d8a4-11f1-8305-2e34e0918212%7E3&requestid=20261105081032177161776633&token=31850C%7CMIXED&pt=1&slot=4' },
-      { slot: 'flip8-film', label: '플립8 보호필름', network: 'coupang', kind: 'accessory', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=8340018445&itemId=28871357398&vendorItemId=95822018554&traceid=V0-153-16b60936b4ae40c5&requestid=20261031065449429128792712&token=31850C%7CGM&pt=0&slot=5' },
+      { slot: 'flip8-body', label: '갤럭시 Z 플립8 자급제', network: 'coupang', kind: 'device', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=9640170465&itemId=28803753683&vendorItemId=96214420567&traceid=V0-153-4c2c221c4459f682&requestid=20261106081410783265561378&token=31850C%7CMIXED&pt=0&slot=7' },
+      { slot: 'flip8-case', label: '플립8 전용 케이스', network: 'coupang', kind: 'accessory', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=9719717107&itemId=29086672048&vendorItemId=96018582097&traceid=V0-153-4ebc22554f09f438&requestid=20261106081411525234173979&token=31850C%7CGM&pt=0&slot=5' },
+      { slot: 'flip8-film', label: '플립8 보호필름', network: 'coupang', kind: 'accessory', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=8763687766&itemId=28730151645&vendorItemId=95670276176&traceid=V0-153-35ee0177a5161e04&clickBeacon=9cc54540-d96e-11f1-a975-bf16ce8e5385%7E3&requestid=20261106081412375061906889&token=31850C%7CMIXED&pt=1&slot=3' },
     ],
   },
 
@@ -159,7 +159,7 @@ export const galaxyZFlip8: HubConfig = {
 
   schema: {
     brand: 'Samsung',
-    price: 1380000,
+    price: 1431000,
     currency: 'KRW',
     releaseDate: '2026-08-07',
   },
