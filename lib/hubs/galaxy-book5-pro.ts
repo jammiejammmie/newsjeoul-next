@@ -139,7 +139,7 @@ export const galaxyBook5Pro: HubConfig = {
 
   schema: {
     brand: 'Samsung',
-    price: 2398000,
+    price: 2598000,
     currency: 'KRW',
   },
 }

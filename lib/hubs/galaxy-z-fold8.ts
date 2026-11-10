@@ -190,9 +190,9 @@ export const galaxyZFold8: HubConfig = {
     allowed: true,
     slots: [
       { slot: 'fold8-body', label: '갤럭시 Z 폴드8 자급제', network: 'coupang', kind: 'device', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=9640170508&itemId=28803754028&vendorItemId=95739034494&traceid=V0-153-cc91bad335e9984e&requestid=20261011060703658119627464&token=31850C%7CGM&pt=0&slot=1' },
-      { slot: 'fold8-case', label: '폴드8 힌지보호 케이스', network: 'coupang', kind: 'accessory', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=9785919115&itemId=29334219253&vendorItemId=96214694873&traceid=V0-153-dda67badd5f1be52&requestid=20261109063913263282230251&token=31850C%7CGM&pt=0&slot=1' },
+      { slot: 'fold8-case', label: '폴드8 힌지보호 케이스', network: 'coupang', kind: 'accessory', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=9771002806&itemId=29246759734&vendorItemId=96165019840&traceid=V0-153-e591439e3bf4440a&requestid=20261111074750722113771769&token=31850C%7CMIXED&pt=0&slot=10' },
       { slot: 'fold8-charger', label: '45W 고속 충전기', network: 'coupang', kind: 'accessory', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=8884967109&itemId=25935320044&vendorItemId=92918685930&traceid=V0-153-20eeb80ffde63466&requestid=20261107074054494069873314&token=31850C%7CGM&pt=0&slot=1' },
-      { slot: 'fold8-film', label: '폴드8 보호필름', network: 'coupang', kind: 'accessory', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=9808750073&itemId=29374392557&vendorItemId=96286384346&traceid=V0-153-7bd0e5dfbf069273&requestid=20261110100851275041566019&token=31850C%7CGM&pt=0&slot=3' },
+      { slot: 'fold8-film', label: '폴드8 보호필름', network: 'coupang', kind: 'accessory', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=9693277593&itemId=28992134092&vendorItemId=95970970319&traceid=V0-153-17f918170fe37008&clickBeacon=c3063320-dd58-11f1-9bf1-c936b2f23ff4%7E3&requestid=20261111074752268015398032&token=31850C%7CMIXED&pt=1&slot=5' },
     ],
   },
 
@@ -219,7 +219,7 @@ export const galaxyZFold8: HubConfig = {
 
   schema: {
     brand: 'Samsung',
-    price: 2073000,
+    price: 2023000,
     currency: 'KRW',
     releaseDate: '2026-08-07',
   },
