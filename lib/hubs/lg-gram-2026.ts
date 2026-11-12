@@ -146,7 +146,7 @@ export const lgGram2026: HubConfig = {
 
   schema: {
     brand: 'LG',
-    price: 2933000,
+    price: 3011000,
     currency: 'KRW',
   },
 }
