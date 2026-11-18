@@ -124,9 +124,9 @@ export const lgGram2026: HubConfig = {
   affiliate: {
     allowed: true,
     slots: [
-      { slot: 'gram26-body', label: 'LG 그램 2026', network: 'coupang', kind: 'device', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=9286800365&itemId=29193045794&vendorItemId=96113802949&traceid=V0-153-2925a384fe708444&requestid=20261118092855416276814775&token=31850C%7CMIXED&pt=0&slot=10' },
-      { slot: 'gram26-hub', label: 'USB-C 멀티허브', network: 'coupang', kind: 'accessory', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=9648099447&itemId=28834928626&vendorItemId=95769494562&traceid=V0-153-f0cb092da874a2a8&requestid=20261111074801650213997392&token=31850C%7CGM&pt=0&slot=4' },
-      { slot: 'gram26-skin', label: '그램 키스킨', network: 'coupang', kind: 'accessory', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=9640784546&itemId=28806218363&vendorItemId=95741394303&traceid=V0-153-966a38bcb4685ffc&requestid=20261109063925192050095708&token=31850C%7CGM&pt=0&slot=1' },
+      { slot: 'gram26-body', label: 'LG 그램 2026', network: 'coupang', kind: 'device', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=9286800681&itemId=27500556765&vendorItemId=95659543987&traceid=V0-153-30ea8e65837bffba&requestid=20261119085140417183929636&token=31850C%7CMIXED&tcsa-1&pt=1&slot=8' },
+      { slot: 'gram26-hub', label: 'USB-C 멀티허브', network: 'coupang', kind: 'accessory', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=8717769363&itemId=25321005277&vendorItemId=82386732554&traceid=V0-153-95e924198631f388&clickBeacon=009280b0-e3ab-11f1-bd38-29e6b3b24aa9%7E3&requestid=20261119085141253287633842&token=31850C%7CMIXED&pt=1&slot=1' },
+      { slot: 'gram26-skin', label: '그램 키스킨', network: 'coupang', kind: 'accessory', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=9338585641&itemId=27671067576&vendorItemId=94633223774&traceid=V0-153-2f490e9e2844347b&clickBeacon=01139790-e3ab-11f1-9367-c0be89476ca7%7E3&requestid=20261119085142152180611570&token=31850C%7CMIXED&pt=1&slot=1' },
     ],
   },
 
@@ -146,7 +146,7 @@ export const lgGram2026: HubConfig = {
 
   schema: {
     brand: 'LG',
-    price: 3099000,
+    price: 2423500,
     currency: 'KRW',
   },
 }
