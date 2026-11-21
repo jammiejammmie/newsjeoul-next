@@ -125,7 +125,7 @@ export const lgGram2026: HubConfig = {
     allowed: true,
     slots: [
       { slot: 'gram26-body', label: 'LG 그램 2026', network: 'coupang', kind: 'device', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=9832964466&itemId=29452298442&vendorItemId=96361473531&traceid=V0-153-ef64183e0d773a7f&requestid=20261121083933366257022763&token=31850C%7CMIXED&pt=0&slot=9' },
-      { slot: 'gram26-hub', label: 'USB-C 멀티허브', network: 'coupang', kind: 'accessory', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=9407790628&itemId=27950411029&vendorItemId=94908617615&traceid=V0-153-77172197baf2858a&clickBeacon=8f1c3e30-e477-11f1-9a45-d3c8fe6f1177%7E3&requestid=20261120091557777261082519&token=31850C%7CMIXED&pt=1&slot=1' },
+      { slot: 'gram26-hub', label: 'USB-C 멀티허브', network: 'coupang', kind: 'accessory', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=8717769363&itemId=25321005277&vendorItemId=82386732554&traceid=V0-153-95e924198631f388&clickBeacon=2764a570-e5fd-11f1-b858-aeafd74be44b%7E3&requestid=20261122074447501279950221&token=31850C%7CMIXED&pt=1&slot=1' },
       { slot: 'gram26-skin', label: '그램 키스킨', network: 'coupang', kind: 'accessory', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=9344167375&itemId=28068110542&vendorItemId=95024759947&traceid=V0-153-0e260253e23d69f2&clickBeacon=8f995d70-e477-11f1-ab2a-8e964070b966%7E3&requestid=20261120091558597102514412&token=31850C%7CMIXED&pt=1&slot=1' },
     ],
   },
