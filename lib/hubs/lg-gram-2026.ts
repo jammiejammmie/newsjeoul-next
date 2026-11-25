@@ -124,8 +124,8 @@ export const lgGram2026: HubConfig = {
   affiliate: {
     allowed: true,
     slots: [
-      { slot: 'gram26-body', label: 'LG 그램 2026', network: 'coupang', kind: 'device', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=9710524953&itemId=27745291618&vendorItemId=95903185265&traceid=V0-153-5f7f809a1be3d8d1&requestid=20261124124634745243440057&token=31850C%7CGM&pt=0&slot=8' },
-      { slot: 'gram26-hub', label: 'USB-C 멀티허브', network: 'coupang', kind: 'accessory', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=8717769363&itemId=25321005277&vendorItemId=82386732554&traceid=V0-153-95e924198631f388&clickBeacon=a57a55a0-e7b9-11f1-81aa-853416022f8c%7E3&requestid=20261124124635568324674897&token=31850C%7CMIXED&pt=1&slot=1' },
+      { slot: 'gram26-body', label: 'LG 그램 2026', network: 'coupang', kind: 'device', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=9795301760&itemId=29329058759&vendorItemId=96243265782&traceid=V0-153-b8f4f37a458782df&clickBeacon=f8297ba0-e872-11f1-bd1d-4d569fe33d0a%7E3&requestid=20261125105311079019557099&token=31850C%7CMIXED&pt=1&slot=1' },
+      { slot: 'gram26-hub', label: 'USB-C 멀티허브', network: 'coupang', kind: 'accessory', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=8639556920&itemId=25071327985&vendorItemId=92075418469&traceid=V0-153-1bafb7bbedc10b1c&clickBeacon=f8964730-e872-11f1-91cd-22e95a6c747c%7E3&requestid=20261125105311906165882234&token=31850C%7CMIXED&pt=1&slot=1' },
       { slot: 'gram26-skin', label: '그램 키스킨', network: 'coupang', kind: 'accessory', targetUrl: 'https://link.coupang.com/re/AFFSDP?lptag=AF3904190&pageKey=9338585641&itemId=27671067576&vendorItemId=94633223774&traceid=V0-153-2f490e9e2844347b&clickBeacon=15dd4140-e6ca-11f1-aca7-a11e3434660b%7E3&requestid=20261123081144918156151947&token=31850C%7CMIXED&pt=1&slot=1' },
     ],
   },
@@ -146,7 +146,7 @@ export const lgGram2026: HubConfig = {
 
   schema: {
     brand: 'LG',
-    price: 2600000,
+    price: 2687000,
     currency: 'KRW',
   },
 }
